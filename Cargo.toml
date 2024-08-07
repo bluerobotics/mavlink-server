@@ -1,0 +1,27 @@
+[package]
+name = "mavlink-router-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mavlink = { version = "0.13.1", default-features = false, features = ["std"]}
+tokio = { version = "1.39", features = ["full"] }
+anyhow = "1"
+serde = "1"
+clap = { version = "4.5", features = ["derive"] }
+lazy_static = "1.5.0"
+shellexpand = "3.1"
+chrono = "0.4"
+url = { version = "2.5.0", features = ["serde"] }
+ctrlc = "3.4"
+
+tracing = { version = "0.1.40", features = ["log", "async-await"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing-log = "0.2.0"
+# This is a custom revision adding file name suffix on top of tracing-appender-0.2.2" "0.2.2", but compatible with the current tracing version.
+# Reference: https://github.com/tokio-rs/tracing/issues/2441
+tracing-appender = { git = "https://github.com/joaoantoniocardoso/tracing", branch = "tracing-appender-0.2.2-with-filename-suffix" }
+
+
+[build-dependencies]
+vergen-gix = { version = "1.0.0-beta.2", default-features = false, features = ["build", "cargo"] }
