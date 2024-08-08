@@ -1,12 +1,11 @@
 mod cli;
+mod drivers;
 mod hub;
 mod logger;
-mod sinks;
-mod sources;
+
+use std::sync::Arc;
 
 use anyhow::*;
-use sinks::Sink;
-use sources::Source;
 use tracing::*;
 
 #[tokio::main(flavor = "multi_thread")]
@@ -18,21 +17,15 @@ async fn main() -> Result<()> {
 
     let hub = hub::Hub::new(100).await;
 
-    let hub_receiver = hub.get_receiver();
-    let sink = Sink::new(sinks::SinkInfo::FakeSink, hub_receiver);
-    hub.add_sink(sink).await?;
-
-    let hub_sender = hub.get_sender();
-    let source = Source::new(sources::SourceInfo::FakeSource, hub_sender);
-    hub.add_source(source).await?;
-
-    // TODO: Implement a parsing for the endpoints
-    let endpoints = cli::mavlink_connections();
-    for endpoint in endpoints {
-        //
-    }
+    hub.add_driver(Arc::new(drivers::FakeSink {})).await?;
+    hub.add_driver(Arc::new(drivers::FakeSource {})).await?;
 
     wait_ctrlc();
+
+    for (id, driver_info) in hub.drivers().await {
+        debug!("Removing driver id {id:?} ({driver_info:?})");
+        hub.remove_driver(&id).await?;
+    }
 
     Ok(())
 }
