@@ -17,8 +17,9 @@ async fn main() -> Result<()> {
 
     let hub = hub::Hub::new(100).await;
 
-    hub.add_driver(Arc::new(drivers::FakeSink {})).await?;
-    hub.add_driver(Arc::new(drivers::FakeSource {})).await?;
+    hub.add_driver(Arc::new(drivers::fake::FakeSink {})).await?;
+    hub.add_driver(Arc::new(drivers::fake::FakeSource {}))
+        .await?;
 
     wait_ctrlc();
 
