@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-mavlink = { version = "0.13.1", default-features = false, features = ["std"]}
+mavlink = { version = "0.13.1", default-features = false, features = ["embedded"]}
 tokio = { version = "1.39", features = ["full"] }
 anyhow = "1"
 serde = "1"
