@@ -24,7 +24,7 @@ async fn main() -> Result<()> {
 
     for (id, driver_info) in hub.drivers().await {
         debug!("Removing driver id {id:?} ({driver_info:?})");
-        hub.remove_driver(&id).await?;
+        hub.remove_driver(id).await?;
     }
 
     Ok(())

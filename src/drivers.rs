@@ -13,6 +13,7 @@ pub trait Driver: Send + Sync {
 pub struct DriverInfo {
     name: String,
 }
+
 pub struct FakeSink;
 pub struct FakeSource;
 
