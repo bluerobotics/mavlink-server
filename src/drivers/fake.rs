@@ -1,22 +1,25 @@
 use anyhow::Result;
-use mavlink::MAVLinkV2MessageRaw;
+use mavlink::{ardupilotmega::MavMessage, read_v2_raw_message_async};
 use tokio::sync::broadcast;
 use tracing::*;
 
-use super::{Driver, DriverInfo};
+use crate::{
+    drivers::{Driver, DriverInfo},
+    protocol::Protocol,
+};
 
 pub struct FakeSink;
-pub struct FakeSource;
+pub struct FakeSource {
+    pub period: std::time::Duration,
+}
 
 #[async_trait::async_trait]
 impl Driver for FakeSink {
-    async fn run(&self, hub_sender: broadcast::Sender<MAVLinkV2MessageRaw>) -> Result<()> {
+    async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()> {
         let mut hub_receiver = hub_sender.subscribe();
 
         while let Ok(message) = hub_receiver.recv().await {
-            // TODO: Filter
-
-            debug!("Message received: {message:?}")
+            trace!("Message received: {message:?}")
         }
 
         Ok(())
@@ -31,15 +34,44 @@ impl Driver for FakeSink {
 
 #[async_trait::async_trait]
 impl Driver for FakeSource {
-    async fn run(&self, hub_sender: broadcast::Sender<MAVLinkV2MessageRaw>) -> Result<()> {
+    async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()> {
+        let mut sequence = 0;
+
+        let mut buf: Vec<u8> = Vec::with_capacity(280);
+
         loop {
-            let message = MAVLinkV2MessageRaw::default();
+            let header = mavlink::MavHeader {
+                sequence,
+                system_id: 1,
+                component_id: 2,
+            };
+            let data = mavlink::common::MavMessage::HEARTBEAT(mavlink::common::HEARTBEAT_DATA {
+                custom_mode: 5,
+                mavtype: mavlink::common::MavType::MAV_TYPE_QUADROTOR,
+                autopilot: mavlink::common::MavAutopilot::MAV_AUTOPILOT_ARDUPILOTMEGA,
+                base_mode: mavlink::common::MavModeFlag::MAV_MODE_FLAG_MANUAL_INPUT_ENABLED
+                    | mavlink::common::MavModeFlag::MAV_MODE_FLAG_STABILIZE_ENABLED
+                    | mavlink::common::MavModeFlag::MAV_MODE_FLAG_GUIDED_ENABLED
+                    | mavlink::common::MavModeFlag::MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                system_status: mavlink::common::MavState::MAV_STATE_STANDBY,
+                mavlink_version: 3,
+            });
+            sequence = sequence.overflowing_add(1).0;
 
-            debug!("Fake message created: {message:?}");
+            buf.clear();
+            mavlink::write_v2_msg(&mut buf, header, &data).expect("Failed to write message");
 
-            hub_sender.send(message)?;
+            let message = read_v2_raw_message_async::<MavMessage, _>(&mut (&buf[..]))
+                .await
+                .unwrap();
 
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            trace!("Fake message created: {message:?}");
+
+            let message = Protocol::new("", message);
+
+            hub_sender.send(message).unwrap();
+
+            tokio::time::sleep(self.period).await;
         }
     }
 

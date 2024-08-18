@@ -1,13 +1,14 @@
 pub mod fake;
+pub mod tcp;
+pub mod udp;
 
+use crate::protocol::Protocol;
 use anyhow::Result;
-use mavlink::MAVLinkV2MessageRaw;
 use tokio::sync::broadcast;
-use tracing::*;
 
 #[async_trait::async_trait]
 pub trait Driver: Send + Sync {
-    async fn run(&self, hub_sender: broadcast::Sender<MAVLinkV2MessageRaw>) -> Result<()>;
+    async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()>;
     fn info(&self) -> DriverInfo;
 }
 
