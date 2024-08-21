@@ -1233,7 +1233,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mavlink-router-rs"
+name = "mavlink-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
