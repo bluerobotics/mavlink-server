@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
     logger::init();
 
     let hub = hub::Hub::new(
-        100,
+        10000,
         Arc::new(RwLock::new(
             mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_ONBOARD_COMPUTER as u8,
         )),
@@ -29,6 +29,13 @@ async fn main() -> Result<()> {
 
     // Endpoints creation
     {
+        for endpoint in cli::file_server_endpoints() {
+            debug!("Creating File Server to {endpoint:?}");
+            hub.add_driver(Arc::new(
+                drivers::file::server::FileServer::try_new(&endpoint).unwrap(),
+            ))
+            .await?;
+        }
         for endpoint in cli::tcp_client_endpoints() {
             debug!("Creating TCP Client to {endpoint:?}");
             hub.add_driver(Arc::new(drivers::tcp::client::TcpClient::new(&endpoint)))

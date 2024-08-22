@@ -55,14 +55,17 @@ fn endpoints_parser(endpoint: &str) -> Result<String, String> {
     let endpoint = endpoint.to_lowercase();
 
     let mut split = endpoint.split(':');
-    if split.clone().count() != 3 {
+    if split.clone().count() != 2 && split.clone().count() != 3 {
         return Err("Wrong endpoint format".to_string());
     }
 
     let kind = split.next().expect(
-        "Endpoint should start with one of the kinds: udps, udpc, udpb, tcps, tcpc, or serial",
+        "Endpoint should start with one of the kinds: file, udps, udpc, udpb, tcps, tcpc, or serial",
     );
-    if !matches!(kind, "udps" | "udpc" | "udpb" | "tcps" | "tcpc" | "serial") {
+    if !matches!(
+        kind,
+        "file" | "udps" | "udpc" | "udpb" | "tcps" | "tcpc" | "serial"
+    ) {
         return Err(format!("Unknown kind: {kind:?} for endpoint"));
     }
 
@@ -124,6 +127,11 @@ pub fn log_path() -> String {
 #[instrument(level = "debug")]
 pub fn tcp_client_endpoints() -> Vec<String> {
     get_endpoint_with_kind("tcpc")
+}
+
+#[instrument(level = "debug")]
+pub fn file_server_endpoints() -> Vec<String> {
+    get_endpoint_with_kind("file")
 }
 
 #[instrument(level = "debug")]
