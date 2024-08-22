@@ -1,4 +1,5 @@
 pub mod fake;
+pub mod file;
 pub mod tcp;
 pub mod udp;
 
