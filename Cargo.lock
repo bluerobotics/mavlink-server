@@ -1244,6 +1244,7 @@ dependencies = [
  "ctrlc",
  "lazy_static",
  "mavlink",
+ "regex",
  "serde",
  "shellexpand",
  "tokio",
