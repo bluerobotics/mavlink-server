@@ -15,9 +15,9 @@ pub struct UdpServer {
 
 impl UdpServer {
     #[instrument(level = "debug")]
-    pub fn new(local_addr: &str) -> Self {
+    pub fn new(local_addr: String) -> Self {
         Self {
-            local_addr: local_addr.to_string(),
+            local_addr,
             clients: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -120,7 +120,6 @@ impl UdpServer {
                 }
             }
         }
-        Ok(())
     }
 }
 
@@ -130,9 +129,8 @@ impl Driver for UdpServer {
     async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()> {
         let local_addr = &self.local_addr;
         let clients = self.clients.clone();
-
         loop {
-            let socket = match UdpSocket::bind(local_addr).await {
+            let socket = match UdpSocket::bind(&local_addr).await {
                 Ok(socket) => Arc::new(socket),
                 Err(error) => {
                     error!("Failed binding UdpServer to address {local_addr:?}: {error:?}");
