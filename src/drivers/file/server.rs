@@ -43,7 +43,7 @@ impl FileServer {
             };
 
             // Ensure that we have at least a single byte before checking for a valid mavlink message
-            if (reader.buffer().is_empty()) {
+            if reader.buffer().is_empty() {
                 info!("End of file reached");
                 break;
             }
@@ -51,7 +51,7 @@ impl FileServer {
             // Since the source is a tlog file that includes timestamps + raw mavlink messages.
             // We first need to be sure that the next byte is the start of a mavlink message,
             // otherwise the `read_v2_raw_message_async` will process valid timestamps as garbage.
-            if (reader.buffer()[0] != mavlink::MAV_STX_V2) {
+            if reader.buffer()[0] != mavlink::MAV_STX_V2 {
                 warn!("Invalid MAVLink start byte, skipping");
                 continue;
             }
@@ -83,7 +83,7 @@ impl Driver for FileServer {
     #[instrument(level = "debug", skip(self, hub_sender))]
     async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()> {
         let file = tokio::fs::File::open(self.path.clone()).await.unwrap();
-        let mut reader = tokio::io::BufReader::new(file);
+        let reader = tokio::io::BufReader::new(file);
 
         tokio::spawn(FileServer::handle_client(
             self.clone(),
