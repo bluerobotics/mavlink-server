@@ -4,7 +4,9 @@ use clap::Parser;
 use lazy_static::lazy_static;
 use tracing::*;
 
-#[derive(Parser, Debug)]
+use crate::drivers;
+
+#[derive(Parser)]
 #[command(
     version = env!("CARGO_PKG_VERSION"),
     author = env!("CARGO_PKG_AUTHORS"),
@@ -32,7 +34,7 @@ struct Args {
         value_delimiter = ' ',
         value_parser = endpoints_parser,
     )]
-    endpoints: Vec<String>,
+    endpoints: Vec<Arc<dyn drivers::Driver>>,
 
     /// Turns all log categories up to Debug, for more information check RUST_LOG env variable.
     #[arg(short, long)]
@@ -51,29 +53,10 @@ struct Args {
 }
 
 #[instrument(level = "debug")]
-fn endpoints_parser(endpoint: &str) -> Result<String, String> {
-    let endpoint = endpoint.to_lowercase();
-
-    let mut split = endpoint.split(':');
-    if split.clone().count() != 2 && split.clone().count() != 3 {
-        return Err("Wrong endpoint format".to_string());
-    }
-
-    let kind = split.next().expect(
-        "Endpoint should start with one of the kinds: file, udps, udpc, udpb, tcps, tcpc, or serial",
-    );
-    if !matches!(
-        kind,
-        "file" | "udps" | "udpc" | "udpb" | "tcps" | "tcpc" | "serial"
-    ) {
-        return Err(format!("Unknown kind: {kind:?} for endpoint"));
-    }
-
-    // Add your custom validation logic here if needed
-    Ok(endpoint)
+fn endpoints_parser(entry: &str) -> Result<Arc<dyn drivers::Driver>, String> {
+    drivers::create_driver_from_entry(entry)
 }
 
-#[derive(Debug)]
 struct Manager {
     clap_matches: Args,
 }
@@ -124,74 +107,39 @@ pub fn log_path() -> String {
         .to_string()
 }
 
-#[instrument(level = "debug")]
-pub fn tcp_client_endpoints() -> Vec<String> {
-    get_endpoint_with_kind("tcpc")
+pub fn endpoints() -> Vec<Arc<dyn drivers::Driver>> {
+    MANAGER.clap_matches.endpoints.clone()
 }
-
-#[instrument(level = "debug")]
-pub fn file_server_endpoints() -> Vec<String> {
-    get_endpoint_with_kind("file")
-}
-
-#[instrument(level = "debug")]
-pub fn tcp_server_endpoints() -> Vec<String> {
-    get_endpoint_with_kind("tcps")
-}
-
-#[instrument(level = "debug")]
-pub fn udp_client_endpoints() -> Vec<String> {
-    get_endpoint_with_kind("udpc")
-}
-
-#[instrument(level = "debug")]
-pub fn udp_server_endpoints() -> Vec<String> {
-    get_endpoint_with_kind("udps")
-}
-
-#[instrument(level = "debug")]
-pub fn udp_broadcast_endpoints() -> Vec<String> {
-    get_endpoint_with_kind("udpb")
-}
-
-#[instrument(level = "debug")]
-pub fn serial_endpoints() -> Vec<String> {
-    get_endpoint_with_kind("serial")
-}
-
-#[instrument(level = "debug")]
-fn get_endpoint_with_kind(kind: &str) -> Vec<String> {
-    let mut endpoints = vec![];
-
-    for endpoint in MANAGER.clap_matches.endpoints.clone() {
-        let mut s = endpoint.split(':');
-
-        let Some(this_kind) = s.next() else {
-            warn!("No kind for endpoint: {endpoint:?}");
-            continue;
-        };
-
-        if !this_kind.eq(kind) {
-            trace!("ignoring: {this_kind:?}");
-            continue;
-        }
-
-        endpoints.push(s.clone().collect::<Vec<&str>>().join(":"));
-    }
-
-    endpoints
-}
-
-// Return the command line used to start this application
 
 #[instrument(level = "debug")]
 pub fn command_line_string() -> String {
     std::env::args().collect::<Vec<String>>().join(" ")
 }
 
-// Return a clone of current Args struct
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[instrument(level = "debug")]
-pub fn command_line() -> String {
-    format!("{:#?}", MANAGER.clap_matches)
+    #[test]
+    fn test_endpoints() {
+        let endpoints = vec![
+            "serial:/dev/ttyS0:9600",
+            "serial:COM1:115200",
+            "tcpc:10.0.0.1:4000",
+            //"tcpc:localhost:7000",
+            "tcpc:127.0.0.1:7000",
+            "tcps:0.0.0.0:5000",
+            "tcps:192.168.1.10:6000",
+            "udpb:192.168.0.255:3000",
+            "udpb:255.255.255.255:9999",
+            "udpc:127.0.0.1:1234",
+            "udpc:192.168.1.100:8080",
+            "udps:0.0.0.0:5000",
+            "udps:192.168.1.5:6789",
+        ];
+
+        for endpoint in endpoints {
+            dbg!(endpoints_parser(endpoint).is_ok());
+        }
+    }
 }

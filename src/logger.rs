@@ -69,5 +69,8 @@ pub fn init() {
         chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
     );
     debug!("Command line call: {}", cli::command_line_string());
-    debug!("Command line input struct call: {}", cli::command_line());
+    debug!(
+        "Command line input struct call: {}",
+        cli::command_line_string()
+    );
 }

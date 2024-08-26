@@ -7,7 +7,7 @@ use tokio::net::TcpStream;
 use tokio::sync::{broadcast, Mutex};
 use tracing::*;
 
-use crate::drivers::{Driver, DriverInfo};
+use crate::drivers::{Driver, DriverExt, DriverInfo};
 
 pub struct TcpClient {
     pub remote_addr: String,
@@ -66,5 +66,18 @@ impl Driver for TcpClient {
         DriverInfo {
             name: "TcpClient".to_string(),
         }
+    }
+}
+
+pub struct TcpClientExt;
+impl DriverExt for TcpClientExt {
+    fn valid_schemes(&self) -> Vec<String> {
+        vec!["tcpc".to_string(), "tcpclient".to_string()]
+    }
+
+    fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
+        let host = url.host_str().unwrap();
+        let port = url.port().unwrap();
+        return Some(Arc::new(TcpClient::new(&format!("{host}:{port}"))));
     }
 }

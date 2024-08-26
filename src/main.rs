@@ -27,53 +27,8 @@ async fn main() -> Result<()> {
     )
     .await;
 
-    // Endpoints creation
-    {
-        for endpoint in cli::file_server_endpoints() {
-            debug!("Creating File Server to {endpoint:?}");
-            hub.add_driver(Arc::new(
-                drivers::file::server::FileServer::try_new(&endpoint).unwrap(),
-            ))
-            .await?;
-        }
-        for endpoint in cli::tcp_client_endpoints() {
-            debug!("Creating TCP Client to {endpoint:?}");
-            hub.add_driver(Arc::new(drivers::tcp::client::TcpClient::new(&endpoint)))
-                .await?;
-        }
-        for endpoint in cli::tcp_server_endpoints() {
-            debug!("Creating TCP Server to {endpoint:?}");
-            hub.add_driver(Arc::new(drivers::tcp::server::TcpServer::new(&endpoint)))
-                .await?;
-        }
-        for endpoint in cli::udp_client_endpoints() {
-            debug!("Creating UDP Client to {endpoint:?}");
-            hub.add_driver(Arc::new(drivers::udp::client::UdpClient::new(&endpoint)))
-                .await?;
-        }
-        for endpoint in cli::udp_server_endpoints() {
-            debug!("Creating UDP Server to {endpoint:?}");
-            hub.add_driver(Arc::new(drivers::udp::server::UdpServer::new(&endpoint)))
-                .await?;
-        }
-        for endpoint in cli::udp_broadcast_endpoints() {
-            debug!("Creating UDP Broadcast to {endpoint:?}");
-
-            let mut s = endpoint.split(':');
-            let _ip = s.next().unwrap();
-            let port = s.next().unwrap();
-            let broadcast_ip = "255.255.255.255";
-
-            let endpoint = format!("{broadcast_ip}:{port}");
-
-            hub.add_driver(Arc::new(drivers::udp::client::UdpClient::new(&endpoint)))
-                .await?;
-            continue;
-        }
-        for _endpoint in cli::serial_endpoints() {
-            error!("Serial endpoint not implemented");
-            continue;
-        }
+    for driver in cli::endpoints() {
+        hub.add_driver(driver).await?;
     }
 
     wait_ctrlc().await;

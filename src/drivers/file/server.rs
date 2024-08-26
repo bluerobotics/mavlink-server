@@ -8,12 +8,19 @@ use tokio::io::AsyncReadExt;
 use tokio::sync::broadcast;
 use tracing::*;
 
-use crate::drivers::{Driver, DriverInfo};
+use crate::drivers::{Driver, DriverExt, DriverInfo};
 use crate::protocol::Protocol;
 
 #[derive(Clone, Debug)]
 pub struct FileServer {
     pub path: PathBuf,
+}
+
+impl FileServer {
+    #[instrument(level = "debug")]
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
 }
 
 impl FileServer {
@@ -99,5 +106,53 @@ impl Driver for FileServer {
         DriverInfo {
             name: "FileServer".to_string(),
         }
+    }
+}
+
+pub struct FileServerExt;
+impl DriverExt for FileServerExt {
+    fn valid_schemes(&self) -> Vec<String> {
+        vec![
+            "filesource".to_string(),
+            "fileserver".to_string(),
+            "files".to_string(),
+        ]
+    }
+
+    fn url_from_legacy(
+        &self,
+        legacy_entry: crate::drivers::DriverDescriptionLegacy,
+    ) -> Result<url::Url, String> {
+        let scheme = self.default_scheme();
+        let path = legacy_entry.arg1;
+        if let Err(error) = std::fs::metadata(&path) {
+            return Err(format!("Failed to get metadata for file: {error:?}"));
+        }
+        // Get absolute path of file
+        let path = match std::fs::canonicalize(&path) {
+            Ok(path) => path,
+            Err(error) => {
+                return Err(format!("Failed to get absolute path for file: {error:?}"));
+            }
+        };
+
+        let Some(path_string) = path.to_str() else {
+            return Err(format!("Failed to convert path to string: {path:?}"));
+        };
+
+        if let Some(arg2) = legacy_entry.arg2 {
+            warn!("Ignoring extra argument: {arg2:?}");
+        }
+
+        match url::Url::parse(&format!("{scheme}://{path_string}")) {
+            Ok(url) => Ok(url),
+            Err(error) => Err(format!("Failed to parse URL: {error:?}")),
+        }
+    }
+
+    fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
+        let host = url.host_str().unwrap();
+        let path = std::fs::canonicalize(&host).expect("Failed to get absolute path");
+        return Some(Arc::new(FileServer::new(path)));
     }
 }
