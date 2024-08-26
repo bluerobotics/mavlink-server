@@ -18,6 +18,7 @@ chrono = "0.4"
 url = { version = "2.5.2", features = ["serde"] }
 ctrlc = "3.4"
 byteorder = "1.5.0"
+regex = "1.10.6"
 
 tracing = { version = "0.1.40", features = ["log", "async-await"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
