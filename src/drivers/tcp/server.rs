@@ -7,7 +7,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, Mutex};
 use tracing::*;
 
-use crate::drivers::{Driver, DriverInfo};
+use crate::drivers::{Driver, DriverExt, DriverInfo};
 
 pub struct TcpServer {
     pub local_addr: String,
@@ -81,5 +81,18 @@ impl Driver for TcpServer {
         DriverInfo {
             name: "TcpServer".to_string(),
         }
+    }
+}
+
+pub struct TcpServerExt;
+impl DriverExt for TcpServerExt {
+    fn valid_schemes(&self) -> Vec<String> {
+        vec!["tcps".to_string(), "tcpserver".to_string()]
+    }
+
+    fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
+        let host = url.host_str().unwrap();
+        let port = url.port().unwrap();
+        return Some(Arc::new(TcpServer::new(&format!("{host}:{port}"))));
     }
 }

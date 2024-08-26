@@ -5,7 +5,7 @@ use tokio::net::UdpSocket;
 use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 
-use crate::drivers::{Driver, DriverInfo};
+use crate::drivers::{Driver, DriverExt, DriverInfo};
 use crate::protocol::Protocol;
 
 pub struct UdpServer {
@@ -162,5 +162,18 @@ impl Driver for UdpServer {
         DriverInfo {
             name: "UdpServer".to_string(),
         }
+    }
+}
+
+pub struct UdpServerExt;
+impl DriverExt for UdpServerExt {
+    fn valid_schemes(&self) -> Vec<String> {
+        vec!["udps".to_string(), "udpserver".to_string()]
+    }
+
+    fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
+        let host = url.host_str().unwrap();
+        let port = url.port().unwrap();
+        return Some(Arc::new(UdpServer::new(format!("{host}:{port}"))));
     }
 }
