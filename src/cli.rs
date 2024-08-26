@@ -123,23 +123,26 @@ mod tests {
     #[test]
     fn test_endpoints() {
         let endpoints = vec![
-            "serial:/dev/ttyS0:9600",
-            "serial:COM1:115200",
-            "tcpc:10.0.0.1:4000",
-            //"tcpc:localhost:7000",
-            "tcpc:127.0.0.1:7000",
-            "tcps:0.0.0.0:5000",
-            "tcps:192.168.1.10:6000",
-            "udpb:192.168.0.255:3000",
-            "udpb:255.255.255.255:9999",
-            "udpc:127.0.0.1:1234",
-            "udpc:192.168.1.100:8080",
-            "udps:0.0.0.0:5000",
-            "udps:192.168.1.5:6789",
+            ("serial:/dev/ttyS0:9600", false),
+            ("serial:COM1:115200", false),
+            ("tcpc:10.0.0.1:4000", true),
+            ("tcpc:127.0.0.1:7000", true),
+            ("tcps:0.0.0.0:5000", true),
+            ("tcps:192.168.1.10:6000", true),
+            ("udpb:192.168.0.255:3000", false),
+            ("udpb:255.255.255.255:9999", false),
+            ("udpc:127.0.0.1:1234", true),
+            ("udpc:192.168.1.100:8080", true),
+            ("udpout:127.0.0.1:1234", true),
+            ("udpout:192.168.1.100:8080", true),
+            ("udps:0.0.0.0:5000", true),
+            ("udps:192.168.1.5:6789", true),
+            ("udpin:0.0.0.0:5000", true),
+            ("udpin:192.168.1.5:6789", true),
         ];
 
-        for endpoint in endpoints {
-            dbg!(endpoints_parser(endpoint).is_ok());
+        for (endpoint, result) in endpoints {
+            assert_eq!(endpoints_parser(endpoint).is_ok(), result);
         }
     }
 }
