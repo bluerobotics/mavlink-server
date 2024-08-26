@@ -168,7 +168,11 @@ impl Driver for UdpServer {
 pub struct UdpServerExt;
 impl DriverExt for UdpServerExt {
     fn valid_schemes(&self) -> Vec<String> {
-        vec!["udps".to_string(), "udpserver".to_string()]
+        vec![
+            "udps".to_string(),
+            "udpserver".to_string(),
+            "udpin".to_string(),
+        ]
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
