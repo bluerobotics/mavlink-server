@@ -159,7 +159,11 @@ impl Driver for UdpClient {
 pub struct UdpClientExt;
 impl DriverExt for UdpClientExt {
     fn valid_schemes(&self) -> Vec<String> {
-        vec!["udpc".to_string(), "udpclient".to_string()]
+        vec![
+            "udpc".to_string(),
+            "udpclient".to_string(),
+            "udpout".to_string(),
+        ]
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
