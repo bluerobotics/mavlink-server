@@ -69,7 +69,10 @@ async fn tcp_send_task(
 
         socket.write_all(message.raw_bytes()).await?;
 
-        trace!("Message sent to {remote_addr} from TCP server: {message:?}");
+        trace!(
+            "Message sent to {remote_addr} from TCP server: {:?}",
+            message.raw_bytes()
+        );
     }
 
     debug!("TCP Send task for {remote_addr} finished");
