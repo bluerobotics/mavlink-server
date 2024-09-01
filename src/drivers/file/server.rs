@@ -170,8 +170,8 @@ impl DriverExt for FileServerExt {
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
-        let host = url.host_str().unwrap();
-        let path = std::fs::canonicalize(&host).expect("Failed to get absolute path");
-        return Some(Arc::new(FileServer::new(path)));
+        Some(Arc::new(FileServer::new(url.path().into()).build()))
+    }
+}
     }
 }
