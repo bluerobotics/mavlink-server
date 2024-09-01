@@ -4,7 +4,6 @@ use anyhow::Result;
 use chrono::DateTime;
 use mavlink::ardupilotmega::MavMessage;
 use std::path::PathBuf;
-use tokio::io::AsyncReadExt;
 use tokio::sync::broadcast;
 use tracing::*;
 
@@ -48,51 +47,66 @@ impl FileServer {
         hub_sender: broadcast::Sender<Protocol>,
     ) -> Result<()> {
         let source_name = self.path.as_path().display().to_string();
+
+        let mut reader = mavlink::async_peek_reader::AsyncPeekReader::new(reader);
+        let mut timestamp_bytes = [0u8; 8];
+
         loop {
             // Tlog files follow the byte format of <unix_timestamp_us><raw_mavlink_messsage>
-            let Ok(us_since_epoch) = reader.read_u64().await else {
-                info!("End of file reached");
-                break;
+            let bytes = loop {
+                let bytes = reader.peek_exact(9).await?;
+                if bytes[8] == mavlink::MAV_STX_V2 {
+                    break &bytes[..8];
+                }
+
+                reader.consume(1);
             };
 
-            let Some(_date_time) = DateTime::from_timestamp_micros(us_since_epoch as i64) else {
-                warn!("Failed to convert unix time");
+            let us_since_epoch = {
+                timestamp_bytes.copy_from_slice(bytes);
+                u64::from_be_bytes(timestamp_bytes)
+            };
+
+            if DateTime::from_timestamp_micros(us_since_epoch as i64).is_none() {
+                warn!("Failed to convert unix time: {us_since_epoch:?}");
+
+                reader.consume(1);
                 continue;
             };
 
-            // Ensure that we have at least a single byte before checking for a valid mavlink message
-            if reader.buffer().is_empty() {
-                info!("End of file reached");
-                break;
-            }
-
-            // Since the source is a tlog file that includes timestamps + raw mavlink messages.
-            // We first need to be sure that the next byte is the start of a mavlink message,
-            // otherwise the `read_v2_raw_message_async` will process valid timestamps as garbage.
-            if reader.buffer()[0] != mavlink::MAV_STX_V2 {
-                warn!("Invalid MAVLink start byte, skipping");
-                continue;
-            }
+            // Gets the bufferr starting at the magic byte
+            reader.consume(8);
+            assert_eq!(reader.peek_exact(1).await?[0], mavlink::MAV_STX_V2);
 
             let message =
                 match mavlink::read_v2_raw_message_async::<MavMessage, _>(&mut reader).await {
-                    Ok(message) => message,
+                    Ok(message) => Protocol::new(&source_name, message),
                     Err(error) => {
-                        error!("Failed to parse MAVLink message: {error:?}");
+                        match error {
+                            mavlink::error::MessageReadError::Io(_) => (),
+                            mavlink::error::MessageReadError::Parse(_) => {
+                                error!("Failed to parse MAVLink message: {error:?}")
+                            }
+                        }
+
                         continue; // Skip this iteration on error
                     }
                 };
+            reader.consume(message.raw_bytes().len() - 1);
 
-            let message = Protocol::new(&source_name, message);
+            trace!("Parsed message: {:?}", message.raw_bytes());
 
-            trace!("Received File message: {message:?}");
+            if let Some(callback) = &self.on_message {
+                callback
+                    .call((us_since_epoch, message.clone()))
+                    .await
+                    .unwrap();
+            }
+
             if let Err(error) = hub_sender.send(message) {
                 error!("Failed to send message to hub: {error:?}");
             }
         }
-
-        debug!("File Receive task for {source_name} finished");
-        Ok(())
     }
 }
 
