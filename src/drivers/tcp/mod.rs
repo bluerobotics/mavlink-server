@@ -1,11 +1,10 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use mavlink::ardupilotmega::MavMessage;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
-    sync::{broadcast, Mutex},
+    net::tcp::{OwnedReadHalf, OwnedWriteHalf},
+    sync::broadcast,
 };
 use tracing::*;
 
@@ -17,17 +16,14 @@ pub mod server;
 /// Receives messages from the TCP Socket and sends them to the HUB Channel
 #[instrument(level = "debug", skip(socket, hub_sender))]
 async fn tcp_receive_task(
-    socket: Arc<Mutex<TcpStream>>,
+    mut socket: OwnedReadHalf,
     remote_addr: &str,
     hub_sender: Arc<broadcast::Sender<Protocol>>,
 ) -> Result<()> {
     let mut buf = Vec::with_capacity(1024);
 
     loop {
-        buf.clear();
-
-        let bytes_received = socket.lock().await.read_buf(&mut buf).await?;
-
+        let bytes_received = socket.read_buf(&mut buf).await?;
         if bytes_received == 0 {
             warn!("TCP connection closed by {remote_addr}.");
             break;
@@ -60,7 +56,7 @@ async fn tcp_receive_task(
 /// Receives messages from the HUB Channel and sends them to the TCP Socket
 #[instrument(level = "debug", skip(socket, hub_receiver))]
 async fn tcp_send_task(
-    socket: Arc<Mutex<TcpStream>>,
+    mut socket: OwnedWriteHalf,
     remote_addr: &str,
     mut hub_receiver: broadcast::Receiver<Protocol>,
 ) -> Result<()> {
@@ -81,7 +77,7 @@ async fn tcp_send_task(
             continue; // Don't do loopback
         }
 
-        socket.lock().await.write_all(message.raw_bytes()).await?;
+        socket.write_all(message.raw_bytes()).await?;
 
         trace!("Message sent to {remote_addr} from TCP server: {message:?}");
     }
