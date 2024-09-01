@@ -35,6 +35,22 @@ pub trait Driver: Send + Sync {
     fn info(&self) -> DriverInfo;
 }
 
+type OnMessageCallback<T> = Option<Box<dyn OnMessageCallbackExt<T> + Send + Sync>>;
+
+pub trait OnMessageCallbackExt<T>: Send + Sync {
+    fn call(&self, msg: T) -> futures::future::BoxFuture<'static, Result<()>>;
+}
+
+impl<F, T, Fut> OnMessageCallbackExt<T> for F
+where
+    F: Fn(T) -> Fut + Send + Sync + 'static,
+    Fut: std::future::Future<Output = Result<()>> + Send + 'static,
+{
+    fn call(&self, msg: T) -> futures::future::BoxFuture<'static, Result<()>> {
+        Box::pin(self(msg))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DriverInfo {
     name: String,
