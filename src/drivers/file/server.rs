@@ -8,25 +8,37 @@ use tokio::io::AsyncReadExt;
 use tokio::sync::broadcast;
 use tracing::*;
 
-use crate::drivers::{Driver, DriverExt, DriverInfo};
+use crate::drivers::{Driver, DriverExt, DriverInfo, OnMessageCallback, OnMessageCallbackExt};
 use crate::protocol::Protocol;
 
 pub struct FileServer {
     pub path: PathBuf,
+    on_message: OnMessageCallback<(u64, Protocol)>,
 }
 
-impl FileServer {
-    #[instrument(level = "debug")]
-    pub fn new(path: PathBuf) -> Self {
-        Self { path }
+pub struct FileServerBuilder(FileServer);
+
+impl FileServerBuilder {
+    pub fn build(self) -> FileServer {
+        self.0
+    }
+
+    pub fn on_message<F>(mut self, callback: F) -> Self
+    where
+        F: OnMessageCallbackExt<(u64, Protocol)> + Send + Sync + 'static,
+    {
+        self.0.on_message = Some(Box::new(callback));
+        self
     }
 }
 
 impl FileServer {
     #[instrument(level = "debug")]
-    pub fn try_new(file_path: &str) -> Result<Self> {
-        let path = PathBuf::from(file_path);
-        Ok(Self { path })
+    pub fn new(path: PathBuf) -> FileServerBuilder {
+        FileServerBuilder(Self {
+            path,
+            on_message: None,
+        })
     }
 
     #[instrument(level = "debug", skip(self, reader, hub_sender))]
