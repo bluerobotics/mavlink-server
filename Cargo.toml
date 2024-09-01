@@ -10,6 +10,7 @@ byteorder = "1.5.0"
 chrono = "0.4"
 clap = { version = "4.5", features = ["derive"] }
 ctrlc = "3.4"
+futures = "0.3"
 lazy_static = "1.5.0"
 # mavlink = { version = "0.13.1", default-features = false, features = ["ardupilotmega", "std"] }
 # mavlink = { default-features = false, features = ["ardupilotmega", "std", "tokio-1"], path = "../rust-mavlink/mavlink" }
