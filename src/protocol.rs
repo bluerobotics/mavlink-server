@@ -8,7 +8,7 @@ use mavlink::{ardupilotmega::MavMessage, MAVLinkV2MessageRaw};
 
 use tracing::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Protocol {
     pub origin: String,
     message: MAVLinkV2MessageRaw,
