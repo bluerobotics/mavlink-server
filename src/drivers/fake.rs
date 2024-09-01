@@ -39,21 +39,25 @@ impl Driver for FakeSource {
 
         let mut buf: Vec<u8> = Vec::with_capacity(280);
 
+        use mavlink::ardupilotmega::{
+            MavAutopilot, MavMessage, MavModeFlag, MavState, MavType, HEARTBEAT_DATA,
+        };
+
         loop {
             let header = mavlink::MavHeader {
                 sequence,
                 system_id: 1,
                 component_id: 2,
             };
-            let data = mavlink::common::MavMessage::HEARTBEAT(mavlink::common::HEARTBEAT_DATA {
+            let data = MavMessage::HEARTBEAT(HEARTBEAT_DATA {
                 custom_mode: 5,
-                mavtype: mavlink::common::MavType::MAV_TYPE_QUADROTOR,
-                autopilot: mavlink::common::MavAutopilot::MAV_AUTOPILOT_ARDUPILOTMEGA,
-                base_mode: mavlink::common::MavModeFlag::MAV_MODE_FLAG_MANUAL_INPUT_ENABLED
-                    | mavlink::common::MavModeFlag::MAV_MODE_FLAG_STABILIZE_ENABLED
-                    | mavlink::common::MavModeFlag::MAV_MODE_FLAG_GUIDED_ENABLED
-                    | mavlink::common::MavModeFlag::MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-                system_status: mavlink::common::MavState::MAV_STATE_STANDBY,
+                mavtype: MavType::MAV_TYPE_QUADROTOR,
+                autopilot: MavAutopilot::MAV_AUTOPILOT_ARDUPILOTMEGA,
+                base_mode: MavModeFlag::MAV_MODE_FLAG_MANUAL_INPUT_ENABLED
+                    | MavModeFlag::MAV_MODE_FLAG_STABILIZE_ENABLED
+                    | MavModeFlag::MAV_MODE_FLAG_GUIDED_ENABLED
+                    | MavModeFlag::MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                system_status: MavState::MAV_STATE_STANDBY,
                 mavlink_version: 3,
             });
             sequence = sequence.overflowing_add(1).0;
