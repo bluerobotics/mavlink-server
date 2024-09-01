@@ -5,7 +5,7 @@ use tracing::*;
 
 use crate::{
     drivers::{Driver, DriverInfo},
-    protocol::Protocol,
+    protocol::{read_all_messages, Protocol},
 };
 
 use super::{OnMessageCallback, OnMessageCallbackExt};
@@ -124,15 +124,23 @@ impl Driver for FakeSource {
             buf.clear();
             mavlink::write_v2_msg(&mut buf, header, &data).expect("Failed to write message");
 
-            let message = read_v2_raw_message_async::<MavMessage, _>(&mut (&buf[..]))
-                .await
-                .unwrap();
+            let hub_sender_cloned = hub_sender.clone();
+            read_all_messages("FakeSsource", &mut buf, move |message| {
+                let hub_sender = hub_sender_cloned.clone();
 
-            trace!("Fake message created: {message:?}");
+                async move {
+                    trace!("Fake message created: {message:?}");
 
-            let message = Protocol::new("", message);
+                    if let Some(callback) = &self.on_message {
+                        callback.call(message.clone()).await.unwrap();
+                    }
 
-            hub_sender.send(message).unwrap();
+                    if let Err(error) = hub_sender.send(message) {
+                        error!("Failed to send message to hub: {error:?}");
+                    }
+                }
+            })
+            .await;
 
             tokio::time::sleep(self.period).await;
         }
