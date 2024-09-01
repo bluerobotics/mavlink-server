@@ -8,7 +8,7 @@ use tokio::{
 };
 use tracing::*;
 
-use crate::protocol::Protocol;
+use crate::protocol::{read_all_messages, Protocol};
 
 pub mod client;
 pub mod server;
@@ -29,24 +29,14 @@ async fn tcp_receive_task(
             break;
         }
 
-        let message = match mavlink::read_v2_raw_message_async::<MavMessage, _>(
-            &mut (&buf[..bytes_received]),
-        )
-        .await
-        {
-            Ok(message) => message,
-            Err(error) => {
-                error!("Failed to parse MAVLink message: {error:?}");
-                continue; // Skip this iteration on error
+        trace!("Received TCP packet: {buf:?}");
+
+        read_all_messages(remote_addr, &mut buf, |message| async {
+            if let Err(error) = hub_sender.send(message) {
+                error!("Failed to send message to hub: {error:?}");
             }
-        };
-
-        let message = Protocol::new(&remote_addr, message);
-
-        trace!("Received TCP message: {message:?}");
-        if let Err(error) = hub_sender.send(message) {
-            error!("Failed to send message to hub: {error:?}");
-        }
+        })
+        .await;
     }
 
     debug!("TCP Receive task for {remote_addr} finished");
