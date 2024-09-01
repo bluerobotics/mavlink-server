@@ -5,11 +5,12 @@ pub mod udp;
 
 use std::sync::Arc;
 
-use crate::protocol::Protocol;
 use anyhow::Result;
 use regex::Regex;
 use tokio::sync::broadcast;
 use url::Url;
+
+use crate::protocol::Protocol;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Type {
