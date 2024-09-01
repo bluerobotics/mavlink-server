@@ -1,5 +1,4 @@
 use anyhow::Result;
-use mavlink::{ardupilotmega::MavMessage, read_v2_raw_message_async};
 use tokio::sync::broadcast;
 use tracing::*;
 
@@ -150,5 +149,90 @@ impl Driver for FakeSource {
         DriverInfo {
             name: "FakeSource".to_string(),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use anyhow::Result;
+    use std::sync::Arc;
+    use tokio::sync::{broadcast, RwLock};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn loopback_test() -> Result<()> {
+        let (hub_sender, _) = broadcast::channel(10000);
+
+        let number_of_messages = 800;
+        let message_period = tokio::time::Duration::from_micros(1);
+        let timeout_time = tokio::time::Duration::from_secs(1);
+
+        let source_messages = Arc::new(RwLock::new(Vec::<Protocol>::with_capacity(1000)));
+        let sink_messages = Arc::new(RwLock::new(Vec::<Protocol>::with_capacity(1000)));
+
+        // FakeSink and task
+        let sink_messages_clone = sink_messages.clone();
+        let sink = FakeSink::new()
+            .on_message(move |msg: Protocol| {
+                let sink_messages = sink_messages_clone.clone();
+
+                async move {
+                    sink_messages.write().await.push(msg);
+                    Ok(())
+                }
+            })
+            .build();
+        let sink_task = tokio::spawn({
+            let hub_sender = hub_sender.clone();
+
+            async move { sink.run(hub_sender).await }
+        });
+
+        // FakeSource and task
+        let source_messages_clone = source_messages.clone();
+        let source = FakeSource::new(message_period)
+            .on_message(move |msg: Protocol| {
+                let source_messages = source_messages_clone.clone();
+
+                async move {
+                    source_messages.write().await.push(msg);
+                    Ok(())
+                }
+            })
+            .build();
+        let source_task = tokio::spawn({
+            let hub_sender = hub_sender.clone();
+
+            async move { source.run(hub_sender).await }
+        });
+
+        // Monitoring task to wait the
+        let sink_messages_clone = sink_messages.clone();
+        let sink_monitor_task = tokio::spawn(async move {
+            loop {
+                if sink_messages_clone.read().await.len() >= number_of_messages {
+                    break;
+                }
+
+                tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+            }
+        });
+        let _ = tokio::time::timeout(timeout_time, sink_monitor_task)
+            .await
+            .expect(format!("sink messages: {:?}", sink_messages.read().await.len()).as_str());
+
+        source_task.abort();
+        sink_task.abort();
+
+        // Compare the messages
+        let source_messages = source_messages.read().await.clone();
+        let sink_messages = sink_messages.read().await.clone();
+
+        assert!(source_messages.len() >= number_of_messages);
+        assert!(sink_messages.len() >= number_of_messages);
+        assert_eq!(source_messages, sink_messages);
+
+        Ok(())
     }
 }
