@@ -8,9 +8,33 @@ use crate::{
     protocol::Protocol,
 };
 
-pub struct FakeSink;
-pub struct FakeSource {
-    pub period: std::time::Duration,
+use super::{OnMessageCallback, OnMessageCallbackExt};
+
+#[derive(Default)]
+pub struct FakeSink {
+    on_message: OnMessageCallback<Protocol>,
+}
+
+impl FakeSink {
+    pub fn new() -> FakeSinkBuilder {
+        FakeSinkBuilder(Self { on_message: None })
+    }
+}
+
+pub struct FakeSinkBuilder(FakeSink);
+
+impl FakeSinkBuilder {
+    pub fn build(self) -> FakeSink {
+        self.0
+    }
+
+    pub fn on_message<F>(mut self, callback: F) -> Self
+    where
+        F: OnMessageCallbackExt<Protocol> + Send + Sync + 'static,
+    {
+        self.0.on_message = Some(Box::new(callback));
+        self
+    }
 }
 
 #[async_trait::async_trait]
@@ -19,7 +43,11 @@ impl Driver for FakeSink {
         let mut hub_receiver = hub_sender.subscribe();
 
         while let Ok(message) = hub_receiver.recv().await {
-            trace!("Message received: {message:?}")
+            debug!("Message received: {message:?}");
+
+            if let Some(callback) = &self.on_message {
+                callback.call(message).await?;
+            }
         }
 
         Ok(())
@@ -29,6 +57,37 @@ impl Driver for FakeSink {
         DriverInfo {
             name: "FakeSink".to_string(),
         }
+    }
+}
+
+#[derive(Default)]
+pub struct FakeSource {
+    period: std::time::Duration,
+    on_message: OnMessageCallback<Protocol>,
+}
+
+impl FakeSource {
+    pub fn new(period: std::time::Duration) -> FakeSourceBuilder {
+        FakeSourceBuilder(Self {
+            period,
+            on_message: None,
+        })
+    }
+}
+
+pub struct FakeSourceBuilder(FakeSource);
+
+impl FakeSourceBuilder {
+    pub fn build(self) -> FakeSource {
+        self.0
+    }
+
+    pub fn on_message<F>(mut self, callback: F) -> Self
+    where
+        F: OnMessageCallbackExt<Protocol> + Send + Sync + 'static,
+    {
+        self.0.on_message = Some(Box::new(callback));
+        self
     }
 }
 
