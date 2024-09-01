@@ -94,6 +94,6 @@ impl DriverExt for TcpServerExt {
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
         let host = url.host_str().unwrap();
         let port = url.port().unwrap();
-        return Some(Arc::new(TcpServer::new(&format!("{host}:{port}"))));
+        Some(Arc::new(TcpServer::new(&format!("{host}:{port}"))))
     }
 }
