@@ -11,7 +11,6 @@ use tracing::*;
 use crate::drivers::{Driver, DriverExt, DriverInfo};
 use crate::protocol::Protocol;
 
-#[derive(Clone, Debug)]
 pub struct FileServer {
     pub path: PathBuf,
 }
@@ -30,13 +29,13 @@ impl FileServer {
         Ok(Self { path })
     }
 
-    #[instrument(level = "debug", skip(reader, hub_sender))]
+    #[instrument(level = "debug", skip(self, reader, hub_sender))]
     async fn handle_client(
-        server: FileServer,
-        mut reader: tokio::io::BufReader<tokio::fs::File>,
-        hub_sender: Arc<broadcast::Sender<Protocol>>,
+        &self,
+        reader: tokio::io::BufReader<tokio::fs::File>,
+        hub_sender: broadcast::Sender<Protocol>,
     ) -> Result<()> {
-        let source_name = server.path.as_path().display().to_string();
+        let source_name = self.path.as_path().display().to_string();
         loop {
             // Tlog files follow the byte format of <unix_timestamp_us><raw_mavlink_messsage>
             let Ok(us_since_epoch) = reader.read_u64().await else {
@@ -89,16 +88,10 @@ impl FileServer {
 impl Driver for FileServer {
     #[instrument(level = "debug", skip(self, hub_sender))]
     async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()> {
-        let file = tokio::fs::File::open(self.path.clone()).await.unwrap();
-        let reader = tokio::io::BufReader::new(file);
+        let file = tokio::fs::File::open(self.path.clone()).await?;
+        let reader = tokio::io::BufReader::with_capacity(1024, file);
 
-        tokio::spawn(FileServer::handle_client(
-            self.clone(),
-            reader,
-            Arc::new(hub_sender),
-        ));
-
-        Ok(())
+        FileServer::handle_client(self, reader, hub_sender).await
     }
 
     #[instrument(level = "debug", skip(self))]
