@@ -190,8 +190,15 @@ pub fn endpoints() -> Vec<ExtInfo> {
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::HashSet, sync::Arc};
+
+    use anyhow::{anyhow, Result};
+    use mavlink::MAVLinkV2MessageRaw;
+    use tokio::sync::RwLock;
+    use tracing::*;
+
     use super::*;
-    use std::collections::HashSet;
+
     #[test]
     fn test_unique_endpoints() {
         let mut unique_types = HashSet::new();
@@ -202,5 +209,107 @@ mod tests {
                 endpoint.typ
             );
         }
+    }
+
+    // Example struct implementing Driver
+    #[derive(Default)]
+    pub struct ExampleDriver {
+        on_message: OnMessageCallback<Protocol>,
+    }
+
+    impl ExampleDriver {
+        pub fn new() -> ExampleDriverBuilder {
+            ExampleDriverBuilder(Self { on_message: None })
+        }
+    }
+
+    struct ExampleDriverBuilder(ExampleDriver);
+
+    impl ExampleDriverBuilder {
+        pub fn build(self) -> ExampleDriver {
+            self.0
+        }
+
+        pub fn on_message<F>(mut self, callback: F) -> Self
+        where
+            F: OnMessageCallbackExt<Protocol> + Send + Sync + 'static,
+        {
+            self.0.on_message = Some(Box::new(callback));
+            self
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Driver for ExampleDriver {
+        async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()> {
+            let mut hub_receiver = hub_sender.subscribe();
+
+            while let Ok(message) = hub_receiver.recv().await {
+                if let Some(callback) = &self.on_message {
+                    callback.call(message.clone()).await?;
+                }
+
+                debug!("message:?");
+            }
+
+            Ok(())
+        }
+
+        fn info(&self) -> DriverInfo {
+            DriverInfo {
+                name: "ExampleDriver".to_string(),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn on_message_callback_test() -> Result<()> {
+        let (sender, _receiver) = tokio::sync::broadcast::channel(1);
+
+        let called = Arc::new(RwLock::new(false));
+        let called_cloned = called.clone();
+        let driver = ExampleDriver::new()
+            .on_message(move |_msg| {
+                let called = called_cloned.clone();
+
+                async move {
+                    *called.write().await = true;
+
+                    Err(anyhow!("Finished from callback"))
+                }
+            })
+            .build();
+
+        let receiver_task_handle = tokio::spawn({
+            let sender = sender.clone();
+
+            async move { driver.run(sender).await }
+        });
+
+        let sender_task_handle = tokio::spawn({
+            let sender = sender.clone();
+
+            async move {
+                sender
+                    .send(Protocol::new("test", MAVLinkV2MessageRaw::new()))
+                    .unwrap();
+            }
+        });
+
+        tokio::time::timeout(tokio::time::Duration::from_millis(1), async {
+            loop {
+                if *called.read().await {
+                    break;
+                }
+                tokio::time::sleep(tokio::time::Duration::from_micros(1)).await;
+            }
+        })
+        .await
+        .unwrap();
+
+        receiver_task_handle.abort();
+        sender_task_handle.abort();
+
+        Ok(())
     }
 }
