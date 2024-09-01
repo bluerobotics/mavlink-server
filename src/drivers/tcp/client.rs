@@ -4,7 +4,7 @@ use crate::drivers::tcp::{tcp_receive_task, tcp_send_task};
 use crate::protocol::Protocol;
 use anyhow::Result;
 use tokio::net::TcpStream;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::broadcast;
 use tracing::*;
 
 use crate::drivers::{Driver, DriverExt, DriverInfo};
@@ -31,8 +31,8 @@ impl Driver for TcpClient {
 
         loop {
             debug!("Trying to connect to {server_addr:?}...");
-            let socket = match TcpStream::connect(server_addr).await {
-                Ok(socket) => Arc::new(Mutex::new(socket)),
+            let (read, write) = match TcpStream::connect(server_addr).await {
+                Ok(socket) => socket.into_split(),
                 Err(error) => {
                     error!("Failed connecting to {server_addr:?}: {error:?}");
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -45,12 +45,12 @@ impl Driver for TcpClient {
             let hub_sender_cloned = Arc::clone(&hub_sender);
 
             tokio::select! {
-                result = tcp_receive_task(socket.clone(), server_addr, hub_sender_cloned) => {
+                result = tcp_receive_task(read, server_addr, hub_sender_cloned) => {
                     if let Err(e) = result {
                         error!("Error in TCP receive task: {e:?}");
                     }
                 }
-                result = tcp_send_task(socket, server_addr, hub_receiver) => {
+                result = tcp_send_task(write, server_addr, hub_receiver) => {
                     if let Err(e) = result {
                         error!("Error in TCP send task: {e:?}");
                     }

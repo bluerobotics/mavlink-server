@@ -4,7 +4,7 @@ use crate::drivers::tcp::{tcp_receive_task, tcp_send_task};
 use crate::protocol::Protocol;
 use anyhow::Result;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::broadcast;
 use tracing::*;
 
 use crate::drivers::{Driver, DriverExt, DriverInfo};
@@ -24,19 +24,21 @@ impl TcpServer {
     /// Handles communication with a single client
     #[instrument(level = "debug", skip(socket, hub_sender))]
     async fn handle_client(
-        socket: Arc<Mutex<TcpStream>>,
+        socket: TcpStream,
         remote_addr: String,
         hub_sender: Arc<broadcast::Sender<Protocol>>,
     ) -> Result<()> {
         let hub_receiver = hub_sender.subscribe();
 
+        let (read, write) = socket.into_split();
+
         tokio::select! {
-            result = tcp_receive_task(socket.clone(), &remote_addr, hub_sender) => {
+            result = tcp_receive_task(read, &remote_addr, hub_sender) => {
                 if let Err(e) = result {
                     error!("Error in TCP receive task for {remote_addr}: {e:?}");
                 }
             }
-            result = tcp_send_task(socket, &remote_addr, hub_receiver) => {
+            result = tcp_send_task(write, &remote_addr, hub_receiver) => {
                 if let Err(e) = result {
                     error!("Error in TCP send task for {remote_addr}: {e:?}");
                 }
@@ -60,7 +62,6 @@ impl Driver for TcpServer {
                 Ok((socket, remote_addr)) => {
                     let remote_addr = remote_addr.to_string();
                     let hub_sender_cloned = Arc::clone(&hub_sender);
-                    let socket = Arc::new(Mutex::new(socket));
 
                     tokio::spawn(TcpServer::handle_client(
                         socket,
