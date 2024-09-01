@@ -89,7 +89,7 @@ impl FileServer {
                             }
                         }
 
-                        continue; // Skip this iteration on error
+                        continue;
                     }
                 };
             reader.consume(message.raw_bytes().len() - 1);
@@ -173,5 +173,137 @@ impl DriverExt for FileServerExt {
         Some(Arc::new(FileServer::new(url.path().into()).build()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::BTreeMap, str::FromStr};
+
+    use anyhow::Result;
+    use mavlink::{error::ParserError, MavFrame};
+    use tokio::sync::RwLock;
+
+    use super::*;
+    #[tokio::test]
+    async fn read_all_messages() -> Result<()> {
+        let (sender, _receiver) = tokio::sync::broadcast::channel(1000000);
+
+        let messages_received_per_id =
+            Arc::new(RwLock::new(BTreeMap::<u32, Vec<(u64, Protocol)>>::new()));
+        let messages_received_cloned = messages_received_per_id.clone();
+
+        let tlog_file = PathBuf::from_str("tests/files/00025-2024-04-22_18-49-07.tlog").unwrap();
+
+        let driver = FileServer::new(tlog_file.clone())
+            .on_message(move |args: (u64, Protocol)| {
+                let messages_received = messages_received_cloned.clone();
+
+                async move {
+                    let message_id = args.1.message_id();
+
+                    let mut messages_received = messages_received.write().await;
+                    if let Some(samples) = messages_received.get_mut(&message_id) {
+                        samples.push(args);
+                    } else {
+                        messages_received.insert(message_id, Vec::from([args]));
+                    }
+
+                    Ok(())
+                }
+            })
+            .build();
+
+        let receiver_task_handle = tokio::spawn({
+            let sender = sender.clone();
+            async move { driver.run(sender).await }
+        });
+
+        // let file_v1_messages = 2; // TODO:  Add support for V1 messages
+        let file_v2_messages = 30437;
+        let file_messages = file_v2_messages;
+        let mut total_messages_read = 0;
+        let res = tokio::time::timeout(tokio::time::Duration::from_secs(1), async {
+            loop {
+                let messages_received_per_id = messages_received_per_id.read().await.clone();
+                total_messages_read = messages_received_per_id
+                    .values()
+                    .into_iter()
+                    .fold(0, |acc, samples| acc + samples.len());
+
+                if total_messages_read > file_messages {
+                    panic!("Reading duplicates!");
+                } else if total_messages_read == file_messages {
+                    break;
+                }
+                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+            }
+        })
+        .await;
+
+        let messages_received_per_id = messages_received_per_id.read().await;
+
+        let messages_count_per_id = messages_received_per_id
+            .iter()
+            .map(|(id, samples)| (*id, samples.len()))
+            .collect::<Vec<(u32, usize)>>();
+        let messages_count_per_id_fmt = messages_count_per_id
+            .iter()
+            .map(|sample| format!("{}:{}", sample.0, sample.1))
+            .collect::<Vec<String>>();
+        dbg!(&messages_count_per_id_fmt);
+
+        let mut messages_received = messages_received_per_id
+            .values()
+            .flatten()
+            .cloned()
+            .collect::<Vec<(u64, Protocol)>>();
+        messages_received.sort_by_key(|sample| sample.0);
+
+        let messages_parsed = messages_received
+            .iter()
+            .cloned()
+            .map(|sample| {
+                let messaage = sample.1;
+                let parsed_message = mavlink::MavFrame::<MavMessage>::deser(
+                    mavlink::MavlinkVersion::V2,
+                    &messaage.raw_bytes()[4..],
+                );
+
+                (sample.0, parsed_message)
+            })
+            .collect::<Vec<(u64, std::result::Result<MavFrame<MavMessage>, ParserError>)>>();
+
+        let messages_parsed_fmt = messages_parsed
+            .iter()
+            .map(|sample| {
+                let us_since_epoch = sample.0;
+                let datetime = DateTime::from_timestamp_micros(us_since_epoch as i64)
+                    .map(|d| d.to_string())
+                    .unwrap_or(format!("error parsing timestamp: {us_since_epoch}"));
+
+                let frame = &sample.1;
+
+                format!("{datetime}: {frame:?}")
+            })
+            .collect::<Vec<String>>();
+        let str = format!("{messages_parsed_fmt:#?}");
+        let path = format!(
+            "{}/untracked",
+            tlog_file.parent().unwrap().to_str().unwrap()
+        );
+        let dump_file = format!(
+            "{path}/{}-test-dump.txt",
+            tlog_file.file_stem().unwrap().to_str().unwrap(),
+        );
+        std::fs::create_dir_all(path).unwrap();
+        let mut file = std::fs::File::create(dump_file)?;
+        std::io::Write::write_all(&mut file, str.as_bytes())?;
+
+        res.expect(
+            format!("Timeout: read only {total_messages_read:?}/{file_messages:?}").as_str(),
+        );
+
+        receiver_task_handle.abort();
+
+        Ok(())
     }
 }
