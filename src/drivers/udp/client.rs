@@ -1,6 +1,5 @@
-use crate::protocol::Protocol;
+use crate::protocol::{read_all_messages, Protocol};
 use anyhow::Result;
-use mavlink::ardupilotmega::MavMessage;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::broadcast;
@@ -28,30 +27,16 @@ impl UdpClient {
         let mut buf = Vec::with_capacity(1024);
 
         loop {
-            buf.clear();
-
             match socket.recv_buf_from(&mut buf).await {
                 Ok((bytes_received, client_addr)) if bytes_received > 0 => {
-                    let client_addr = client_addr.to_string();
+                    let client_addr = &client_addr.to_string();
 
-                    let message = match mavlink::read_v2_raw_message_async::<MavMessage, _>(
-                        &mut (&buf[..bytes_received]),
-                    )
-                    .await
-                    {
-                        Ok(message) => message,
-                        Err(error) => {
-                            error!("Failed to parse MAVLink message: {error:?}");
-                            continue; // Skip this iteration on error
+                    read_all_messages(client_addr, &mut buf, |message| async {
+                        if let Err(error) = hub_sender.send(message) {
+                            error!("Failed to send message to hub: {error:?}");
                         }
-                    };
-
-                    let message = Protocol::new(&client_addr, message);
-
-                    trace!("Received UDP message: {message:?}");
-                    if let Err(error) = hub_sender.send(message) {
-                        error!("Failed to send message to hub: {error:?}");
-                    }
+                    })
+                    .await;
                 }
                 Ok((_, client_addr)) => {
                     warn!("UDP connection closed by {client_addr}.");

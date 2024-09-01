@@ -1,12 +1,11 @@
 use anyhow::Result;
-use mavlink::ardupilotmega::MavMessage;
 use std::{collections::HashMap, sync::Arc};
 use tokio::net::UdpSocket;
 use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 
 use crate::drivers::{Driver, DriverExt, DriverInfo};
-use crate::protocol::Protocol;
+use crate::protocol::{read_all_messages, Protocol};
 
 pub struct UdpServer {
     pub local_addr: String,
@@ -31,43 +30,30 @@ impl UdpServer {
         let mut buf = Vec::with_capacity(1024);
 
         loop {
-            buf.clear();
-
             match socket.recv_buf_from(&mut buf).await {
                 Ok((bytes_received, client_addr)) if bytes_received > 0 => {
-                    let client_addr = client_addr.to_string();
+                    let client_addr = &client_addr.to_string();
 
-                    let message = match mavlink::read_v2_raw_message_async::<MavMessage, _>(
-                        &mut (&buf[..bytes_received]),
-                    )
-                    .await
-                    {
-                        Ok(message) => message,
-                        Err(error) => {
-                            error!("Failed to parse MAVLink message: {error:?}");
-                            continue; // Skip this iteration on error
+                    read_all_messages(client_addr, &mut buf, |message| async {
+                        // Update clients
+                        let header_buf = message.header();
+                        let sysid = message.system_id();
+                        let compid = message.component_id();
+                        if let Some(old_client_addr) = clients
+                            .write()
+                            .await
+                            .insert((sysid, compid), client_addr.clone())
+                        {
+                            debug!("Client ({sysid},{compid}) updated from {old_client_addr:?} (OLD) to {client_addr:?} (NEW)");
+                        } else {
+                            debug!("Client added: ({sysid},{compid}) -> {client_addr:?}");
                         }
-                    };
 
-                    let message = Protocol::new(&client_addr, message);
-
-                    // Update clients
-                    let header_buf = message.header();
-                    let sysid = header_buf[4];
-                    let compid = header_buf[5];
-                    if clients
-                        .write()
-                        .await
-                        .insert((sysid, compid), client_addr.clone())
-                        .is_none()
-                    {
-                        debug!("Client added: ({sysid},{compid}) -> {client_addr:?}");
-                    }
-
-                    trace!("Received UDP message: {message:?}");
-                    if let Err(error) = hub_sender.send(message) {
-                        error!("Failed to send message to hub: {error:?}");
-                    }
+                        if let Err(error) = hub_sender.send(message) {
+                            error!("Failed to send message to hub: {error:?}");
+                        }
+                    })
+                    .await;
                 }
                 Ok((_, client_addr)) => {
                     warn!("UDP connection closed by {client_addr}.");
