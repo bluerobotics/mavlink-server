@@ -84,7 +84,7 @@ impl UdpServer {
                             continue; // Don't do loopback
                         }
 
-                        match socket.send(message.raw_bytes()).await {
+                        match socket.send_to(message.raw_bytes(), client_addr).await {
                             Ok(_) => {
                                 // Message sent successfully
                             }
