@@ -22,7 +22,7 @@ impl UdpClient {
     #[instrument(level = "debug", skip(socket))]
     async fn udp_receive_task(
         socket: Arc<UdpSocket>,
-        hub_sender: Arc<broadcast::Sender<Protocol>>,
+        hub_sender: Arc<broadcast::Sender<Arc<Protocol>>>,
     ) -> Result<()> {
         let mut buf = Vec::with_capacity(1024);
 
@@ -32,7 +32,7 @@ impl UdpClient {
                     let client_addr = &client_addr.to_string();
 
                     read_all_messages(client_addr, &mut buf, |message| async {
-                        if let Err(error) = hub_sender.send(message) {
+                        if let Err(error) = hub_sender.send(Arc::new(message)) {
                             error!("Failed to send message to hub: {error:?}");
                         }
                     })
@@ -56,7 +56,7 @@ impl UdpClient {
     #[instrument(level = "debug", skip(socket))]
     async fn udp_send_task(
         socket: Arc<UdpSocket>,
-        mut hub_receiver: broadcast::Receiver<Protocol>,
+        mut hub_receiver: broadcast::Receiver<Arc<Protocol>>,
     ) -> Result<()> {
         loop {
             match hub_receiver.recv().await {
@@ -91,7 +91,7 @@ impl UdpClient {
 #[async_trait::async_trait]
 impl Driver for UdpClient {
     #[instrument(level = "debug", skip(self, hub_sender))]
-    async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()> {
+    async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let local_addr = "0.0.0.0:0";
         let remote_addr = self.remote_addr.clone();
 

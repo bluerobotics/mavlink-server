@@ -25,7 +25,7 @@ impl TcpClient {
 #[async_trait::async_trait]
 impl Driver for TcpClient {
     #[instrument(level = "debug", skip(self, hub_sender))]
-    async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()> {
+    async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let server_addr = &self.remote_addr;
         let hub_sender = Arc::new(hub_sender);
 

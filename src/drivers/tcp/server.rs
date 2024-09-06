@@ -26,7 +26,7 @@ impl TcpServer {
     async fn handle_client(
         socket: TcpStream,
         remote_addr: String,
-        hub_sender: Arc<broadcast::Sender<Protocol>>,
+        hub_sender: Arc<broadcast::Sender<Arc<Protocol>>>,
     ) -> Result<()> {
         let hub_receiver = hub_sender.subscribe();
 
@@ -53,7 +53,7 @@ impl TcpServer {
 #[async_trait::async_trait]
 impl Driver for TcpServer {
     #[instrument(level = "debug", skip(self, hub_sender))]
-    async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()> {
+    async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let listener = TcpListener::bind(&self.local_addr).await?;
         let hub_sender = Arc::new(hub_sender);
 

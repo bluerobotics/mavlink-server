@@ -18,7 +18,7 @@ pub mod server;
 async fn tcp_receive_task(
     mut socket: OwnedReadHalf,
     remote_addr: &str,
-    hub_sender: Arc<broadcast::Sender<Protocol>>,
+    hub_sender: Arc<broadcast::Sender<Arc<Protocol>>>,
 ) -> Result<()> {
     let mut buf = Vec::with_capacity(1024);
 
@@ -32,7 +32,7 @@ async fn tcp_receive_task(
         trace!("Received TCP packet: {buf:?}");
 
         read_all_messages(remote_addr, &mut buf, |message| async {
-            if let Err(error) = hub_sender.send(message) {
+            if let Err(error) = hub_sender.send(Arc::new(message)) {
                 error!("Failed to send message to hub: {error:?}");
             }
         })
@@ -48,7 +48,7 @@ async fn tcp_receive_task(
 async fn tcp_send_task(
     mut socket: OwnedWriteHalf,
     remote_addr: &str,
-    mut hub_receiver: broadcast::Receiver<Protocol>,
+    mut hub_receiver: broadcast::Receiver<Arc<Protocol>>,
 ) -> Result<()> {
     loop {
         let message = match hub_receiver.recv().await {
