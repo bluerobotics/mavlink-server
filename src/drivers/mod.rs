@@ -8,6 +8,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use regex::Regex;
 use tokio::sync::broadcast;
+use tracing::*;
 use url::Url;
 
 use crate::protocol::Protocol;
@@ -71,28 +72,46 @@ pub trait DriverExt: Sync + Send {
     ) -> Result<url::Url, String> {
         let debug_entry = legacy_entry.clone();
         let scheme = self.default_scheme();
-        let mut ip = std::net::Ipv4Addr::UNSPECIFIED.to_string();
-        let port: u16;
-        if let Ok(p) = legacy_entry.arg1.parse::<u16>() {
-            port = p;
+        let mut host = std::net::Ipv4Addr::UNSPECIFIED.to_string();
+
+        // For cases like serial baudrate, the number may not be under u16
+        // For such legacy cases, we are going to use "arg2" as ab optional parameter field
+        let mut port: Option<u16> = None;
+        let mut argument = None;
+
+        if let Ok(number) = legacy_entry.arg1.parse::<u16>() {
+            port = Some(number);
         } else {
-            ip = legacy_entry.arg1.clone();
+            host = legacy_entry.arg1.clone();
             let Some(arg2) = legacy_entry.arg2 else {
                 return Err(format!("Missing port in legacy entry: {debug_entry:?}"));
             };
 
-            port = match arg2.parse::<u16>() {
-                Ok(port) => port,
+            match arg2.parse::<u16>() {
+                Ok(number) => port = Some(number),
                 Err(error) => {
-                    return Err(format!(
-                        "Failed to parse port: {error:?}, legacy entry: {debug_entry:?}"
-                    ));
+                    debug!("{error} for arg2: {arg2}, using url argument");
+                    argument = Some(arg2);
                 }
-            }
+            };
         };
 
-        match url::Url::parse(&format!("{scheme}://{ip}:{port}")) {
-            Ok(url) => Ok(url),
+        match url::Url::parse(&format!("{scheme}://{host}")) {
+            Ok(mut url) => {
+                if let Some(port) = port {
+                    if url.set_port(Some(port)).is_err() {
+                        debug!("Failed to set port {port} in URL: {url}, moving to argument");
+                        if argument.is_none() {
+                            argument = Some(port.to_string());
+                        }
+                    };
+                }
+
+                if let Some(argument) = argument {
+                    url.query_pairs_mut().append_pair("arg2", &argument);
+                }
+                Ok(url)
+            }
             Err(error) => Err(format!(
                 "Failed to parse URL: {error:?}, from legacy entry: {debug_entry:?}"
             )),
