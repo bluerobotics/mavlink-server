@@ -1,5 +1,6 @@
 pub mod fake;
 pub mod file;
+pub mod serial;
 pub mod tcp;
 pub mod udp;
 
@@ -16,6 +17,7 @@ use crate::protocol::Protocol;
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Type {
     FileServer,
+    Serial,
     TcpClient,
     TcpServer,
     UdpClient,
@@ -187,6 +189,10 @@ pub fn endpoints() -> Vec<ExtInfo> {
         ExtInfo {
             driver_ext: Box::new(file::server::FileServerExt),
             typ: Type::FileServer,
+        },
+        ExtInfo {
+            driver_ext: Box::new(serial::SerialExt),
+            typ: Type::Serial,
         },
         ExtInfo {
             driver_ext: Box::new(tcp::client::TcpClientExt),
