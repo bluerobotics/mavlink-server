@@ -31,7 +31,7 @@ pub struct DriverDescriptionLegacy {
 
 #[async_trait::async_trait]
 pub trait Driver: Send + Sync {
-    async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()>;
+    async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()>;
     fn info(&self) -> DriverInfo;
 }
 
