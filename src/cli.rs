@@ -123,8 +123,9 @@ mod tests {
     #[test]
     fn test_endpoints() {
         let endpoints = vec![
-            ("serial:/dev/ttyS0:9600", false),
-            ("serial:COM1:115200", false),
+            ("serial:/dev/ttyACM0:115200", true),
+            ("serial:/dev/ttyS0:9600", true),
+            ("serial:COM1:115200", true),
             ("tcpc:10.0.0.1:4000", true),
             ("tcpc:127.0.0.1:7000", true),
             ("tcps:0.0.0.0:5000", true),
@@ -141,8 +142,9 @@ mod tests {
             ("udpin:192.168.1.5:6789", true),
         ];
 
-        for (endpoint, result) in endpoints {
-            assert_eq!(endpoints_parser(endpoint).is_ok(), result);
+        for (endpoint, expected) in endpoints {
+            let result = endpoints_parser(endpoint);
+            assert_eq!(result.is_ok(), expected);
         }
     }
 }
