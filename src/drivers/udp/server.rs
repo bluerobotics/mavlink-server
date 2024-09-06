@@ -1,11 +1,16 @@
-use anyhow::Result;
 use std::{collections::HashMap, sync::Arc};
-use tokio::net::UdpSocket;
-use tokio::sync::{broadcast, RwLock};
+
+use anyhow::Result;
+use tokio::{
+    net::UdpSocket,
+    sync::{broadcast, RwLock},
+};
 use tracing::*;
 
-use crate::drivers::{Driver, DriverExt, DriverInfo};
-use crate::protocol::{read_all_messages, Protocol};
+use crate::{
+    drivers::{Driver, DriverExt, DriverInfo},
+    protocol::{read_all_messages, Protocol},
+};
 
 pub struct UdpServer {
     pub local_addr: String,

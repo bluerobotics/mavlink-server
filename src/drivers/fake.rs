@@ -5,11 +5,9 @@ use tokio::sync::broadcast;
 use tracing::*;
 
 use crate::{
-    drivers::{Driver, DriverInfo},
+    drivers::{Driver, DriverInfo, OnMessageCallback, OnMessageCallbackExt},
     protocol::{read_all_messages, Protocol},
 };
-
-use super::{OnMessageCallback, OnMessageCallbackExt};
 
 #[derive(Default)]
 pub struct FakeSink {

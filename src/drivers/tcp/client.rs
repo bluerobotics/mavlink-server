@@ -1,13 +1,16 @@
 use std::sync::Arc;
 
-use crate::drivers::tcp::{tcp_receive_task, tcp_send_task};
-use crate::protocol::Protocol;
 use anyhow::Result;
-use tokio::net::TcpStream;
-use tokio::sync::broadcast;
+use tokio::{net::TcpStream, sync::broadcast};
 use tracing::*;
 
-use crate::drivers::{Driver, DriverExt, DriverInfo};
+use crate::{
+    drivers::{
+        tcp::{tcp_receive_task, tcp_send_task},
+        Driver, DriverExt, DriverInfo,
+    },
+    protocol::Protocol,
+};
 
 pub struct TcpClient {
     pub remote_addr: String,

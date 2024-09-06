@@ -7,8 +7,10 @@ use std::path::PathBuf;
 use tokio::sync::broadcast;
 use tracing::*;
 
-use crate::drivers::{Driver, DriverExt, DriverInfo, OnMessageCallback, OnMessageCallbackExt};
-use crate::protocol::Protocol;
+use crate::{
+    drivers::{Driver, DriverExt, DriverInfo, OnMessageCallback, OnMessageCallbackExt},
+    protocol::Protocol,
+};
 
 pub struct FileServer {
     pub path: PathBuf,
