@@ -16,6 +16,7 @@ use crate::protocol::Protocol;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Type {
+    FileClient,
     FileServer,
     Serial,
     TcpClient,
@@ -187,6 +188,10 @@ pub struct ExtInfo {
 
 pub fn endpoints() -> Vec<ExtInfo> {
     vec![
+        ExtInfo {
+            driver_ext: Box::new(file::client::FileClientExt),
+            typ: Type::FileClient,
+        },
         ExtInfo {
             driver_ext: Box::new(file::server::FileServerExt),
             typ: Type::FileServer,
