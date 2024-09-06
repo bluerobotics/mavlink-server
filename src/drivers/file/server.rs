@@ -12,7 +12,7 @@ use crate::protocol::Protocol;
 
 pub struct FileServer {
     pub path: PathBuf,
-    on_message: OnMessageCallback<(u64, Protocol)>,
+    on_message: OnMessageCallback<(u64, Arc<Protocol>)>,
 }
 
 pub struct FileServerBuilder(FileServer);
@@ -24,7 +24,7 @@ impl FileServerBuilder {
 
     pub fn on_message<F>(mut self, callback: F) -> Self
     where
-        F: OnMessageCallbackExt<(u64, Protocol)> + Send + Sync + 'static,
+        F: OnMessageCallbackExt<(u64, Arc<Protocol>)> + Send + Sync + 'static,
     {
         self.0.on_message = Some(Box::new(callback));
         self
@@ -44,7 +44,7 @@ impl FileServer {
     async fn handle_client(
         &self,
         reader: tokio::io::BufReader<tokio::fs::File>,
-        hub_sender: broadcast::Sender<Protocol>,
+        hub_sender: broadcast::Sender<Arc<Protocol>>,
     ) -> Result<()> {
         let source_name = self.path.as_path().display().to_string();
 
@@ -96,9 +96,11 @@ impl FileServer {
 
             trace!("Parsed message: {:?}", message.raw_bytes());
 
+            let message = Arc::new(message);
+
             if let Some(callback) = &self.on_message {
                 callback
-                    .call((us_since_epoch, message.clone()))
+                    .call((us_since_epoch, Arc::clone(&message)))
                     .await
                     .unwrap();
             }
@@ -113,7 +115,7 @@ impl FileServer {
 #[async_trait::async_trait]
 impl Driver for FileServer {
     #[instrument(level = "debug", skip(self, hub_sender))]
-    async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()> {
+    async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let file = tokio::fs::File::open(self.path.clone()).await?;
         let reader = tokio::io::BufReader::with_capacity(1024, file);
 
@@ -187,14 +189,16 @@ mod tests {
     async fn read_all_messages() -> Result<()> {
         let (sender, _receiver) = tokio::sync::broadcast::channel(1000000);
 
-        let messages_received_per_id =
-            Arc::new(RwLock::new(BTreeMap::<u32, Vec<(u64, Protocol)>>::new()));
+        let messages_received_per_id = Arc::new(RwLock::new(BTreeMap::<
+            u32,
+            Vec<(u64, Arc<Protocol>)>,
+        >::new()));
         let messages_received_cloned = messages_received_per_id.clone();
 
         let tlog_file = PathBuf::from_str("tests/files/00025-2024-04-22_18-49-07.tlog").unwrap();
 
         let driver = FileServer::new(tlog_file.clone())
-            .on_message(move |args: (u64, Protocol)| {
+            .on_message(move |args: (u64, Arc<Protocol>)| {
                 let messages_received = messages_received_cloned.clone();
 
                 async move {
@@ -255,7 +259,7 @@ mod tests {
             .values()
             .flatten()
             .cloned()
-            .collect::<Vec<(u64, Protocol)>>();
+            .collect::<Vec<(u64, Arc<Protocol>)>>();
         messages_received.sort_by_key(|sample| sample.0);
 
         let messages_parsed = messages_received

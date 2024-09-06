@@ -214,7 +214,7 @@ mod tests {
     // Example struct implementing Driver
     #[derive(Default)]
     pub struct ExampleDriver {
-        on_message: OnMessageCallback<Protocol>,
+        on_message: OnMessageCallback<Arc<Protocol>>,
     }
 
     impl ExampleDriver {
@@ -232,7 +232,7 @@ mod tests {
 
         pub fn on_message<F>(mut self, callback: F) -> Self
         where
-            F: OnMessageCallbackExt<Protocol> + Send + Sync + 'static,
+            F: OnMessageCallbackExt<Arc<Protocol>> + Send + Sync + 'static,
         {
             self.0.on_message = Some(Box::new(callback));
             self
@@ -241,12 +241,12 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Driver for ExampleDriver {
-        async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()> {
+        async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
             let mut hub_receiver = hub_sender.subscribe();
 
             while let Ok(message) = hub_receiver.recv().await {
                 if let Some(callback) = &self.on_message {
-                    callback.call(message.clone()).await?;
+                    callback.call(Arc::clone(&message)).await?;
                 }
 
                 debug!("message:?");
@@ -291,7 +291,7 @@ mod tests {
 
             async move {
                 sender
-                    .send(Protocol::new("test", MAVLinkV2MessageRaw::new()))
+                    .send(Arc::new(Protocol::new("test", MAVLinkV2MessageRaw::new())))
                     .unwrap();
             }
         });

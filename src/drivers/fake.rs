@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use tokio::sync::broadcast;
 use tracing::*;
@@ -11,7 +13,7 @@ use super::{OnMessageCallback, OnMessageCallbackExt};
 
 #[derive(Default)]
 pub struct FakeSink {
-    on_message: OnMessageCallback<Protocol>,
+    on_message: OnMessageCallback<Arc<Protocol>>,
 }
 
 impl FakeSink {
@@ -29,7 +31,7 @@ impl FakeSinkBuilder {
 
     pub fn on_message<F>(mut self, callback: F) -> Self
     where
-        F: OnMessageCallbackExt<Protocol> + Send + Sync + 'static,
+        F: OnMessageCallbackExt<Arc<Protocol>> + Send + Sync + 'static,
     {
         self.0.on_message = Some(Box::new(callback));
         self
@@ -38,14 +40,14 @@ impl FakeSinkBuilder {
 
 #[async_trait::async_trait]
 impl Driver for FakeSink {
-    async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()> {
+    async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let mut hub_receiver = hub_sender.subscribe();
 
         while let Ok(message) = hub_receiver.recv().await {
             debug!("Message received: {message:?}");
 
             if let Some(callback) = &self.on_message {
-                callback.call(message).await?;
+                callback.call(Arc::clone(&message)).await?;
             }
         }
 
@@ -62,7 +64,7 @@ impl Driver for FakeSink {
 #[derive(Default)]
 pub struct FakeSource {
     period: std::time::Duration,
-    on_message: OnMessageCallback<Protocol>,
+    on_message: OnMessageCallback<Arc<Protocol>>,
 }
 
 impl FakeSource {
@@ -83,7 +85,7 @@ impl FakeSourceBuilder {
 
     pub fn on_message<F>(mut self, callback: F) -> Self
     where
-        F: OnMessageCallbackExt<Protocol> + Send + Sync + 'static,
+        F: OnMessageCallbackExt<Arc<Protocol>> + Send + Sync + 'static,
     {
         self.0.on_message = Some(Box::new(callback));
         self
@@ -92,7 +94,7 @@ impl FakeSourceBuilder {
 
 #[async_trait::async_trait]
 impl Driver for FakeSource {
-    async fn run(&self, hub_sender: broadcast::Sender<Protocol>) -> Result<()> {
+    async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let mut sequence = 0;
 
         let mut buf: Vec<u8> = Vec::with_capacity(280);
@@ -124,14 +126,15 @@ impl Driver for FakeSource {
             mavlink::write_v2_msg(&mut buf, header, &data).expect("Failed to write message");
 
             let hub_sender_cloned = hub_sender.clone();
-            read_all_messages("FakeSsource", &mut buf, move |message| {
+            read_all_messages("FakeSource", &mut buf, move |message| {
+                let message = Arc::new(message);
                 let hub_sender = hub_sender_cloned.clone();
 
                 async move {
                     trace!("Fake message created: {message:?}");
 
                     if let Some(callback) = &self.on_message {
-                        callback.call(message.clone()).await.unwrap();
+                        callback.call(Arc::clone(&message)).await.unwrap();
                     }
 
                     if let Err(error) = hub_sender.send(message) {
@@ -168,17 +171,17 @@ mod test {
         let message_period = tokio::time::Duration::from_micros(1);
         let timeout_time = tokio::time::Duration::from_secs(1);
 
-        let source_messages = Arc::new(RwLock::new(Vec::<Protocol>::with_capacity(1000)));
-        let sink_messages = Arc::new(RwLock::new(Vec::<Protocol>::with_capacity(1000)));
+        let source_messages = Arc::new(RwLock::new(Vec::<Arc<Protocol>>::with_capacity(1000)));
+        let sink_messages = Arc::new(RwLock::new(Vec::<Arc<Protocol>>::with_capacity(1000)));
 
         // FakeSink and task
         let sink_messages_clone = sink_messages.clone();
         let sink = FakeSink::new()
-            .on_message(move |msg: Protocol| {
+            .on_message(move |message: Arc<Protocol>| {
                 let sink_messages = sink_messages_clone.clone();
 
                 async move {
-                    sink_messages.write().await.push(msg);
+                    sink_messages.write().await.push(message);
                     Ok(())
                 }
             })
@@ -192,11 +195,11 @@ mod test {
         // FakeSource and task
         let source_messages_clone = source_messages.clone();
         let source = FakeSource::new(message_period)
-            .on_message(move |msg: Protocol| {
+            .on_message(move |message: Arc<Protocol>| {
                 let source_messages = source_messages_clone.clone();
 
                 async move {
-                    source_messages.write().await.push(msg);
+                    source_messages.write().await.push(message);
                     Ok(())
                 }
             })
