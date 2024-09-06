@@ -10,7 +10,7 @@ use crate::drivers::{Driver, DriverInfo};
 
 pub struct Hub {
     drivers: Arc<RwLock<HashMap<u64, Arc<dyn Driver>>>>,
-    bcst_sender: broadcast::Sender<Protocol>,
+    bcst_sender: broadcast::Sender<Arc<Protocol>>,
     last_driver_id: Arc<RwLock<u64>>,
     component_id: Arc<RwLock<u8>>,
     system_id: Arc<RwLock<u8>>,
@@ -89,7 +89,7 @@ impl Hub {
     }
 
     async fn heartbeat_task(
-        bcst_sender: broadcast::Sender<Protocol>,
+        bcst_sender: broadcast::Sender<Arc<Protocol>>,
         system_id: Arc<RwLock<u8>>,
         component_id: Arc<RwLock<u8>>,
         frequency: Arc<RwLock<f32>>,
@@ -123,14 +123,14 @@ impl Hub {
             let mut message_raw = Protocol::new("", MAVLinkV2MessageRaw::new());
             message_raw.serialize_message(header, &message);
 
-            if let Err(error) = bcst_sender.send(message_raw) {
+            if let Err(error) = bcst_sender.send(Arc::new(message_raw)) {
                 error!("Failed to send HEARTBEAT message: {error}");
             }
         }
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub fn get_sender(&self) -> broadcast::Sender<Protocol> {
+    pub fn get_sender(&self) -> broadcast::Sender<Arc<Protocol>> {
         self.bcst_sender.clone()
     }
 }
