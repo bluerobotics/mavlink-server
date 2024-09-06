@@ -85,16 +85,17 @@ pub trait DriverExt: Sync + Send {
             port = Some(number);
         } else {
             host = legacy_entry.arg1.clone();
-            let Some(arg2) = legacy_entry.arg2 else {
-                return Err(format!("Missing port in legacy entry: {debug_entry:?}"));
-            };
 
-            match arg2.parse::<u16>() {
-                Ok(number) => port = Some(number),
-                Err(error) => {
-                    debug!("{error} for arg2: {arg2}, using url argument");
-                    argument = Some(arg2);
-                }
+            if let Some(arg2) = legacy_entry.arg2 {
+                match arg2.parse::<u16>() {
+                    Ok(number) => port = Some(number),
+                    Err(error) => {
+                        debug!("{error} for arg2: {arg2}, using url argument");
+                        argument = Some(arg2);
+                    }
+                };
+            } else {
+                debug!("Missing port in legacy entry: {debug_entry:?}");
             };
         };
 
