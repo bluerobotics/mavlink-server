@@ -266,10 +266,10 @@ mod tests {
             .iter()
             .cloned()
             .map(|sample| {
-                let messaage = sample.1;
+                let message = sample.1;
                 let parsed_message = mavlink::MavFrame::<MavMessage>::deser(
                     mavlink::MavlinkVersion::V2,
-                    &messaage.raw_bytes()[4..],
+                    &message.raw_bytes()[4..],
                 );
 
                 (sample.0, parsed_message)
