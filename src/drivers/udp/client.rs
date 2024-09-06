@@ -1,11 +1,13 @@
-use crate::protocol::{read_all_messages, Protocol};
-use anyhow::Result;
 use std::sync::Arc;
-use tokio::net::UdpSocket;
-use tokio::sync::broadcast;
+
+use anyhow::Result;
+use tokio::{net::UdpSocket, sync::broadcast};
 use tracing::*;
 
-use crate::drivers::{Driver, DriverExt, DriverInfo};
+use crate::{
+    drivers::{Driver, DriverExt, DriverInfo},
+    protocol::{read_all_messages, Protocol},
+};
 
 pub struct UdpClient {
     pub remote_addr: String,

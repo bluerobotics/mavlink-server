@@ -1,13 +1,19 @@
 use std::sync::Arc;
 
-use crate::drivers::tcp::{tcp_receive_task, tcp_send_task};
-use crate::protocol::Protocol;
 use anyhow::Result;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::broadcast;
+use tokio::{
+    net::{TcpListener, TcpStream},
+    sync::broadcast,
+};
 use tracing::*;
 
-use crate::drivers::{Driver, DriverExt, DriverInfo};
+use crate::{
+    drivers::{
+        tcp::{tcp_receive_task, tcp_send_task},
+        Driver, DriverExt, DriverInfo,
+    },
+    protocol::Protocol,
+};
 
 pub struct TcpServer {
     pub local_addr: String,
