@@ -140,6 +140,7 @@ mod tests {
             ("udps:192.168.1.5:6789", true),
             ("udpin:0.0.0.0:5000", true),
             ("udpin:192.168.1.5:6789", true),
+            ("filec:/tmp/little_potato.tlog", true),
         ];
 
         for (endpoint, expected) in endpoints {
