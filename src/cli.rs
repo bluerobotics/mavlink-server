@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use clap::{builder::StyledStr, Parser};
+use clap::Parser;
 use lazy_static::lazy_static;
 use tracing::*;
 
