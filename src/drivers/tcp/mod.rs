@@ -15,12 +15,12 @@ pub mod client;
 pub mod server;
 
 /// Receives messages from the TCP Socket and sends them to the HUB Channel
-#[instrument(level = "debug", skip(socket, hub_sender, on_message))]
+#[instrument(level = "debug", skip(socket, hub_sender, on_message_input))]
 async fn tcp_receive_task(
     mut socket: OwnedReadHalf,
     remote_addr: &str,
     hub_sender: Arc<broadcast::Sender<Arc<Protocol>>>,
-    on_message: &Callbacks<Arc<Protocol>>,
+    on_message_input: &Callbacks<Arc<Protocol>>,
 ) -> Result<()> {
     let mut buf = Vec::with_capacity(1024);
 
@@ -36,9 +36,9 @@ async fn tcp_receive_task(
         read_all_messages(remote_addr, &mut buf, |message| async {
             let message = Arc::new(message);
 
-            for future in on_message.call_all(Arc::clone(&message)) {
+            for future in on_message_input.call_all(Arc::clone(&message)) {
                 if let Err(error) = future.await {
-                    debug!("Dropping message: on_message callback returned error: {error:?}");
+                    debug!("Dropping message: on_message_input callback returned error: {error:?}");
                     continue;
                 }
             }
@@ -55,12 +55,12 @@ async fn tcp_receive_task(
 }
 
 /// Receives messages from the HUB Channel and sends them to the TCP Socket
-#[instrument(level = "debug", skip(socket, hub_receiver, on_message))]
+#[instrument(level = "debug", skip(socket, hub_receiver, on_message_output))]
 async fn tcp_send_task(
     mut socket: OwnedWriteHalf,
     remote_addr: &str,
     mut hub_receiver: broadcast::Receiver<Arc<Protocol>>,
-    on_message: &Callbacks<Arc<Protocol>>,
+    on_message_output: &Callbacks<Arc<Protocol>>,
 ) -> Result<()> {
     loop {
         let message = match hub_receiver.recv().await {
@@ -79,9 +79,9 @@ async fn tcp_send_task(
             continue; // Don't do loopback
         }
 
-        for future in on_message.call_all(Arc::clone(&message)) {
+        for future in on_message_output.call_all(Arc::clone(&message)) {
             if let Err(error) = future.await {
-                debug!("Dropping message: on_message callback returned error: {error:?}");
+                debug!("Dropping message: on_message_output callback returned error: {error:?}");
                 continue;
             }
         }

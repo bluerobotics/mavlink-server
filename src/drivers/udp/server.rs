@@ -16,7 +16,8 @@ use crate::{
 pub struct UdpServer {
     pub local_addr: String,
     clients: Arc<RwLock<HashMap<(u8, u8), String>>>,
-    on_message: Callbacks<Arc<Protocol>>,
+    on_message_input: Callbacks<Arc<Protocol>>,
+    on_message_output: Callbacks<Arc<Protocol>>,
 }
 
 pub struct UdpServerBuilder(UdpServer);
@@ -26,11 +27,19 @@ impl UdpServerBuilder {
         self.0
     }
 
-    pub fn on_message<C>(self, callback: C) -> Self
+    pub fn on_message_input<C>(self, callback: C) -> Self
     where
         C: MessageCallback<Arc<Protocol>>,
     {
-        self.0.on_message.add_callback(callback.into_boxed());
+        self.0.on_message_input.add_callback(callback.into_boxed());
+        self
+    }
+
+    pub fn on_message_output<C>(self, callback: C) -> Self
+    where
+        C: MessageCallback<Arc<Protocol>>,
+    {
+        self.0.on_message_output.add_callback(callback.into_boxed());
         self
     }
 }
@@ -41,7 +50,8 @@ impl UdpServer {
         UdpServerBuilder(Self {
             local_addr,
             clients: Arc::new(RwLock::new(HashMap::new())),
-            on_message: Callbacks::new(),
+            on_message_input: Callbacks::new(),
+            on_message_output: Callbacks::new(),
         })
     }
 
@@ -62,9 +72,9 @@ impl UdpServer {
                     read_all_messages(client_addr, &mut buf, |message| async {
                         let message = Arc::new(message);
 
-                        for future in self.on_message.call_all(Arc::clone(&message)) {
+                        for future in self.on_message_input.call_all(Arc::clone(&message)) {
                             if let Err(error) = future.await {
-                                debug!("Dropping message: on_message callback returned error: {error:?}");
+                                debug!("Dropping message: on_message_input callback returned error: {error:?}");
                                 continue;
                             }
                         }
@@ -117,6 +127,13 @@ impl UdpServer {
                     for ((_, _), client_addr) in clients.read().await.iter() {
                         if message.origin.eq(client_addr) {
                             continue; // Don't do loopback
+                        }
+
+                        for future in self.on_message_output.call_all(Arc::clone(&message)) {
+                            if let Err(error) = future.await {
+                                debug!("Dropping message: on_message_output callback returned error: {error:?}");
+                                continue;
+                            }
                         }
 
                         match socket.send_to(message.raw_bytes(), client_addr).await {

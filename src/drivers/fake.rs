@@ -11,14 +11,16 @@ use crate::{
 };
 
 pub struct FakeSink {
-    on_message: Callbacks<Arc<Protocol>>,
+    on_message_input: Callbacks<Arc<Protocol>>,
+    on_message_output: Callbacks<Arc<Protocol>>,
     print: bool,
 }
 
 impl FakeSink {
     pub fn builder() -> FakeSinkBuilder {
         FakeSinkBuilder(Self {
-            on_message: Callbacks::new(),
+            on_message_input: Callbacks::new(),
+            on_message_output: Callbacks::new(),
             print: false,
         })
     }
@@ -36,11 +38,19 @@ impl FakeSinkBuilder {
         self
     }
 
-    pub fn on_message<C>(self, callback: C) -> Self
+    pub fn on_message_input<C>(self, callback: C) -> Self
     where
         C: MessageCallback<Arc<Protocol>>,
     {
-        self.0.on_message.add_callback(callback.into_boxed());
+        self.0.on_message_input.add_callback(callback.into_boxed());
+        self
+    }
+
+    pub fn on_message_output<C>(self, callback: C) -> Self
+    where
+        C: MessageCallback<Arc<Protocol>>,
+    {
+        self.0.on_message_output.add_callback(callback.into_boxed());
         self
     }
 }
@@ -51,9 +61,9 @@ impl Driver for FakeSink {
         let mut hub_receiver = hub_sender.subscribe();
 
         while let Ok(message) = hub_receiver.recv().await {
-            for future in self.on_message.call_all(Arc::clone(&message)) {
+            for future in self.on_message_input.call_all(Arc::clone(&message)) {
                 if let Err(error) = future.await {
-                    debug!("Dropping message: on_message callback returned error: {error:?}");
+                    debug!("Dropping message: on_message_input callback returned error: {error:?}");
                     continue;
                 }
             }
@@ -116,14 +126,16 @@ impl DriverInfo for FakeSinkInfo {
 
 pub struct FakeSource {
     period: std::time::Duration,
-    on_message: Callbacks<Arc<Protocol>>,
+    on_message_input: Callbacks<Arc<Protocol>>,
+    on_message_output: Callbacks<Arc<Protocol>>,
 }
 
 impl FakeSource {
     pub fn builder(period: std::time::Duration) -> FakeSourceBuilder {
         FakeSourceBuilder(Self {
             period,
-            on_message: Callbacks::new(),
+            on_message_input: Callbacks::new(),
+            on_message_output: Callbacks::new(),
         })
     }
 }
@@ -135,11 +147,19 @@ impl FakeSourceBuilder {
         self.0
     }
 
-    pub fn on_message<C>(self, callback: C) -> Self
+    pub fn on_message_input<C>(self, callback: C) -> Self
     where
         C: MessageCallback<Arc<Protocol>>,
     {
-        self.0.on_message.add_callback(callback.into_boxed());
+        self.0.on_message_input.add_callback(callback.into_boxed());
+        self
+    }
+
+    pub fn on_message_output<C>(self, callback: C) -> Self
+    where
+        C: MessageCallback<Arc<Protocol>>,
+    {
+        self.0.on_message_output.add_callback(callback.into_boxed());
         self
     }
 }
@@ -185,10 +205,10 @@ impl Driver for FakeSource {
                 async move {
                     trace!("Fake message created: {message:?}");
 
-                    for future in self.on_message.call_all(Arc::clone(&message)) {
+                    for future in self.on_message_input.call_all(Arc::clone(&message)) {
                         if let Err(error) = future.await {
                             debug!(
-                                "Dropping message: on_message callback returned error: {error:?}"
+                                "Dropping message: on_message_input callback returned error: {error:?}"
                             );
                             continue;
                         }
@@ -271,7 +291,7 @@ mod test {
         // FakeSink and task
         let sink_messages_clone = sink_messages.clone();
         let sink = FakeSink::builder()
-            .on_message(move |message: Arc<Protocol>| {
+            .on_message_input(move |message: Arc<Protocol>| {
                 let sink_messages = sink_messages_clone.clone();
 
                 async move {
@@ -289,7 +309,7 @@ mod test {
         // FakeSource and task
         let source_messages_clone = source_messages.clone();
         let source = FakeSource::builder(message_period)
-            .on_message(move |message: Arc<Protocol>| {
+            .on_message_input(move |message: Arc<Protocol>| {
                 let source_messages = source_messages_clone.clone();
 
                 async move {

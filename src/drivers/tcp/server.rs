@@ -19,7 +19,8 @@ use crate::{
 #[derive(Clone)]
 pub struct TcpServer {
     pub local_addr: String,
-    on_message: Callbacks<Arc<Protocol>>,
+    on_message_input: Callbacks<Arc<Protocol>>,
+    on_message_output: Callbacks<Arc<Protocol>>,
 }
 
 pub struct TcpServerBuilder(TcpServer);
@@ -29,11 +30,19 @@ impl TcpServerBuilder {
         self.0
     }
 
-    pub fn on_message<C>(self, callback: C) -> Self
+    pub fn on_message_input<C>(self, callback: C) -> Self
     where
         C: MessageCallback<Arc<Protocol>>,
     {
-        self.0.on_message.add_callback(callback.into_boxed());
+        self.0.on_message_input.add_callback(callback.into_boxed());
+        self
+    }
+
+    pub fn on_message_output<C>(self, callback: C) -> Self
+    where
+        C: MessageCallback<Arc<Protocol>>,
+    {
+        self.0.on_message_output.add_callback(callback.into_boxed());
         self
     }
 }
@@ -43,29 +52,34 @@ impl TcpServer {
     pub fn builder(local_addr: &str) -> TcpServerBuilder {
         TcpServerBuilder(Self {
             local_addr: local_addr.to_string(),
-            on_message: Callbacks::new(),
+            on_message_input: Callbacks::new(),
+            on_message_output: Callbacks::new(),
         })
     }
 
     /// Handles communication with a single client
-    #[instrument(level = "debug", skip(socket, hub_sender, on_message))]
+    #[instrument(
+        level = "debug",
+        skip(socket, hub_sender, on_message_input, on_message_output)
+    )]
     async fn handle_client(
         socket: TcpStream,
         remote_addr: String,
         hub_sender: Arc<broadcast::Sender<Arc<Protocol>>>,
-        on_message: Callbacks<Arc<Protocol>>,
+        on_message_input: Callbacks<Arc<Protocol>>,
+        on_message_output: Callbacks<Arc<Protocol>>,
     ) -> Result<()> {
         let hub_receiver = hub_sender.subscribe();
 
         let (read, write) = socket.into_split();
 
         tokio::select! {
-            result = tcp_receive_task(read, &remote_addr, hub_sender, &on_message) => {
+            result = tcp_receive_task(read, &remote_addr, hub_sender, &on_message_input) => {
                 if let Err(e) = result {
                     error!("Error in TCP receive task for {remote_addr}: {e:?}");
                 }
             }
-            result = tcp_send_task(write, &remote_addr, hub_receiver, &on_message) => {
+            result = tcp_send_task(write, &remote_addr, hub_receiver, &on_message_input) => {
                 if let Err(e) = result {
                     error!("Error in TCP send task for {remote_addr}: {e:?}");
                 }
@@ -94,7 +108,8 @@ impl Driver for TcpServer {
                         socket,
                         remote_addr,
                         hub_sender,
-                        self.on_message.clone(),
+                        self.on_message_input.clone(),
+                        self.on_message_output.clone(),
                     ));
                 }
                 Err(error) => {
