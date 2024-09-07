@@ -12,15 +12,15 @@ use crate::{
     protocol::Protocol,
 };
 
-pub struct FileServer {
+pub struct TlogReader {
     pub path: PathBuf,
     on_message: Callbacks<(u64, Arc<Protocol>)>,
 }
 
-pub struct FileServerBuilder(FileServer);
+pub struct TlogReaderBuilder(TlogReader);
 
-impl FileServerBuilder {
-    pub fn build(self) -> FileServer {
+impl TlogReaderBuilder {
+    pub fn build(self) -> TlogReader {
         self.0
     }
 
@@ -33,10 +33,10 @@ impl FileServerBuilder {
     }
 }
 
-impl FileServer {
+impl TlogReader {
     #[instrument(level = "debug")]
-    pub fn builder(path: PathBuf) -> FileServerBuilder {
-        FileServerBuilder(Self {
+    pub fn builder(path: PathBuf) -> TlogReaderBuilder {
+        TlogReaderBuilder(Self {
             path,
             on_message: Callbacks::new(),
         })
@@ -118,33 +118,29 @@ impl FileServer {
 }
 
 #[async_trait::async_trait]
-impl Driver for FileServer {
+impl Driver for TlogReader {
     #[instrument(level = "debug", skip(self, hub_sender))]
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let file = tokio::fs::File::open(self.path.clone()).await?;
         let reader = tokio::io::BufReader::with_capacity(1024, file);
 
-        FileServer::handle_file(self, reader, hub_sender).await
+        TlogReader::handle_file(self, reader, hub_sender).await
     }
 
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
-        return Box::new(FileServerInfo);
+        return Box::new(TlogReaderInfo);
     }
 }
 
-pub struct FileServerInfo;
-impl DriverInfo for FileServerInfo {
+pub struct TlogReaderInfo;
+impl DriverInfo for TlogReaderInfo {
     fn name(&self) -> &str {
-        "FileServer"
+        "TlogReader"
     }
 
     fn valid_schemes(&self) -> Vec<String> {
-        vec![
-            "filesource".to_string(),
-            "fileserver".to_string(),
-            "files".to_string(),
-        ]
+        vec!["tlogreader".to_string(), "tlogr".to_string()]
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {
@@ -197,7 +193,7 @@ impl DriverInfo for FileServerInfo {
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
-        Some(Arc::new(FileServer::builder(url.path().into()).build()))
+        Some(Arc::new(TlogReader::builder(url.path().into()).build()))
     }
 }
 
@@ -222,7 +218,7 @@ mod tests {
 
         let tlog_file = PathBuf::from_str("tests/files/00025-2024-04-22_18-49-07.tlog").unwrap();
 
-        let driver = FileServer::builder(tlog_file.clone())
+        let driver = TlogReader::builder(tlog_file.clone())
             .on_message(move |args: (u64, Arc<Protocol>)| {
                 let messages_received = messages_received_cloned.clone();
 

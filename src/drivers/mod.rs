@@ -1,7 +1,7 @@
 pub mod fake;
-pub mod file;
 pub mod serial;
 pub mod tcp;
+pub mod tlog;
 pub mod udp;
 
 use std::sync::Arc;
@@ -18,8 +18,8 @@ use crate::protocol::Protocol;
 pub enum Type {
     FakeClient,
     FakeSource,
-    FileClient,
-    FileServer,
+    TlogWriter,
+    TlogReader,
     Serial,
     TcpClient,
     TcpServer,
@@ -176,12 +176,12 @@ pub struct ExtInfo {
 pub fn endpoints() -> Vec<ExtInfo> {
     vec![
         ExtInfo {
-            driver_ext: Box::new(file::client::FileClientInfo),
-            typ: Type::FileClient,
+            driver_ext: Box::new(tlog::writer::TlogWriterInfo),
+            typ: Type::TlogWriter,
         },
         ExtInfo {
-            driver_ext: Box::new(file::server::FileServerInfo),
-            typ: Type::FileServer,
+            driver_ext: Box::new(tlog::reader::TlogReaderInfo),
+            typ: Type::TlogReader,
         },
         ExtInfo {
             driver_ext: Box::new(serial::SerialInfo),
