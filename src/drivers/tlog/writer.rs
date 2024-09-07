@@ -15,7 +15,7 @@ use crate::{
 
 pub struct TlogWriter {
     pub path: PathBuf,
-    on_message_output: Callbacks<(u64, Arc<Protocol>)>,
+    on_message_output: Callbacks<Arc<Protocol>>,
 }
 
 pub struct TlogWriterBuilder(TlogWriter);
@@ -27,7 +27,7 @@ impl TlogWriterBuilder {
 
     pub fn on_message_output<C>(self, callback: C) -> Self
     where
-        C: MessageCallback<(u64, Arc<Protocol>)>,
+        C: MessageCallback<Arc<Protocol>>,
     {
         self.0.on_message_output.add_callback(callback.into_boxed());
         self
@@ -56,10 +56,7 @@ impl TlogWriter {
                 Ok(message) => {
                     let timestamp = chrono::Utc::now().timestamp_micros() as u64;
 
-                    for future in self
-                        .on_message_output
-                        .call_all((timestamp, (Arc::clone(&message))))
-                    {
+                    for future in self.on_message_output.call_all(Arc::clone(&message)) {
                         if let Err(error) = future.await {
                             debug!(
                                 "Dropping message: on_message_input callback returned error: {error:?}"
