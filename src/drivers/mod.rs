@@ -39,24 +39,9 @@ pub trait Driver: Send + Sync {
     fn info(&self) -> Box<dyn DriverInfo>;
 }
 
-type OnMessageCallback<T> = Option<Box<dyn OnMessageCallbackExt<T> + Send + Sync>>;
-
-pub trait OnMessageCallbackExt<T>: Send + Sync {
-    fn call(&self, msg: T) -> futures::future::BoxFuture<'static, Result<()>>;
-}
-
-impl<F, T, Fut> OnMessageCallbackExt<T> for F
-where
-    F: Fn(T) -> Fut + Send + Sync + 'static,
-    Fut: std::future::Future<Output = Result<()>> + Send + 'static,
-{
-    fn call(&self, msg: T) -> futures::future::BoxFuture<'static, Result<()>> {
-        Box::pin(self(msg))
-    }
-}
-
 pub trait DriverInfo: Sync + Send {
     fn name(&self) -> &str;
+
     fn valid_schemes(&self) -> Vec<String>;
     fn create_endpoint_from_url(&self, url: &Url) -> Option<Arc<dyn Driver>>;
 
@@ -221,6 +206,7 @@ mod tests {
 
     use anyhow::{anyhow, Result};
     use mavlink::MAVLinkV2MessageRaw;
+    use mavlink_server::callbacks::{Callbacks, MessageCallback};
     use tokio::sync::RwLock;
     use tracing::*;
 
@@ -239,14 +225,15 @@ mod tests {
     }
 
     // Example struct implementing Driver
-    #[derive(Default)]
     pub struct ExampleDriver {
-        on_message: OnMessageCallback<Arc<Protocol>>,
+        on_message: Callbacks<Arc<Protocol>>,
     }
 
     impl ExampleDriver {
         pub fn new() -> ExampleDriverBuilder {
-            ExampleDriverBuilder(Self { on_message: None })
+            ExampleDriverBuilder(Self {
+                on_message: Callbacks::new(),
+            })
         }
     }
 
@@ -257,11 +244,11 @@ mod tests {
             self.0
         }
 
-        pub fn on_message<F>(mut self, callback: F) -> Self
+        pub fn on_message<C>(self, callback: C) -> Self
         where
-            F: OnMessageCallbackExt<Arc<Protocol>> + Send + Sync + 'static,
+            C: MessageCallback<Arc<Protocol>>,
         {
-            self.0.on_message = Some(Box::new(callback));
+            self.0.on_message.add_callback(callback.into_boxed());
             self
         }
     }
@@ -272,11 +259,14 @@ mod tests {
             let mut hub_receiver = hub_sender.subscribe();
 
             while let Ok(message) = hub_receiver.recv().await {
-                if let Some(callback) = &self.on_message {
-                    callback.call(Arc::clone(&message)).await?;
+                for future in self.on_message.call_all(Arc::clone(&message)) {
+                    if let Err(error) = future.await {
+                        debug!("Dropping message: on_message callback returned error: {error:?}");
+                        continue;
+                    }
                 }
 
-                debug!("message:?");
+                trace!("Message received: {message:?}");
             }
 
             Ok(())
