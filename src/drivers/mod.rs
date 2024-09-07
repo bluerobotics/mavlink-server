@@ -43,6 +43,10 @@ pub trait DriverInfo: Sync + Send {
     fn name(&self) -> &str;
 
     fn valid_schemes(&self) -> Vec<String>;
+    // CLI helpers
+    fn cli_example_legacy(&self) -> Vec<String>;
+    fn cli_example_url(&self) -> Vec<String>;
+
     fn create_endpoint_from_url(&self, url: &Url) -> Option<Arc<dyn Driver>>;
 
     fn default_scheme(&self) -> String {
@@ -285,6 +289,14 @@ mod tests {
 
         fn valid_schemes(&self) -> Vec<String> {
             vec!["exampledriver".to_string()]
+        }
+
+        fn cli_example_legacy(&self) -> Vec<String> {
+            vec![]
+        }
+
+        fn cli_example_url(&self) -> Vec<String> {
+            vec![]
         }
 
         fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {

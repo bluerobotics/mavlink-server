@@ -77,6 +77,14 @@ impl DriverInfo for FakeSinkInfo {
         ]
     }
 
+    fn cli_example_legacy(&self) -> Vec<String> {
+        vec![]
+    }
+
+    fn cli_example_url(&self) -> Vec<String> {
+        vec![]
+    }
+
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
         None
     }
@@ -191,6 +199,14 @@ impl DriverInfo for FakeSourceInfo {
             "fakesrc".to_string(),
             "fakes".to_string(),
         ]
+    }
+
+    fn cli_example_legacy(&self) -> Vec<String> {
+        vec![]
+    }
+
+    fn cli_example_url(&self) -> Vec<String> {
+        vec![]
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
