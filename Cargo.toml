@@ -8,6 +8,15 @@ name = "mavlink_server"
 path = "src/lib/mod.rs"
 bench = false
 
+[[bench]]
+name = "callbacks_bench"
+harness = false
+
+[[bin]]
+name = "mavlink-server"
+path = "src/main.rs"
+bench = false
+
 [dependencies]
 anyhow = "1"
 async-trait = "0.1.81"
@@ -35,6 +44,9 @@ tracing-log = "0.2.0"
 # Reference: https://github.com/tokio-rs/tracing/issues/2441
 tracing-appender = { git = "https://github.com/joaoantoniocardoso/tracing", branch = "tracing-appender-0.2.2-with-filename-suffix" }
 
+[dev-dependencies]
+criterion = "0.5"
+tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
 vergen-gix = { version = "1.0.0-beta.2", default-features = false, features = ["build", "cargo"] }
