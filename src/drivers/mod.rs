@@ -240,13 +240,15 @@ mod tests {
 
     // Example struct implementing Driver
     pub struct ExampleDriver {
-        on_message: Callbacks<Arc<Protocol>>,
+        on_message_input: Callbacks<Arc<Protocol>>,
+        on_message_output: Callbacks<Arc<Protocol>>,
     }
 
     impl ExampleDriver {
         pub fn new() -> ExampleDriverBuilder {
             ExampleDriverBuilder(Self {
-                on_message: Callbacks::new(),
+                on_message_input: Callbacks::new(),
+                on_message_output: Callbacks::new(),
             })
         }
     }
@@ -258,11 +260,11 @@ mod tests {
             self.0
         }
 
-        pub fn on_message<C>(self, callback: C) -> Self
+        pub fn on_message_input<C>(self, callback: C) -> Self
         where
             C: MessageCallback<Arc<Protocol>>,
         {
-            self.0.on_message.add_callback(callback.into_boxed());
+            self.0.on_message_input.add_callback(callback.into_boxed());
             self
         }
     }
@@ -273,9 +275,11 @@ mod tests {
             let mut hub_receiver = hub_sender.subscribe();
 
             while let Ok(message) = hub_receiver.recv().await {
-                for future in self.on_message.call_all(Arc::clone(&message)) {
+                for future in self.on_message_input.call_all(Arc::clone(&message)) {
                     if let Err(error) = future.await {
-                        debug!("Dropping message: on_message callback returned error: {error:?}");
+                        debug!(
+                            "Dropping message: on_message_input callback returned error: {error:?}"
+                        );
                         continue;
                     }
                 }
@@ -315,13 +319,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn on_message_callback_test() -> Result<()> {
+    async fn on_message_input_callback_test() -> Result<()> {
         let (sender, _receiver) = tokio::sync::broadcast::channel(1);
 
         let called = Arc::new(RwLock::new(false));
         let called_cloned = called.clone();
         let driver = ExampleDriver::new()
-            .on_message(move |_msg| {
+            .on_message_input(move |_msg| {
                 let called = called_cloned.clone();
 
                 async move {

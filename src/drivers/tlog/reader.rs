@@ -14,7 +14,7 @@ use crate::{
 
 pub struct TlogReader {
     pub path: PathBuf,
-    on_message: Callbacks<(u64, Arc<Protocol>)>,
+    on_message_input: Callbacks<(u64, Arc<Protocol>)>,
 }
 
 pub struct TlogReaderBuilder(TlogReader);
@@ -24,11 +24,11 @@ impl TlogReaderBuilder {
         self.0
     }
 
-    pub fn on_message<C>(self, callback: C) -> Self
+    pub fn on_message_input<C>(self, callback: C) -> Self
     where
         C: MessageCallback<(u64, Arc<Protocol>)>,
     {
-        self.0.on_message.add_callback(callback.into_boxed());
+        self.0.on_message_input.add_callback(callback.into_boxed());
         self
     }
 }
@@ -38,7 +38,7 @@ impl TlogReader {
     pub fn builder(path: PathBuf) -> TlogReaderBuilder {
         TlogReaderBuilder(Self {
             path,
-            on_message: Callbacks::new(),
+            on_message_input: Callbacks::new(),
         })
     }
 
@@ -101,11 +101,11 @@ impl TlogReader {
             let message = Arc::new(message);
 
             for future in self
-                .on_message
+                .on_message_input
                 .call_all((us_since_epoch, (Arc::clone(&message))))
             {
                 if let Err(error) = future.await {
-                    debug!("Dropping message: on_message callback returned error: {error:?}");
+                    debug!("Dropping message: on_message_input callback returned error: {error:?}");
                     continue;
                 }
             }
@@ -219,7 +219,7 @@ mod tests {
         let tlog_file = PathBuf::from_str("tests/files/00025-2024-04-22_18-49-07.tlog").unwrap();
 
         let driver = TlogReader::builder(tlog_file.clone())
-            .on_message(move |args: (u64, Arc<Protocol>)| {
+            .on_message_input(move |args: (u64, Arc<Protocol>)| {
                 let messages_received = messages_received_cloned.clone();
 
                 async move {
