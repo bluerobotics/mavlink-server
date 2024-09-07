@@ -11,6 +11,7 @@ use tracing::*;
 #[derive(Debug, PartialEq)]
 pub struct Protocol {
     pub origin: String,
+    pub timestamp: u64,
     message: MAVLinkV2MessageRaw,
 }
 
@@ -18,6 +19,15 @@ impl Protocol {
     pub fn new(origin: &str, message: MAVLinkV2MessageRaw) -> Self {
         Self {
             origin: origin.to_string(),
+            timestamp: chrono::Utc::now().timestamp_micros() as u64,
+            message,
+        }
+    }
+
+    pub fn new_with_timestamp(timestamp: u64, origin: &str, message: MAVLinkV2MessageRaw) -> Self {
+        Self {
+            origin: origin.to_string(),
+            timestamp,
             message,
         }
     }

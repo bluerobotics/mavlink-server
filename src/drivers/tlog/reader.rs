@@ -14,7 +14,7 @@ use crate::{
 
 pub struct TlogReader {
     pub path: PathBuf,
-    on_message_input: Callbacks<(u64, Arc<Protocol>)>,
+    on_message_input: Callbacks<Arc<Protocol>>,
 }
 
 pub struct TlogReaderBuilder(TlogReader);
@@ -26,7 +26,7 @@ impl TlogReaderBuilder {
 
     pub fn on_message_input<C>(self, callback: C) -> Self
     where
-        C: MessageCallback<(u64, Arc<Protocol>)>,
+        C: MessageCallback<Arc<Protocol>>,
     {
         self.0.on_message_input.add_callback(callback.into_boxed());
         self
@@ -80,30 +80,28 @@ impl TlogReader {
             reader.consume(8);
             assert_eq!(reader.peek_exact(1).await?[0], mavlink::MAV_STX_V2);
 
-            let message =
-                match mavlink::read_v2_raw_message_async::<MavMessage, _>(&mut reader).await {
-                    Ok(message) => Protocol::new(&source_name, message),
-                    Err(error) => {
-                        match error {
-                            mavlink::error::MessageReadError::Io(_) => (),
-                            mavlink::error::MessageReadError::Parse(_) => {
-                                error!("Failed to parse MAVLink message: {error:?}")
-                            }
+            let message = match mavlink::read_v2_raw_message_async::<MavMessage, _>(&mut reader)
+                .await
+            {
+                Ok(message) => Protocol::new_with_timestamp(us_since_epoch, &source_name, message),
+                Err(error) => {
+                    match error {
+                        mavlink::error::MessageReadError::Io(_) => (),
+                        mavlink::error::MessageReadError::Parse(_) => {
+                            error!("Failed to parse MAVLink message: {error:?}")
                         }
-
-                        continue;
                     }
-                };
+
+                    continue;
+                }
+            };
             reader.consume(message.raw_bytes().len() - 1);
 
             trace!("Parsed message: {:?}", message.raw_bytes());
 
             let message = Arc::new(message);
 
-            for future in self
-                .on_message_input
-                .call_all((us_since_epoch, (Arc::clone(&message))))
-            {
+            for future in self.on_message_input.call_all(Arc::clone(&message)) {
                 if let Err(error) = future.await {
                     debug!("Dropping message: on_message_input callback returned error: {error:?}");
                     continue;
@@ -210,26 +208,24 @@ mod tests {
     async fn read_all_messages() -> Result<()> {
         let (sender, _receiver) = tokio::sync::broadcast::channel(1000000);
 
-        let messages_received_per_id = Arc::new(RwLock::new(BTreeMap::<
-            u32,
-            Vec<(u64, Arc<Protocol>)>,
-        >::new()));
+        let messages_received_per_id =
+            Arc::new(RwLock::new(BTreeMap::<u32, Vec<Arc<Protocol>>>::new()));
         let messages_received_cloned = messages_received_per_id.clone();
 
         let tlog_file = PathBuf::from_str("tests/files/00025-2024-04-22_18-49-07.tlog").unwrap();
 
         let driver = TlogReader::builder(tlog_file.clone())
-            .on_message_input(move |args: (u64, Arc<Protocol>)| {
+            .on_message_input(move |message: Arc<Protocol>| {
                 let messages_received = messages_received_cloned.clone();
 
                 async move {
-                    let message_id = args.1.message_id();
+                    let message_id = message.message_id();
 
                     let mut messages_received = messages_received.write().await;
                     if let Some(samples) = messages_received.get_mut(&message_id) {
-                        samples.push(args);
+                        samples.push(message);
                     } else {
-                        messages_received.insert(message_id, Vec::from([args]));
+                        messages_received.insert(message_id, Vec::from([message]));
                     }
 
                     Ok(())
@@ -281,20 +277,19 @@ mod tests {
             .values()
             .flatten()
             .cloned()
-            .collect::<Vec<(u64, Arc<Protocol>)>>();
-        messages_received.sort_by_key(|sample| sample.0);
+            .collect::<Vec<Arc<Protocol>>>();
+        messages_received.sort_by_key(|sample| sample.timestamp);
 
         let messages_parsed = messages_received
             .iter()
             .cloned()
-            .map(|sample| {
-                let message = sample.1;
+            .map(|message| {
                 let parsed_message = mavlink::MavFrame::<MavMessage>::deser(
                     mavlink::MavlinkVersion::V2,
                     &message.raw_bytes()[4..],
                 );
 
-                (sample.0, parsed_message)
+                (message.timestamp, parsed_message)
             })
             .collect::<Vec<(u64, std::result::Result<MavFrame<MavMessage>, ParserError>)>>();
 
