@@ -16,6 +16,8 @@ use crate::protocol::Protocol;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Type {
+    FakeClient,
+    FakeSource,
     FileClient,
     FileServer,
     Serial,
@@ -200,6 +202,14 @@ pub fn endpoints() -> Vec<ExtInfo> {
         ExtInfo {
             driver_ext: Box::new(udp::server::UdpServerInfo),
             typ: Type::UdpServer,
+        },
+        ExtInfo {
+            driver_ext: Box::new(fake::FakeSourceInfo),
+            typ: Type::FakeClient,
+        },
+        ExtInfo {
+            driver_ext: Box::new(fake::FakeSinkInfo),
+            typ: Type::FakeSource,
         },
     ]
 }
