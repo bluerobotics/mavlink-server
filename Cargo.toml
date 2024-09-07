@@ -3,6 +3,11 @@ name = "mavlink-server"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "mavlink_server"
+path = "src/lib/mod.rs"
+bench = false
+
 [dependencies]
 anyhow = "1"
 async-trait = "0.1.81"
