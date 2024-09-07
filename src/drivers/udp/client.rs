@@ -183,7 +183,7 @@ impl Driver for UdpClient {
 pub struct UdpClientInfo;
 impl DriverInfo for UdpClientInfo {
     fn name(&self) -> &str {
-        "UdpServer"
+        "UdpClient"
     }
 
     fn valid_schemes(&self) -> Vec<String> {
