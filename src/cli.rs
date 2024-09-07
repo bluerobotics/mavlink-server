@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use clap::Parser;
+use clap::{builder::StyledStr, Parser};
 use lazy_static::lazy_static;
 use tracing::*;
 
@@ -33,6 +33,8 @@ struct Args {
         num_args = 1..,
         value_delimiter = ' ',
         value_parser = endpoints_parser,
+        help = "Space-separated list of endpoints.",
+        long_help = build_endpoints_help(),
     )]
     endpoints: Vec<Arc<dyn drivers::Driver>>,
 
@@ -50,6 +52,48 @@ struct Args {
 
     #[arg(long, default_value = "true")]
     streamreq_disable: bool,
+}
+
+#[instrument(level = "trace")]
+fn build_endpoints_help() -> String {
+    let mut help = vec!["Space-separated list of endpoints.".to_string()];
+    let endpoints = drivers::endpoints()
+        .iter()
+        .map(|endpoint| {
+            let info = &endpoint.driver_ext;
+            let name = info.name();
+            let help_schemas = info
+                .valid_schemes()
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<String>>()
+                .join(",");
+
+            let help_legacy = info
+                .cli_example_legacy()
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<String>>()
+                .join("\n\t\t ");
+
+            let help_url = info
+                .cli_example_url()
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<String>>()
+                .join("\n\t\t ");
+
+            vec![
+                format!("{name}\t {help_schemas}").to_string(),
+                format!("\t legacy: {help_legacy}").to_string(),
+                format!("\t    url: {help_url}\n").to_string(),
+            ]
+            .join("\n")
+        })
+        .collect::<Vec<String>>();
+
+    help.extend(endpoints);
+    help.join("\n")
 }
 
 #[instrument(level = "debug")]
