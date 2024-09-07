@@ -5,7 +5,7 @@ use tokio::{net::UdpSocket, sync::broadcast};
 use tracing::*;
 
 use crate::{
-    drivers::{Driver, DriverExt, DriverInfo},
+    drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
 };
 
@@ -136,15 +136,17 @@ impl Driver for UdpClient {
     }
 
     #[instrument(level = "debug", skip(self))]
-    fn info(&self) -> DriverInfo {
-        DriverInfo {
-            name: "UdpClient".to_string(),
-        }
+    fn info(&self) -> Box<dyn DriverInfo> {
+        return Box::new(UdpClientInfo);
     }
 }
 
-pub struct UdpClientExt;
-impl DriverExt for UdpClientExt {
+pub struct UdpClientInfo;
+impl DriverInfo for UdpClientInfo {
+    fn name(&self) -> &str {
+        "UdpServer"
+    }
+
     fn valid_schemes(&self) -> Vec<String> {
         vec![
             "udpc".to_string(),

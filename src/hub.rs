@@ -80,7 +80,7 @@ impl Hub {
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub async fn drivers(&self) -> HashMap<u64, DriverInfo> {
+    pub async fn drivers(&self) -> HashMap<u64, Box<dyn DriverInfo>> {
         let drivers = self.drivers.read().await;
         drivers
             .iter()

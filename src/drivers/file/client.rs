@@ -8,7 +8,7 @@ use tokio::{
 use tracing::*;
 
 use crate::{
-    drivers::{Driver, DriverExt, DriverInfo},
+    drivers::{Driver, DriverInfo},
     protocol::Protocol,
 };
 
@@ -71,15 +71,17 @@ impl Driver for FileClient {
     }
 
     #[instrument(level = "debug", skip(self))]
-    fn info(&self) -> DriverInfo {
-        DriverInfo {
-            name: "FileClient".to_string(),
-        }
+    fn info(&self) -> Box<dyn DriverInfo> {
+        return Box::new(FileClientInfo);
     }
 }
 
-pub struct FileClientExt;
-impl DriverExt for FileClientExt {
+pub struct FileClientInfo;
+impl DriverInfo for FileClientInfo {
+    fn name(&self) -> &str {
+        "FileClient"
+    }
+
     fn valid_schemes(&self) -> Vec<String> {
         vec![
             "filec".to_string(),
