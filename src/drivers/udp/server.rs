@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
+use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use tokio::{
     net::UdpSocket,
     sync::{broadcast, RwLock},
@@ -15,19 +16,38 @@ use crate::{
 pub struct UdpServer {
     pub local_addr: String,
     clients: Arc<RwLock<HashMap<(u8, u8), String>>>,
+    on_message: Callbacks<Arc<Protocol>>,
+}
+
+pub struct UdpServerBuilder(UdpServer);
+
+impl UdpServerBuilder {
+    pub fn build(self) -> UdpServer {
+        self.0
+    }
+
+    pub fn on_message<C>(self, callback: C) -> Self
+    where
+        C: MessageCallback<Arc<Protocol>>,
+    {
+        self.0.on_message.add_callback(callback.into_boxed());
+        self
+    }
 }
 
 impl UdpServer {
     #[instrument(level = "debug")]
-    pub fn new(local_addr: String) -> Self {
-        Self {
+    pub fn builder(local_addr: String) -> UdpServerBuilder {
+        UdpServerBuilder(Self {
             local_addr,
             clients: Arc::new(RwLock::new(HashMap::new())),
-        }
+            on_message: Callbacks::new(),
+        })
     }
 
-    #[instrument(level = "debug", skip(socket, hub_sender, clients))]
+    #[instrument(level = "debug", skip(self, socket, hub_sender, clients))]
     async fn udp_receive_task(
+        &self,
         socket: Arc<UdpSocket>,
         hub_sender: Arc<broadcast::Sender<Arc<Protocol>>>,
         clients: Arc<RwLock<HashMap<(u8, u8), String>>>,
@@ -40,8 +60,16 @@ impl UdpServer {
                     let client_addr = &client_addr.to_string();
 
                     read_all_messages(client_addr, &mut buf, |message| async {
+                        let message = Arc::new(message);
+
+                        for future in self.on_message.call_all(Arc::clone(&message)) {
+                            if let Err(error) = future.await {
+                                debug!("Dropping message: on_message callback returned error: {error:?}");
+                                continue;
+                            }
+                        }
+
                         // Update clients
-                        let header_buf = message.header();
                         let sysid = message.system_id();
                         let compid = message.component_id();
                         if let Some(old_client_addr) = clients
@@ -54,7 +82,8 @@ impl UdpServer {
                             debug!("Client added: ({sysid},{compid}) -> {client_addr:?}");
                         }
 
-                        if let Err(error) = hub_sender.send(Arc::new(message)) {
+
+                        if let Err(error) = hub_sender.send(message) {
                             error!("Failed to send message to hub: {error:?}");
                         }
                     })
@@ -75,8 +104,9 @@ impl UdpServer {
         Ok(())
     }
 
-    #[instrument(level = "debug", skip(socket, hub_receiver, clients))]
+    #[instrument(level = "debug", skip(self, socket, hub_receiver, clients))]
     async fn udp_send_task(
+        &self,
         socket: Arc<UdpSocket>,
         mut hub_receiver: broadcast::Receiver<Arc<Protocol>>,
         clients: Arc<RwLock<HashMap<(u8, u8), String>>>,
@@ -134,12 +164,12 @@ impl Driver for UdpServer {
             let hub_receiver = hub_sender.subscribe();
 
             tokio::select! {
-                result = UdpServer::udp_receive_task(socket.clone(), hub_sender, clients.clone()) => {
+                result = self.udp_receive_task(socket.clone(), hub_sender, clients.clone()) => {
                     if let Err(error) = result {
                         error!("Error in receiving UDP messages: {error:?}");
                     }
                 }
-                result = UdpServer::udp_send_task(socket, hub_receiver, clients.clone()) => {
+                result = self.udp_send_task(socket, hub_receiver, clients.clone()) => {
                     if let Err(error) = result {
                         error!("Error in sending UDP messages: {error:?}");
                     }
@@ -171,6 +201,8 @@ impl DriverInfo for UdpServerInfo {
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
         let host = url.host_str().unwrap();
         let port = url.port().unwrap();
-        Some(Arc::new(UdpServer::new(format!("{host}:{port}"))))
+        Some(Arc::new(
+            UdpServer::builder(format!("{host}:{port}")).build(),
+        ))
     }
 }

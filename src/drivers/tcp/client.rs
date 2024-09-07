@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use tokio::{net::TcpStream, sync::broadcast};
 use tracing::*;
 
@@ -14,14 +15,32 @@ use crate::{
 
 pub struct TcpClient {
     pub remote_addr: String,
+    on_message: Callbacks<Arc<Protocol>>,
+}
+
+pub struct TcpClientBuilder(TcpClient);
+
+impl TcpClientBuilder {
+    pub fn build(self) -> TcpClient {
+        self.0
+    }
+
+    pub fn on_message<C>(self, callback: C) -> Self
+    where
+        C: MessageCallback<Arc<Protocol>>,
+    {
+        self.0.on_message.add_callback(callback.into_boxed());
+        self
+    }
 }
 
 impl TcpClient {
     #[instrument(level = "debug")]
-    pub fn new(remote_addr: &str) -> Self {
-        Self {
+    pub fn builder(remote_addr: &str) -> TcpClientBuilder {
+        TcpClientBuilder(Self {
             remote_addr: remote_addr.to_string(),
-        }
+            on_message: Callbacks::new(),
+        })
     }
 }
 
@@ -48,12 +67,12 @@ impl Driver for TcpClient {
             let hub_sender_cloned = Arc::clone(&hub_sender);
 
             tokio::select! {
-                result = tcp_receive_task(read, server_addr, hub_sender_cloned) => {
+                result = tcp_receive_task(read, server_addr, hub_sender_cloned, &self.on_message) => {
                     if let Err(e) = result {
                         error!("Error in TCP receive task: {e:?}");
                     }
                 }
-                result = tcp_send_task(write, server_addr, hub_receiver) => {
+                result = tcp_send_task(write, server_addr, hub_receiver, &self.on_message) => {
                     if let Err(e) = result {
                         error!("Error in TCP send task: {e:?}");
                     }
@@ -83,6 +102,8 @@ impl DriverInfo for TcpClientInfo {
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
         let host = url.host_str().unwrap();
         let port = url.port().unwrap();
-        Some(Arc::new(TcpClient::new(&format!("{host}:{port}"))))
+        Some(Arc::new(
+            TcpClient::builder(&format!("{host}:{port}")).build(),
+        ))
     }
 }

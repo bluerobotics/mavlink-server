@@ -15,7 +15,7 @@ pub struct FakeSink {
 }
 
 impl FakeSink {
-    pub fn new() -> FakeSinkBuilder {
+    pub fn builder() -> FakeSinkBuilder {
         FakeSinkBuilder(Self {
             on_message: Callbacks::new(),
         })
@@ -88,7 +88,7 @@ pub struct FakeSource {
 }
 
 impl FakeSource {
-    pub fn new(period: std::time::Duration) -> FakeSourceBuilder {
+    pub fn builder(period: std::time::Duration) -> FakeSourceBuilder {
         FakeSourceBuilder(Self {
             period,
             on_message: Callbacks::new(),
@@ -200,8 +200,9 @@ impl DriverInfo for FakeSourceInfo {
 
 #[cfg(test)]
 mod test {
-    use anyhow::Result;
     use std::sync::Arc;
+
+    use anyhow::Result;
     use tokio::sync::{broadcast, RwLock};
 
     use super::*;
@@ -219,7 +220,7 @@ mod test {
 
         // FakeSink and task
         let sink_messages_clone = sink_messages.clone();
-        let sink = FakeSink::new()
+        let sink = FakeSink::builder()
             .on_message(move |message: Arc<Protocol>| {
                 let sink_messages = sink_messages_clone.clone();
 
@@ -237,7 +238,7 @@ mod test {
 
         // FakeSource and task
         let source_messages_clone = source_messages.clone();
-        let source = FakeSource::new(message_period)
+        let source = FakeSource::builder(message_period)
             .on_message(move |message: Arc<Protocol>| {
                 let source_messages = source_messages_clone.clone();
 

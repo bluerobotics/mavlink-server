@@ -35,7 +35,7 @@ impl FileServerBuilder {
 
 impl FileServer {
     #[instrument(level = "debug")]
-    pub fn new(path: PathBuf) -> FileServerBuilder {
+    pub fn builder(path: PathBuf) -> FileServerBuilder {
         FileServerBuilder(Self {
             path,
             on_message: Callbacks::new(),
@@ -43,7 +43,7 @@ impl FileServer {
     }
 
     #[instrument(level = "debug", skip(self, reader, hub_sender))]
-    async fn handle_client(
+    async fn handle_file(
         &self,
         reader: tokio::io::BufReader<tokio::fs::File>,
         hub_sender: broadcast::Sender<Arc<Protocol>>,
@@ -124,7 +124,7 @@ impl Driver for FileServer {
         let file = tokio::fs::File::open(self.path.clone()).await?;
         let reader = tokio::io::BufReader::with_capacity(1024, file);
 
-        FileServer::handle_client(self, reader, hub_sender).await
+        FileServer::handle_file(self, reader, hub_sender).await
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -179,7 +179,7 @@ impl DriverInfo for FileServerInfo {
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
-        Some(Arc::new(FileServer::new(url.path().into()).build()))
+        Some(Arc::new(FileServer::builder(url.path().into()).build()))
     }
 }
 
@@ -204,7 +204,7 @@ mod tests {
 
         let tlog_file = PathBuf::from_str("tests/files/00025-2024-04-22_18-49-07.tlog").unwrap();
 
-        let driver = FileServer::new(tlog_file.clone())
+        let driver = FileServer::builder(tlog_file.clone())
             .on_message(move |args: (u64, Arc<Protocol>)| {
                 let messages_received = messages_received_cloned.clone();
 
@@ -232,7 +232,8 @@ mod tests {
         let file_v2_messages = 30437;
         let file_messages = file_v2_messages;
         let mut total_messages_read = 0;
-        let res = tokio::time::timeout(tokio::time::Duration::from_secs(1), async {
+        let timeout_time = tokio::time::Duration::from_secs(1);
+        let res = tokio::time::timeout(timeout_time, async {
             loop {
                 let messages_received_per_id = messages_received_per_id.read().await.clone();
                 total_messages_read = messages_received_per_id

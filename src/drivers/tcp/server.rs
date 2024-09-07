@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::broadcast,
@@ -15,36 +16,56 @@ use crate::{
     protocol::Protocol,
 };
 
+#[derive(Clone)]
 pub struct TcpServer {
     pub local_addr: String,
+    on_message: Callbacks<Arc<Protocol>>,
+}
+
+pub struct TcpServerBuilder(TcpServer);
+
+impl TcpServerBuilder {
+    pub fn build(self) -> TcpServer {
+        self.0
+    }
+
+    pub fn on_message<C>(self, callback: C) -> Self
+    where
+        C: MessageCallback<Arc<Protocol>>,
+    {
+        self.0.on_message.add_callback(callback.into_boxed());
+        self
+    }
 }
 
 impl TcpServer {
     #[instrument(level = "debug")]
-    pub fn new(local_addr: &str) -> Self {
-        Self {
+    pub fn builder(local_addr: &str) -> TcpServerBuilder {
+        TcpServerBuilder(Self {
             local_addr: local_addr.to_string(),
-        }
+            on_message: Callbacks::new(),
+        })
     }
 
     /// Handles communication with a single client
-    #[instrument(level = "debug", skip(socket, hub_sender))]
+    #[instrument(level = "debug", skip(socket, hub_sender, on_message))]
     async fn handle_client(
         socket: TcpStream,
         remote_addr: String,
         hub_sender: Arc<broadcast::Sender<Arc<Protocol>>>,
+        on_message: Callbacks<Arc<Protocol>>,
     ) -> Result<()> {
         let hub_receiver = hub_sender.subscribe();
 
         let (read, write) = socket.into_split();
 
         tokio::select! {
-            result = tcp_receive_task(read, &remote_addr, hub_sender) => {
+            result = tcp_receive_task(read, &remote_addr, hub_sender, &on_message) => {
                 if let Err(e) = result {
                     error!("Error in TCP receive task for {remote_addr}: {e:?}");
                 }
             }
-            result = tcp_send_task(write, &remote_addr, hub_receiver) => {
+            result = tcp_send_task(write, &remote_addr, hub_receiver, &on_message) => {
                 if let Err(e) = result {
                     error!("Error in TCP send task for {remote_addr}: {e:?}");
                 }
@@ -67,12 +88,13 @@ impl Driver for TcpServer {
             match listener.accept().await {
                 Ok((socket, remote_addr)) => {
                     let remote_addr = remote_addr.to_string();
-                    let hub_sender_cloned = Arc::clone(&hub_sender);
+                    let hub_sender = Arc::clone(&hub_sender);
 
                     tokio::spawn(TcpServer::handle_client(
                         socket,
                         remote_addr,
-                        hub_sender_cloned,
+                        hub_sender,
+                        self.on_message.clone(),
                     ));
                 }
                 Err(error) => {
@@ -102,6 +124,8 @@ impl DriverInfo for TcpServerInfo {
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
         let host = url.host_str().unwrap();
         let port = url.port().unwrap();
-        Some(Arc::new(TcpServer::new(&format!("{host}:{port}"))))
+        Some(Arc::new(
+            TcpServer::builder(&format!("{host}:{port}")).build(),
+        ))
     }
 }
