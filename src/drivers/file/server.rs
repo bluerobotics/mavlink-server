@@ -1,20 +1,20 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use chrono::DateTime;
 use mavlink::ardupilotmega::MavMessage;
-use std::path::PathBuf;
+use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use tokio::sync::broadcast;
 use tracing::*;
 
 use crate::{
-    drivers::{Driver, DriverInfo, OnMessageCallback, OnMessageCallbackExt},
+    drivers::{Driver, DriverInfo},
     protocol::Protocol,
 };
 
 pub struct FileServer {
     pub path: PathBuf,
-    on_message: OnMessageCallback<(u64, Arc<Protocol>)>,
+    on_message: Callbacks<(u64, Arc<Protocol>)>,
 }
 
 pub struct FileServerBuilder(FileServer);
@@ -24,11 +24,11 @@ impl FileServerBuilder {
         self.0
     }
 
-    pub fn on_message<F>(mut self, callback: F) -> Self
+    pub fn on_message<C>(self, callback: C) -> Self
     where
-        F: OnMessageCallbackExt<(u64, Arc<Protocol>)> + Send + Sync + 'static,
+        C: MessageCallback<(u64, Arc<Protocol>)>,
     {
-        self.0.on_message = Some(Box::new(callback));
+        self.0.on_message.add_callback(callback.into_boxed());
         self
     }
 }
@@ -38,7 +38,7 @@ impl FileServer {
     pub fn new(path: PathBuf) -> FileServerBuilder {
         FileServerBuilder(Self {
             path,
-            on_message: None,
+            on_message: Callbacks::new(),
         })
     }
 
@@ -100,11 +100,14 @@ impl FileServer {
 
             let message = Arc::new(message);
 
-            if let Some(callback) = &self.on_message {
-                callback
-                    .call((us_since_epoch, Arc::clone(&message)))
-                    .await
-                    .unwrap();
+            for future in self
+                .on_message
+                .call_all((us_since_epoch, (Arc::clone(&message))))
+            {
+                if let Err(error) = future.await {
+                    debug!("Dropping message: on_message callback returned error: {error:?}");
+                    continue;
+                }
             }
 
             if let Err(error) = hub_sender.send(message) {

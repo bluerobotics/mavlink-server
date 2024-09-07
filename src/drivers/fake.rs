@@ -1,22 +1,24 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use tokio::sync::broadcast;
 use tracing::*;
 
 use crate::{
-    drivers::{Driver, DriverInfo, OnMessageCallback, OnMessageCallbackExt},
+    drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
 };
 
-#[derive(Default)]
 pub struct FakeSink {
-    on_message: OnMessageCallback<Arc<Protocol>>,
+    on_message: Callbacks<Arc<Protocol>>,
 }
 
 impl FakeSink {
     pub fn new() -> FakeSinkBuilder {
-        FakeSinkBuilder(Self { on_message: None })
+        FakeSinkBuilder(Self {
+            on_message: Callbacks::new(),
+        })
     }
 }
 
@@ -27,11 +29,11 @@ impl FakeSinkBuilder {
         self.0
     }
 
-    pub fn on_message<F>(mut self, callback: F) -> Self
+    pub fn on_message<C>(self, callback: C) -> Self
     where
-        F: OnMessageCallbackExt<Arc<Protocol>> + Send + Sync + 'static,
+        C: MessageCallback<Arc<Protocol>>,
     {
-        self.0.on_message = Some(Box::new(callback));
+        self.0.on_message.add_callback(callback.into_boxed());
         self
     }
 }
@@ -42,11 +44,14 @@ impl Driver for FakeSink {
         let mut hub_receiver = hub_sender.subscribe();
 
         while let Ok(message) = hub_receiver.recv().await {
-            debug!("Message received: {message:?}");
-
-            if let Some(callback) = &self.on_message {
-                callback.call(Arc::clone(&message)).await?;
+            for future in self.on_message.call_all(Arc::clone(&message)) {
+                if let Err(error) = future.await {
+                    debug!("Dropping message: on_message callback returned error: {error:?}");
+                    continue;
+                }
             }
+
+            trace!("Message received: {message:?}");
         }
 
         Ok(())
@@ -77,17 +82,16 @@ impl DriverInfo for FakeSinkInfo {
     }
 }
 
-#[derive(Default)]
 pub struct FakeSource {
     period: std::time::Duration,
-    on_message: OnMessageCallback<Arc<Protocol>>,
+    on_message: Callbacks<Arc<Protocol>>,
 }
 
 impl FakeSource {
     pub fn new(period: std::time::Duration) -> FakeSourceBuilder {
         FakeSourceBuilder(Self {
             period,
-            on_message: None,
+            on_message: Callbacks::new(),
         })
     }
 }
@@ -99,11 +103,11 @@ impl FakeSourceBuilder {
         self.0
     }
 
-    pub fn on_message<F>(mut self, callback: F) -> Self
+    pub fn on_message<C>(self, callback: C) -> Self
     where
-        F: OnMessageCallbackExt<Arc<Protocol>> + Send + Sync + 'static,
+        C: MessageCallback<Arc<Protocol>>,
     {
-        self.0.on_message = Some(Box::new(callback));
+        self.0.on_message.add_callback(callback.into_boxed());
         self
     }
 }
@@ -149,8 +153,13 @@ impl Driver for FakeSource {
                 async move {
                     trace!("Fake message created: {message:?}");
 
-                    if let Some(callback) = &self.on_message {
-                        callback.call(Arc::clone(&message)).await.unwrap();
+                    for future in self.on_message.call_all(Arc::clone(&message)) {
+                        if let Err(error) = future.await {
+                            debug!(
+                                "Dropping message: on_message callback returned error: {error:?}"
+                            );
+                            continue;
+                        }
                     }
 
                     if let Err(error) = hub_sender.send(message) {
