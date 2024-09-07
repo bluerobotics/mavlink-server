@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::sync::{broadcast, Mutex};
+use mavlink_server::callbacks::{Callbacks, MessageCallback};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    sync::{broadcast, Mutex},
+};
 use tokio_serial::{self, SerialPortBuilderExt};
 use tracing::*;
 
@@ -14,15 +17,33 @@ use crate::{
 pub struct Serial {
     pub port_name: String,
     pub baud_rate: u32,
+    on_message: Callbacks<Arc<Protocol>>,
+}
+
+pub struct SerialBuilder(Serial);
+
+impl SerialBuilder {
+    pub fn build(self) -> Serial {
+        self.0
+    }
+
+    pub fn on_message<C>(self, callback: C) -> Self
+    where
+        C: MessageCallback<Arc<Protocol>>,
+    {
+        self.0.on_message.add_callback(callback.into_boxed());
+        self
+    }
 }
 
 impl Serial {
     #[instrument(level = "debug")]
-    pub fn new(port_name: &str, baud_rate: u32) -> Self {
-        Self {
+    pub fn builder(port_name: &str, baud_rate: u32) -> SerialBuilder {
+        SerialBuilder(Self {
             port_name: port_name.to_string(),
             baud_rate,
-        }
+            on_message: Callbacks::new(),
+        })
     }
 
     #[instrument(level = "debug", skip(port))]
@@ -148,6 +169,6 @@ impl DriverInfo for SerialInfo {
             })
             .unwrap_or(115200); // Commun baudrate between flight controllers
 
-        Some(Arc::new(Serial::new(&port_name, baud_rate)))
+        Some(Arc::new(Serial::builder(&port_name, baud_rate).build()))
     }
 }

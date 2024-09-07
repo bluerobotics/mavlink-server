@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use mavlink_server::callbacks::Callbacks;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
@@ -14,11 +15,12 @@ pub mod client;
 pub mod server;
 
 /// Receives messages from the TCP Socket and sends them to the HUB Channel
-#[instrument(level = "debug", skip(socket, hub_sender))]
+#[instrument(level = "debug", skip(socket, hub_sender, on_message))]
 async fn tcp_receive_task(
     mut socket: OwnedReadHalf,
     remote_addr: &str,
     hub_sender: Arc<broadcast::Sender<Arc<Protocol>>>,
+    on_message: &Callbacks<Arc<Protocol>>,
 ) -> Result<()> {
     let mut buf = Vec::with_capacity(1024);
 
@@ -32,7 +34,16 @@ async fn tcp_receive_task(
         trace!("Received TCP packet: {buf:?}");
 
         read_all_messages(remote_addr, &mut buf, |message| async {
-            if let Err(error) = hub_sender.send(Arc::new(message)) {
+            let message = Arc::new(message);
+
+            for future in on_message.call_all(Arc::clone(&message)) {
+                if let Err(error) = future.await {
+                    debug!("Dropping message: on_message callback returned error: {error:?}");
+                    continue;
+                }
+            }
+
+            if let Err(error) = hub_sender.send(message) {
                 error!("Failed to send message to hub: {error:?}");
             }
         })
@@ -44,11 +55,12 @@ async fn tcp_receive_task(
 }
 
 /// Receives messages from the HUB Channel and sends them to the TCP Socket
-#[instrument(level = "debug", skip(socket, hub_receiver))]
+#[instrument(level = "debug", skip(socket, hub_receiver, on_message))]
 async fn tcp_send_task(
     mut socket: OwnedWriteHalf,
     remote_addr: &str,
     mut hub_receiver: broadcast::Receiver<Arc<Protocol>>,
+    on_message: &Callbacks<Arc<Protocol>>,
 ) -> Result<()> {
     loop {
         let message = match hub_receiver.recv().await {
@@ -65,6 +77,13 @@ async fn tcp_send_task(
 
         if message.origin.eq(&remote_addr) {
             continue; // Don't do loopback
+        }
+
+        for future in on_message.call_all(Arc::clone(&message)) {
+            if let Err(error) = future.await {
+                debug!("Dropping message: on_message callback returned error: {error:?}");
+                continue;
+            }
         }
 
         socket.write_all(message.raw_bytes()).await?;
