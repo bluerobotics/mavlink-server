@@ -149,9 +149,33 @@ impl DriverInfo for UdpClientInfo {
 
     fn valid_schemes(&self) -> Vec<String> {
         vec![
-            "udpc".to_string(),
             "udpclient".to_string(),
             "udpout".to_string(),
+            "udpc".to_string(),
+        ]
+    }
+
+    fn cli_example_legacy(&self) -> Vec<String> {
+        let first_schema = &self.valid_schemes()[0];
+        let second_schema = &self.valid_schemes()[1];
+        vec![
+            format!("{first_schema}:<IP>:<PORT>"),
+            format!("{first_schema}:0.0.0.0:14550"),
+            format!("{second_schema}:192.168.2.1:14660"),
+        ]
+    }
+
+    fn cli_example_url(&self) -> Vec<String> {
+        let first_schema = &self.valid_schemes()[0];
+        let second_schema = &self.valid_schemes()[1];
+        vec![
+            format!("{first_schema}://<IP>:<PORT>").to_string(),
+            url::Url::parse(&format!("{first_schema}://0.0.0.0:14550"))
+                .unwrap()
+                .to_string(),
+            url::Url::parse(&format!("{second_schema}://192.168.2.1:14660"))
+                .unwrap()
+                .to_string(),
         ]
     }
 

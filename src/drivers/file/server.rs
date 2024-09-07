@@ -144,6 +144,24 @@ impl DriverInfo for FileServerInfo {
         ]
     }
 
+    fn cli_example_legacy(&self) -> Vec<String> {
+        let first_schema = &self.valid_schemes()[0];
+        vec![
+            format!("{first_schema}:<FILE>"),
+            format!("{first_schema}:/tmp/potato.tlog"),
+        ]
+    }
+
+    fn cli_example_url(&self) -> Vec<String> {
+        let first_schema = &self.valid_schemes()[0];
+        vec![
+            format!("{first_schema}://<FILE>").to_string(),
+            url::Url::parse(&format!("{first_schema}:///tmp/potato.tlog"))
+                .unwrap()
+                .to_string(),
+        ]
+    }
+
     fn url_from_legacy(
         &self,
         legacy_entry: crate::drivers::DriverDescriptionLegacy,

@@ -135,6 +135,28 @@ impl DriverInfo for SerialInfo {
         vec!["serial".to_string()]
     }
 
+    fn cli_example_legacy(&self) -> Vec<String> {
+        let first_schema = &self.valid_schemes()[0];
+        vec![
+            format!("{first_schema}:<PORT>:<BAUDRATE>"),
+            format!("{first_schema}:/dev/ttyACM0:115200"),
+            format!("{first_schema}:COM:57600"),
+        ]
+    }
+
+    fn cli_example_url(&self) -> Vec<String> {
+        let first_schema = &self.valid_schemes()[0];
+        vec![
+            format!("{first_schema}://<PORT>?baudrate=<BAUDRATE?>").to_string(),
+            url::Url::parse(&format!("{first_schema}:///dev/ttyACM0?baudrate=115200"))
+                .unwrap()
+                .to_string(),
+            url::Url::parse(&format!("{first_schema}://COM1?baudrate=57600"))
+                .unwrap()
+                .to_string(),
+        ]
+    }
+
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
         let port_name = url.path().to_string();
         let baud_rate = url

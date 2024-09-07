@@ -99,6 +99,31 @@ impl DriverInfo for TcpServerInfo {
         vec!["tcps".to_string(), "tcpserver".to_string()]
     }
 
+    fn cli_example_legacy(&self) -> Vec<String> {
+        let first_schema = &self.valid_schemes()[0];
+        let second_schema = &self.valid_schemes()[1];
+        vec![
+            format!("{first_schema}:<IP?>:<PORT>"),
+            format!("{first_schema}:14550"),
+            format!("{first_schema}:0.0.0.0:14550"),
+            format!("{second_schema}:127.0.0.1:14660"),
+        ]
+    }
+
+    fn cli_example_url(&self) -> Vec<String> {
+        let first_schema = &self.valid_schemes()[0];
+        let second_schema = &self.valid_schemes()[1];
+        vec![
+            format!("{first_schema}://<IP>:<PORT>").to_string(),
+            url::Url::parse(&format!("{first_schema}://0.0.0.0:14550"))
+                .unwrap()
+                .to_string(),
+            url::Url::parse(&format!("{second_schema}://127.0.0.1:14660"))
+                .unwrap()
+                .to_string(),
+        ]
+    }
+
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
         let host = url.host_str().unwrap();
         let port = url.port().unwrap();
