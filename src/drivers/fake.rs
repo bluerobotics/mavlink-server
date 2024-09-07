@@ -89,15 +89,25 @@ impl DriverInfo for FakeSinkInfo {
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {
-        vec![]
+        let first_schema = &self.valid_schemes()[0];
+        vec![
+            format!("{first_schema}:<MODE>"),
+            format!("{first_schema}:debug"),
+        ]
     }
 
     fn cli_example_url(&self) -> Vec<String> {
-        vec![]
+        let first_schema = &self.valid_schemes()[0];
+        vec![
+            format!("{first_schema}://<MODE>").to_string(),
+            url::Url::parse(&format!("{first_schema}://debug"))
+                .unwrap()
+                .to_string(),
+        ]
     }
 
     fn create_endpoint_from_url(&self, _url: &url::Url) -> Option<Arc<dyn Driver>> {
-        None
+        Some(Arc::new(FakeSink::builder().build()))
     }
 }
 
@@ -213,15 +223,25 @@ impl DriverInfo for FakeSourceInfo {
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {
-        vec![]
+        let first_schema = &self.valid_schemes()[0];
+        vec![
+            format!("{first_schema}:<MODE>"),
+            format!("{first_schema}:heartbeat"),
+        ]
     }
 
     fn cli_example_url(&self) -> Vec<String> {
-        vec![]
+        let first_schema = &self.valid_schemes()[0];
+        vec![
+            format!("{first_schema}://<MODE>?period=<MILLISECONDS?>").to_string(),
+            url::Url::parse(&format!("{first_schema}://heartbeat?period=10"))
+                .unwrap()
+                .to_string(),
+        ]
     }
 
     fn create_endpoint_from_url(&self, _url: &url::Url) -> Option<Arc<dyn Driver>> {
-        None
+        Some(Arc::new(FakeSink::builder().print().build()))
     }
 }
 
