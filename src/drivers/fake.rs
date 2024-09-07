@@ -58,10 +58,13 @@ impl Driver for FakeSink {
                 }
             }
 
+            let mut bytes = mavlink::peek_reader::PeekReader::new(message.raw_bytes());
+            let (header, message): (mavlink::MavHeader, mavlink::ardupilotmega::MavMessage) =
+                mavlink::read_v2_msg(&mut bytes).unwrap();
             if self.print {
-                println!("Message received: {message:?}");
+                println!("Message received: {header:?} {message:?}");
             } else {
-                trace!("Message received: {message:?}");
+                trace!("Message received: {header:?} {message:?}");
             }
         }
 
