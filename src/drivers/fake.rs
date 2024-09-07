@@ -52,10 +52,28 @@ impl Driver for FakeSink {
         Ok(())
     }
 
-    fn info(&self) -> DriverInfo {
-        DriverInfo {
-            name: "FakeSink".to_string(),
-        }
+    #[instrument(level = "debug", skip(self))]
+    fn info(&self) -> Box<dyn DriverInfo> {
+        Box::new(FakeSinkInfo)
+    }
+}
+
+pub struct FakeSinkInfo;
+impl DriverInfo for FakeSinkInfo {
+    fn name(&self) -> &str {
+        "FakeSink"
+    }
+
+    fn valid_schemes(&self) -> Vec<String> {
+        vec![
+            "fakeclient".to_string(),
+            "fakesink".to_string(),
+            "fakec".to_string(),
+        ]
+    }
+
+    fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
+        None
     }
 }
 
@@ -146,10 +164,28 @@ impl Driver for FakeSource {
         }
     }
 
-    fn info(&self) -> DriverInfo {
-        DriverInfo {
-            name: "FakeSource".to_string(),
-        }
+    fn info(&self) -> Box<dyn DriverInfo> {
+        Box::new(FakeSourceInfo)
+    }
+}
+
+pub struct FakeSourceInfo;
+impl DriverInfo for FakeSourceInfo {
+    fn name(&self) -> &str {
+        "FakeSource"
+    }
+
+    fn valid_schemes(&self) -> Vec<String> {
+        vec![
+            "fakesource".to_string(),
+            "fakeserver".to_string(),
+            "fakesrc".to_string(),
+            "fakes".to_string(),
+        ]
+    }
+
+    fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
+        None
     }
 }
 

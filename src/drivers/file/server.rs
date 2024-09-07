@@ -8,7 +8,7 @@ use tokio::sync::broadcast;
 use tracing::*;
 
 use crate::{
-    drivers::{Driver, DriverExt, DriverInfo, OnMessageCallback, OnMessageCallbackExt},
+    drivers::{Driver, DriverInfo, OnMessageCallback, OnMessageCallbackExt},
     protocol::Protocol,
 };
 
@@ -125,15 +125,17 @@ impl Driver for FileServer {
     }
 
     #[instrument(level = "debug", skip(self))]
-    fn info(&self) -> DriverInfo {
-        DriverInfo {
-            name: "FileServer".to_string(),
-        }
+    fn info(&self) -> Box<dyn DriverInfo> {
+        return Box::new(FileServerInfo);
     }
 }
 
-pub struct FileServerExt;
-impl DriverExt for FileServerExt {
+pub struct FileServerInfo;
+impl DriverInfo for FileServerInfo {
+    fn name(&self) -> &str {
+        "FileServer"
+    }
+
     fn valid_schemes(&self) -> Vec<String> {
         vec![
             "filesource".to_string(),

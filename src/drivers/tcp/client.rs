@@ -7,7 +7,7 @@ use tracing::*;
 use crate::{
     drivers::{
         tcp::{tcp_receive_task, tcp_send_task},
-        Driver, DriverExt, DriverInfo,
+        Driver, DriverInfo,
     },
     protocol::Protocol,
 };
@@ -65,15 +65,17 @@ impl Driver for TcpClient {
     }
 
     #[instrument(level = "debug", skip(self))]
-    fn info(&self) -> DriverInfo {
-        DriverInfo {
-            name: "TcpClient".to_string(),
-        }
+    fn info(&self) -> Box<dyn DriverInfo> {
+        return Box::new(TcpClientInfo);
     }
 }
 
-pub struct TcpClientExt;
-impl DriverExt for TcpClientExt {
+pub struct TcpClientInfo;
+impl DriverInfo for TcpClientInfo {
+    fn name(&self) -> &str {
+        "TcpClient"
+    }
+
     fn valid_schemes(&self) -> Vec<String> {
         vec!["tcpc".to_string(), "tcpclient".to_string()]
     }

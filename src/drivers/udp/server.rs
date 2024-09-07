@@ -8,7 +8,7 @@ use tokio::{
 use tracing::*;
 
 use crate::{
-    drivers::{Driver, DriverExt, DriverInfo},
+    drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
 };
 
@@ -149,15 +149,17 @@ impl Driver for UdpServer {
     }
 
     #[instrument(level = "debug", skip(self))]
-    fn info(&self) -> DriverInfo {
-        DriverInfo {
-            name: "UdpServer".to_string(),
-        }
+    fn info(&self) -> Box<dyn DriverInfo> {
+        return Box::new(UdpServerInfo);
     }
 }
 
-pub struct UdpServerExt;
-impl DriverExt for UdpServerExt {
+pub struct UdpServerInfo;
+impl DriverInfo for UdpServerInfo {
+    fn name(&self) -> &str {
+        "UdpServer"
+    }
+
     fn valid_schemes(&self) -> Vec<String> {
         vec![
             "udps".to_string(),

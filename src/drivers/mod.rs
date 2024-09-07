@@ -36,7 +36,7 @@ pub struct DriverDescriptionLegacy {
 #[async_trait::async_trait]
 pub trait Driver: Send + Sync {
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()>;
-    fn info(&self) -> DriverInfo;
+    fn info(&self) -> Box<dyn DriverInfo>;
 }
 
 type OnMessageCallback<T> = Option<Box<dyn OnMessageCallbackExt<T> + Send + Sync>>;
@@ -55,12 +55,8 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct DriverInfo {
-    name: String,
-}
-
-pub trait DriverExt: Sync + Send {
+pub trait DriverInfo: Sync + Send {
+    fn name(&self) -> &str;
     fn valid_schemes(&self) -> Vec<String>;
     fn create_endpoint_from_url(&self, url: &Url) -> Option<Arc<dyn Driver>>;
 
@@ -123,10 +119,10 @@ pub trait DriverExt: Sync + Send {
     }
 }
 
-impl std::fmt::Debug for dyn DriverExt {
+impl std::fmt::Debug for dyn DriverInfo {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let scheme = self.default_scheme();
-        write!(f, "DriverExt ({scheme})")
+        write!(f, "DriverInfo ({scheme})")
     }
 }
 
@@ -182,38 +178,38 @@ pub fn create_driver_from_entry(entry: &str) -> Result<Arc<dyn Driver>, String> 
 
 #[derive(Debug)]
 pub struct ExtInfo {
-    pub driver_ext: Box<dyn DriverExt>,
+    pub driver_ext: Box<dyn DriverInfo>,
     pub typ: Type,
 }
 
 pub fn endpoints() -> Vec<ExtInfo> {
     vec![
         ExtInfo {
-            driver_ext: Box::new(file::client::FileClientExt),
+            driver_ext: Box::new(file::client::FileClientInfo),
             typ: Type::FileClient,
         },
         ExtInfo {
-            driver_ext: Box::new(file::server::FileServerExt),
+            driver_ext: Box::new(file::server::FileServerInfo),
             typ: Type::FileServer,
         },
         ExtInfo {
-            driver_ext: Box::new(serial::SerialExt),
+            driver_ext: Box::new(serial::SerialInfo),
             typ: Type::Serial,
         },
         ExtInfo {
-            driver_ext: Box::new(tcp::client::TcpClientExt),
+            driver_ext: Box::new(tcp::client::TcpClientInfo),
             typ: Type::TcpClient,
         },
         ExtInfo {
-            driver_ext: Box::new(tcp::server::TcpServerExt),
+            driver_ext: Box::new(tcp::server::TcpServerInfo),
             typ: Type::TcpServer,
         },
         ExtInfo {
-            driver_ext: Box::new(udp::client::UdpClientExt),
+            driver_ext: Box::new(udp::client::UdpClientInfo),
             typ: Type::UdpClient,
         },
         ExtInfo {
-            driver_ext: Box::new(udp::server::UdpServerExt),
+            driver_ext: Box::new(udp::server::UdpServerInfo),
             typ: Type::UdpServer,
         },
     ]
@@ -286,10 +282,23 @@ mod tests {
             Ok(())
         }
 
-        fn info(&self) -> DriverInfo {
-            DriverInfo {
-                name: "ExampleDriver".to_string(),
-            }
+        fn info(&self) -> Box<dyn DriverInfo> {
+            Box::new(ExampleDriverInfo)
+        }
+    }
+
+    pub struct ExampleDriverInfo;
+    impl DriverInfo for ExampleDriverInfo {
+        fn name(&self) -> &str {
+            "ExampleDriver"
+        }
+
+        fn valid_schemes(&self) -> Vec<String> {
+            vec!["exampledriver".to_string()]
+        }
+
+        fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
+            None
         }
     }
 

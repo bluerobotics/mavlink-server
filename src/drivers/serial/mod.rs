@@ -7,7 +7,7 @@ use tokio_serial::{self, SerialPortBuilderExt};
 use tracing::*;
 
 use crate::{
-    drivers::{Driver, DriverExt, DriverInfo},
+    drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
 };
 
@@ -120,15 +120,17 @@ impl Driver for Serial {
     }
 
     #[instrument(level = "debug", skip(self))]
-    fn info(&self) -> DriverInfo {
-        DriverInfo {
-            name: "Serial".to_string(),
-        }
+    fn info(&self) -> Box<dyn DriverInfo> {
+        Box::new(SerialInfo)
     }
 }
 
-pub struct SerialExt;
-impl DriverExt for SerialExt {
+pub struct SerialInfo;
+impl DriverInfo for SerialInfo {
+    fn name(&self) -> &str {
+        "Serial"
+    }
+
     fn valid_schemes(&self) -> Vec<String> {
         vec!["serial".to_string()]
     }

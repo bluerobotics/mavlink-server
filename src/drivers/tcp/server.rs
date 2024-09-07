@@ -10,7 +10,7 @@ use tracing::*;
 use crate::{
     drivers::{
         tcp::{tcp_receive_task, tcp_send_task},
-        Driver, DriverExt, DriverInfo,
+        Driver, DriverInfo,
     },
     protocol::Protocol,
 };
@@ -84,15 +84,17 @@ impl Driver for TcpServer {
     }
 
     #[instrument(level = "debug", skip(self))]
-    fn info(&self) -> DriverInfo {
-        DriverInfo {
-            name: "TcpServer".to_string(),
-        }
+    fn info(&self) -> Box<dyn DriverInfo> {
+        return Box::new(TcpServerInfo);
     }
 }
 
-pub struct TcpServerExt;
-impl DriverExt for TcpServerExt {
+pub struct TcpServerInfo;
+impl DriverInfo for TcpServerInfo {
+    fn name(&self) -> &str {
+        "TcpServer"
+    }
+
     fn valid_schemes(&self) -> Vec<String> {
         vec!["tcps".to_string(), "tcpserver".to_string()]
     }
