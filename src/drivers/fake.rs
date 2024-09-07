@@ -12,12 +12,14 @@ use crate::{
 
 pub struct FakeSink {
     on_message: Callbacks<Arc<Protocol>>,
+    print: bool,
 }
 
 impl FakeSink {
     pub fn builder() -> FakeSinkBuilder {
         FakeSinkBuilder(Self {
             on_message: Callbacks::new(),
+            print: false,
         })
     }
 }
@@ -27,6 +29,11 @@ pub struct FakeSinkBuilder(FakeSink);
 impl FakeSinkBuilder {
     pub fn build(self) -> FakeSink {
         self.0
+    }
+
+    pub fn print(mut self) -> Self {
+        self.0.print = true;
+        self
     }
 
     pub fn on_message<C>(self, callback: C) -> Self
@@ -51,7 +58,11 @@ impl Driver for FakeSink {
                 }
             }
 
-            trace!("Message received: {message:?}");
+            if self.print {
+                println!("Message received: {message:?}");
+            } else {
+                trace!("Message received: {message:?}");
+            }
         }
 
         Ok(())
