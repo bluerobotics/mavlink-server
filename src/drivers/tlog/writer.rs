@@ -13,15 +13,15 @@ use crate::{
     protocol::Protocol,
 };
 
-pub struct FileClient {
+pub struct TlogWriter {
     pub path: PathBuf,
     on_message: Callbacks<(u64, Arc<Protocol>)>,
 }
 
-pub struct FileClientBuilder(FileClient);
+pub struct TlogWriterBuilder(TlogWriter);
 
-impl FileClientBuilder {
-    pub fn build(self) -> FileClient {
+impl TlogWriterBuilder {
+    pub fn build(self) -> TlogWriter {
         self.0
     }
 
@@ -34,10 +34,10 @@ impl FileClientBuilder {
     }
 }
 
-impl FileClient {
+impl TlogWriter {
     #[instrument(level = "debug")]
-    pub fn builder(path: PathBuf) -> FileClientBuilder {
-        FileClientBuilder(Self {
+    pub fn builder(path: PathBuf) -> TlogWriterBuilder {
+        TlogWriterBuilder(Self {
             path,
             on_message: Callbacks::new(),
         })
@@ -81,40 +81,36 @@ impl FileClient {
             }
         }
 
-        debug!("FileClient write task finished");
+        debug!("TlogClient write task finished");
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl Driver for FileClient {
+impl Driver for TlogWriter {
     #[instrument(level = "debug", skip(self, hub_sender))]
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let file = tokio::fs::File::create(self.path.clone()).await?;
         let writer = tokio::io::BufWriter::with_capacity(1024, file);
         let hub_receiver = hub_sender.subscribe();
 
-        FileClient::handle_client(self, writer, hub_receiver).await
+        TlogWriter::handle_client(self, writer, hub_receiver).await
     }
 
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
-        return Box::new(FileClientInfo);
+        return Box::new(TlogWriterInfo);
     }
 }
 
-pub struct FileClientInfo;
-impl DriverInfo for FileClientInfo {
+pub struct TlogWriterInfo;
+impl DriverInfo for TlogWriterInfo {
     fn name(&self) -> &str {
-        "FileClient"
+        "Tlogwriter"
     }
 
     fn valid_schemes(&self) -> Vec<String> {
-        vec![
-            "fileclient".to_string(),
-            "filewriter".to_string(),
-            "filec".to_string(),
-        ]
+        vec!["tlogwriter".to_string(), "tlogw".to_string()]
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {
@@ -136,6 +132,6 @@ impl DriverInfo for FileClientInfo {
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
-        Some(Arc::new(FileClient::builder(url.path().into()).build()))
+        Some(Arc::new(TlogWriter::builder(url.path().into()).build()))
     }
 }

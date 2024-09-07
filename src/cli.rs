@@ -184,10 +184,17 @@ mod tests {
             ("udps:192.168.1.5:6789", true),
             ("udpin:0.0.0.0:5000", true),
             ("udpin:192.168.1.5:6789", true),
-            ("filec:/tmp/little_potato.tlog", true),
+            ("tlogr:tests/files/00025-2024-04-22_18-49-07.tlog", true),
+            ("tlogw:/tmp/little_potato.tlog", true),
+            (
+                "tlogreader:tests/files/00025-2024-04-22_18-49-07.tlog",
+                true,
+            ),
+            ("tlogwriter:/tmp/little_potato.tlog", true),
         ];
 
         for (endpoint, expected) in endpoints {
+            dbg!(&endpoint);
             let result = endpoints_parser(endpoint);
             assert_eq!(result.is_ok(), expected);
         }
