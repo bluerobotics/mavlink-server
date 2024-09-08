@@ -1,23 +1,49 @@
 use std::{collections::HashMap, ops::Div, sync::Arc};
 
-use crate::protocol::Protocol;
 use anyhow::{anyhow, Context, Result};
 use mavlink::MAVLinkV2MessageRaw;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{broadcast, mpsc, RwLock};
 use tracing::*;
 
-use crate::drivers::{Driver, DriverInfo};
+use crate::{
+    drivers::{Driver, DriverInfo},
+    protocol::Protocol,
+};
 
-pub struct Hub {
+use super::protocol::HubCommand;
+
+pub struct HubActor {
     drivers: Arc<RwLock<HashMap<u64, Arc<dyn Driver>>>>,
     bcst_sender: broadcast::Sender<Arc<Protocol>>,
     last_driver_id: Arc<RwLock<u64>>,
     component_id: Arc<RwLock<u8>>,
     system_id: Arc<RwLock<u8>>,
-    task: tokio::task::JoinHandle<Result<()>>,
+    heartbeat_task: tokio::task::JoinHandle<Result<()>>,
 }
 
-impl Hub {
+impl HubActor {
+    pub async fn start(mut self, mut receiver: mpsc::Receiver<HubCommand>) {
+        while let Some(command) = receiver.recv().await {
+            match command {
+                HubCommand::AddDriver { driver, response } => {
+                    let result = self.add_driver(driver).await;
+                    let _ = response.send(result);
+                }
+                HubCommand::RemoveDriver { id, response } => {
+                    let result = self.remove_driver(id).await;
+                    let _ = response.send(result);
+                }
+                HubCommand::GetDrivers { response } => {
+                    let drivers = self.drivers().await;
+                    let _ = response.send(drivers);
+                }
+                HubCommand::GetSender { response } => {
+                    let _ = response.send(self.bcst_sender.clone());
+                }
+            }
+        }
+    }
+
     #[instrument(level = "debug")]
     pub async fn new(
         buffer_size: usize,
@@ -31,7 +57,7 @@ impl Hub {
         let component_id_cloned = component_id.clone();
         let system_id_cloned = system_id.clone();
         let frequency_cloned = frequency.clone();
-        let task = tokio::spawn(async move {
+        let heartbeat_task = tokio::spawn(async move {
             Self::heartbeat_task(
                 bcst_sender_cloned,
                 component_id_cloned,
@@ -47,7 +73,7 @@ impl Hub {
             last_driver_id: Arc::new(RwLock::new(0)),
             component_id,
             system_id,
-            task,
+            heartbeat_task,
         }
     }
 

@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
 
     wait_ctrlc().await;
 
-    for (id, driver_info) in hub.drivers().await {
+    for (id, driver_info) in hub.drivers().await? {
         debug!("Removing driver id {id:?} ({driver_info:?})");
         hub.remove_driver(id).await?;
     }
