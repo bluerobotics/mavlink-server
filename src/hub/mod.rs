@@ -9,8 +9,11 @@ use std::{
 use anyhow::Result;
 use tokio::sync::{broadcast, mpsc, oneshot, RwLock};
 
-use crate::drivers::{Driver, DriverInfo};
-use crate::protocol::Protocol;
+use crate::{
+    drivers::{Driver, DriverInfo},
+    protocol::Protocol,
+    stats::driver::DriverStatsInfo,
+};
 
 use actor::HubActor;
 use protocol::HubCommand;
@@ -76,5 +79,26 @@ impl Hub {
             .await?;
         let res = response_rx.await?;
         Ok(res)
+    }
+
+    pub async fn stats(&self) -> Result<Vec<(String, DriverStatsInfo)>> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.sender
+            .send(HubCommand::GetStats {
+                response: response_tx,
+            })
+            .await?;
+        let res = response_rx.await?;
+        Ok(res)
+    }
+
+    pub async fn reset_all_stats(&self) -> Result<()> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.sender
+            .send(HubCommand::ResetAllStats {
+                response: response_tx,
+            })
+            .await?;
+        response_rx.await?
     }
 }

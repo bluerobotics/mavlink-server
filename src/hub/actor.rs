@@ -8,6 +8,7 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
+    stats::driver::DriverStatsInfo,
 };
 
 use super::protocol::HubCommand;
@@ -39,6 +40,13 @@ impl HubActor {
                 }
                 HubCommand::GetSender { response } => {
                     let _ = response.send(self.bcst_sender.clone());
+                }
+                HubCommand::GetStats { response } => {
+                    let stats = self.get_stats().await;
+                    let _ = response.send(stats);
+                }
+                HubCommand::ResetAllStats { response } => {
+                    let _ = response.send(self.reset_all_stats().await);
                 }
             }
         }
@@ -158,5 +166,32 @@ impl HubActor {
     #[instrument(level = "debug", skip(self))]
     pub fn get_sender(&self) -> broadcast::Sender<Arc<Protocol>> {
         self.bcst_sender.clone()
+    }
+
+    #[instrument(level = "debug", skip(self))]
+    pub async fn get_stats(&self) -> Vec<(String, DriverStatsInfo)> {
+        let drivers = self.drivers.read().await;
+
+        let mut drivers_stats = Vec::with_capacity(drivers.len());
+        for (_id, driver) in drivers.iter() {
+            let stats = driver.stats().await;
+            let info = driver.info();
+            let name = info.name().to_owned();
+
+            drivers_stats.push((name, stats));
+        }
+
+        drivers_stats
+    }
+
+    #[instrument(level = "debug", skip(self))]
+    pub async fn reset_all_stats(&self) -> Result<()> {
+        let drivers = self.drivers.write().await;
+
+        for (_id, driver) in drivers.iter() {
+            driver.reset_stats().await;
+        }
+
+        Ok(())
     }
 }
