@@ -2,18 +2,23 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use mavlink_server::callbacks::{Callbacks, MessageCallback};
-use tokio::{net::UdpSocket, sync::broadcast};
+use tokio::{
+    net::UdpSocket,
+    sync::{broadcast, RwLock},
+};
 use tracing::*;
 
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
+    stats::driver::{DriverStats, DriverStatsInfo},
 };
 
 pub struct UdpClient {
     pub remote_addr: String,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
+    stats: Arc<RwLock<DriverStatsInfo>>,
 }
 
 pub struct UdpClientBuilder(UdpClient);
@@ -47,6 +52,7 @@ impl UdpClient {
             remote_addr: remote_addr.to_string(),
             on_message_input: Callbacks::new(),
             on_message_output: Callbacks::new(),
+            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
         })
     }
 
@@ -65,6 +71,12 @@ impl UdpClient {
 
                     read_all_messages(client_addr, &mut buf, |message| async {
                         let message = Arc::new(message);
+
+                        self.stats
+                            .write()
+                            .await
+                            .update_input(Arc::clone(&message))
+                            .await;
 
                         for future in self.on_message_input.call_all(Arc::clone(&message)) {
                             if let Err(error) = future.await {
@@ -106,6 +118,12 @@ impl UdpClient {
                     if message.origin.eq(&socket.peer_addr()?.to_string()) {
                         continue; // Don't do loopback
                     }
+
+                    self.stats
+                        .write()
+                        .await
+                        .update_output(Arc::clone(&message))
+                        .await;
 
                     for future in self.on_message_output.call_all(Arc::clone(&message)) {
                         if let Err(error) = future.await {
@@ -187,6 +205,20 @@ impl Driver for UdpClient {
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
         return Box::new(UdpClientInfo);
+    }
+}
+
+#[async_trait::async_trait]
+impl DriverStats for UdpClient {
+    async fn stats(&self) -> DriverStatsInfo {
+        self.stats.read().await.clone()
+    }
+
+    async fn reset_stats(&self) {
+        *self.stats.write().await = DriverStatsInfo {
+            input: None,
+            output: None,
+        }
     }
 }
 

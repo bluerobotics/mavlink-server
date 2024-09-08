@@ -12,7 +12,7 @@ use tokio::sync::broadcast;
 use tracing::*;
 use url::Url;
 
-use crate::protocol::Protocol;
+use crate::{protocol::Protocol, stats::driver::DriverStats};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Type {
@@ -36,7 +36,7 @@ pub struct DriverDescriptionLegacy {
 }
 
 #[async_trait::async_trait]
-pub trait Driver: Send + Sync {
+pub trait Driver: Send + Sync + DriverStats {
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()>;
     fn info(&self) -> Box<dyn DriverInfo>;
 }
@@ -224,6 +224,8 @@ mod tests {
     use tokio::sync::RwLock;
     use tracing::*;
 
+    use crate::stats::driver::DriverStatsInfo;
+
     use super::*;
 
     #[test]
@@ -242,6 +244,7 @@ mod tests {
     pub struct ExampleDriver {
         on_message_input: Callbacks<Arc<Protocol>>,
         on_message_output: Callbacks<Arc<Protocol>>,
+        stats: Arc<RwLock<DriverStatsInfo>>,
     }
 
     impl ExampleDriver {
@@ -249,6 +252,7 @@ mod tests {
             ExampleDriverBuilder(Self {
                 on_message_input: Callbacks::new(),
                 on_message_output: Callbacks::new(),
+                stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
             })
         }
     }
@@ -275,6 +279,12 @@ mod tests {
             let mut hub_receiver = hub_sender.subscribe();
 
             while let Ok(message) = hub_receiver.recv().await {
+                self.stats
+                    .write()
+                    .await
+                    .update_input(Arc::clone(&message))
+                    .await;
+
                 for future in self.on_message_input.call_all(Arc::clone(&message)) {
                     if let Err(error) = future.await {
                         debug!(
@@ -292,6 +302,20 @@ mod tests {
 
         fn info(&self) -> Box<dyn DriverInfo> {
             Box::new(ExampleDriverInfo)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl DriverStats for ExampleDriver {
+        async fn stats(&self) -> DriverStatsInfo {
+            self.stats.read().await.clone()
+        }
+
+        async fn reset_stats(&self) {
+            *self.stats.write().await = DriverStatsInfo {
+                input: None,
+                output: None,
+            }
         }
     }
 

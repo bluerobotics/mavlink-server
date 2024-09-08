@@ -4,17 +4,19 @@ use anyhow::Result;
 use chrono::DateTime;
 use mavlink::ardupilotmega::MavMessage;
 use mavlink_server::callbacks::{Callbacks, MessageCallback};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
+    stats::driver::{DriverStats, DriverStatsInfo},
 };
 
 pub struct TlogReader {
     pub path: PathBuf,
     on_message_input: Callbacks<Arc<Protocol>>,
+    stats: Arc<RwLock<DriverStatsInfo>>,
 }
 
 pub struct TlogReaderBuilder(TlogReader);
@@ -39,6 +41,7 @@ impl TlogReader {
         TlogReaderBuilder(Self {
             path,
             on_message_input: Callbacks::new(),
+            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
         })
     }
 
@@ -101,6 +104,12 @@ impl TlogReader {
 
             let message = Arc::new(message);
 
+            self.stats
+                .write()
+                .await
+                .update_input(Arc::clone(&message))
+                .await;
+
             for future in self.on_message_input.call_all(Arc::clone(&message)) {
                 if let Err(error) = future.await {
                     debug!("Dropping message: on_message_input callback returned error: {error:?}");
@@ -128,6 +137,20 @@ impl Driver for TlogReader {
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
         return Box::new(TlogReaderInfo);
+    }
+}
+
+#[async_trait::async_trait]
+impl DriverStats for TlogReader {
+    async fn stats(&self) -> DriverStatsInfo {
+        self.stats.read().await.clone()
+    }
+
+    async fn reset_stats(&self) {
+        *self.stats.write().await = DriverStatsInfo {
+            input: None,
+            output: None,
+        }
     }
 }
 

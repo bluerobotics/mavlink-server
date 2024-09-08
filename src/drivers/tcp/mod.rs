@@ -5,11 +5,14 @@ use mavlink_server::callbacks::Callbacks;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
-    sync::broadcast,
+    sync::{broadcast, RwLock},
 };
 use tracing::*;
 
-use crate::protocol::{read_all_messages, Protocol};
+use crate::{
+    protocol::{read_all_messages, Protocol},
+    stats::driver::DriverStatsInfo,
+};
 
 pub mod client;
 pub mod server;
@@ -21,6 +24,7 @@ async fn tcp_receive_task(
     remote_addr: &str,
     hub_sender: Arc<broadcast::Sender<Arc<Protocol>>>,
     on_message_input: &Callbacks<Arc<Protocol>>,
+    stats: &Arc<RwLock<DriverStatsInfo>>,
 ) -> Result<()> {
     let mut buf = Vec::with_capacity(1024);
 
@@ -35,6 +39,8 @@ async fn tcp_receive_task(
 
         read_all_messages(remote_addr, &mut buf, |message| async {
             let message = Arc::new(message);
+
+            stats.write().await.update_input(Arc::clone(&message)).await;
 
             for future in on_message_input.call_all(Arc::clone(&message)) {
                 if let Err(error) = future.await {
@@ -61,6 +67,7 @@ async fn tcp_send_task(
     remote_addr: &str,
     mut hub_receiver: broadcast::Receiver<Arc<Protocol>>,
     on_message_output: &Callbacks<Arc<Protocol>>,
+    stats: &Arc<RwLock<DriverStatsInfo>>,
 ) -> Result<()> {
     loop {
         let message = match hub_receiver.recv().await {
@@ -78,6 +85,12 @@ async fn tcp_send_task(
         if message.origin.eq(&remote_addr) {
             continue; // Don't do loopback
         }
+
+        stats
+            .write()
+            .await
+            .update_output(Arc::clone(&message))
+            .await;
 
         for future in on_message_output.call_all(Arc::clone(&message)) {
             if let Err(error) = future.await {

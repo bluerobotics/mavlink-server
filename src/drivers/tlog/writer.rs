@@ -4,18 +4,20 @@ use anyhow::Result;
 use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use tokio::{
     io::{AsyncWriteExt, BufWriter},
-    sync::broadcast,
+    sync::{broadcast, RwLock},
 };
 use tracing::*;
 
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
+    stats::driver::{DriverStats, DriverStatsInfo},
 };
 
 pub struct TlogWriter {
     pub path: PathBuf,
     on_message_output: Callbacks<Arc<Protocol>>,
+    stats: Arc<RwLock<DriverStatsInfo>>,
 }
 
 pub struct TlogWriterBuilder(TlogWriter);
@@ -40,6 +42,7 @@ impl TlogWriter {
         TlogWriterBuilder(Self {
             path,
             on_message_output: Callbacks::new(),
+            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
         })
     }
 
@@ -55,6 +58,12 @@ impl TlogWriter {
             match hub_receiver.recv().await {
                 Ok(message) => {
                     let timestamp = chrono::Utc::now().timestamp_micros() as u64;
+
+                    self.stats
+                        .write()
+                        .await
+                        .update_output(Arc::clone(&message))
+                        .await;
 
                     for future in self.on_message_output.call_all(Arc::clone(&message)) {
                         if let Err(error) = future.await {
@@ -99,6 +108,19 @@ impl Driver for TlogWriter {
     }
 }
 
+#[async_trait::async_trait]
+impl DriverStats for TlogWriter {
+    async fn stats(&self) -> DriverStatsInfo {
+        self.stats.read().await.clone()
+    }
+
+    async fn reset_stats(&self) {
+        *self.stats.write().await = DriverStatsInfo {
+            input: None,
+            output: None,
+        }
+    }
+}
 pub struct TlogWriterInfo;
 impl DriverInfo for TlogWriterInfo {
     fn name(&self) -> &str {
