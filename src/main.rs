@@ -3,6 +3,7 @@ mod drivers;
 mod hub;
 mod logger;
 mod protocol;
+mod stats;
 
 use std::sync::Arc;
 
@@ -30,6 +31,8 @@ async fn main() -> Result<()> {
     for driver in cli::endpoints() {
         hub.add_driver(driver).await?;
     }
+
+    let _stats = stats::Stats::new(hub.clone(), tokio::time::Duration::from_secs(1)).await;
 
     wait_ctrlc().await;
 
