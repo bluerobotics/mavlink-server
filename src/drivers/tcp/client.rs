@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use mavlink_server::callbacks::{Callbacks, MessageCallback};
-use tokio::{net::TcpStream, sync::broadcast};
+use tokio::{
+    net::TcpStream,
+    sync::{broadcast, RwLock},
+};
 use tracing::*;
 
 use crate::{
@@ -11,12 +14,14 @@ use crate::{
         Driver, DriverInfo,
     },
     protocol::Protocol,
+    stats::driver::{DriverStats, DriverStatsInfo},
 };
 
 pub struct TcpClient {
     pub remote_addr: String,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
+    stats: Arc<RwLock<DriverStatsInfo>>,
 }
 
 pub struct TcpClientBuilder(TcpClient);
@@ -50,6 +55,7 @@ impl TcpClient {
             remote_addr: remote_addr.to_string(),
             on_message_input: Callbacks::new(),
             on_message_output: Callbacks::new(),
+            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
         })
     }
 }
@@ -77,12 +83,12 @@ impl Driver for TcpClient {
             let hub_sender_cloned = Arc::clone(&hub_sender);
 
             tokio::select! {
-                result = tcp_receive_task(read, server_addr, hub_sender_cloned, &self.on_message_input) => {
+                result = tcp_receive_task(read, server_addr, hub_sender_cloned, &self.on_message_input, &self.stats) => {
                     if let Err(e) = result {
                         error!("Error in TCP receive task: {e:?}");
                     }
                 }
-                result = tcp_send_task(write, server_addr, hub_receiver, &self.on_message_output) => {
+                result = tcp_send_task(write, server_addr, hub_receiver, &self.on_message_output, &self.stats) => {
                     if let Err(e) = result {
                         error!("Error in TCP send task: {e:?}");
                     }
@@ -96,6 +102,20 @@ impl Driver for TcpClient {
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
         return Box::new(TcpClientInfo);
+    }
+}
+
+#[async_trait::async_trait]
+impl DriverStats for TcpClient {
+    async fn stats(&self) -> DriverStatsInfo {
+        self.stats.read().await.clone()
+    }
+
+    async fn reset_stats(&self) {
+        *self.stats.write().await = DriverStatsInfo {
+            input: None,
+            output: None,
+        }
     }
 }
 

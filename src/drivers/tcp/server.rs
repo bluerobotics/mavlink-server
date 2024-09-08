@@ -4,7 +4,7 @@ use anyhow::Result;
 use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::broadcast,
+    sync::{broadcast, RwLock},
 };
 use tracing::*;
 
@@ -14,6 +14,7 @@ use crate::{
         Driver, DriverInfo,
     },
     protocol::Protocol,
+    stats::driver::{DriverStats, DriverStatsInfo},
 };
 
 #[derive(Clone)]
@@ -21,6 +22,7 @@ pub struct TcpServer {
     pub local_addr: String,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
+    stats: Arc<RwLock<DriverStatsInfo>>,
 }
 
 pub struct TcpServerBuilder(TcpServer);
@@ -54,6 +56,7 @@ impl TcpServer {
             local_addr: local_addr.to_string(),
             on_message_input: Callbacks::new(),
             on_message_output: Callbacks::new(),
+            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
         })
     }
 
@@ -68,18 +71,19 @@ impl TcpServer {
         hub_sender: Arc<broadcast::Sender<Arc<Protocol>>>,
         on_message_input: Callbacks<Arc<Protocol>>,
         on_message_output: Callbacks<Arc<Protocol>>,
+        stats: Arc<RwLock<DriverStatsInfo>>,
     ) -> Result<()> {
         let hub_receiver = hub_sender.subscribe();
 
         let (read, write) = socket.into_split();
 
         tokio::select! {
-            result = tcp_receive_task(read, &remote_addr, hub_sender, &on_message_input) => {
+            result = tcp_receive_task(read, &remote_addr, hub_sender, &on_message_input, &stats) => {
                 if let Err(e) = result {
                     error!("Error in TCP receive task for {remote_addr}: {e:?}");
                 }
             }
-            result = tcp_send_task(write, &remote_addr, hub_receiver, &on_message_input) => {
+            result = tcp_send_task(write, &remote_addr, hub_receiver, &on_message_output, &stats) => {
                 if let Err(e) = result {
                     error!("Error in TCP send task for {remote_addr}: {e:?}");
                 }
@@ -110,6 +114,7 @@ impl Driver for TcpServer {
                         hub_sender,
                         self.on_message_input.clone(),
                         self.on_message_output.clone(),
+                        self.stats.clone(),
                     ));
                 }
                 Err(error) => {
@@ -123,6 +128,20 @@ impl Driver for TcpServer {
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
         return Box::new(TcpServerInfo);
+    }
+}
+
+#[async_trait::async_trait]
+impl DriverStats for TcpServer {
+    async fn stats(&self) -> DriverStatsInfo {
+        self.stats.read().await.clone()
+    }
+
+    async fn reset_stats(&self) {
+        *self.stats.write().await = DriverStatsInfo {
+            input: None,
+            output: None,
+        }
     }
 }
 

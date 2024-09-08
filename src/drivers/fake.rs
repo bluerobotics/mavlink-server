@@ -2,26 +2,27 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use mavlink_server::callbacks::{Callbacks, MessageCallback};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
+    stats::driver::{DriverStats, DriverStatsInfo},
 };
 
 pub struct FakeSink {
     on_message_input: Callbacks<Arc<Protocol>>,
-    on_message_output: Callbacks<Arc<Protocol>>,
     print: bool,
+    stats: Arc<RwLock<DriverStatsInfo>>,
 }
 
 impl FakeSink {
     pub fn builder() -> FakeSinkBuilder {
         FakeSinkBuilder(Self {
             on_message_input: Callbacks::new(),
-            on_message_output: Callbacks::new(),
             print: false,
+            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
         })
     }
 }
@@ -45,14 +46,6 @@ impl FakeSinkBuilder {
         self.0.on_message_input.add_callback(callback.into_boxed());
         self
     }
-
-    pub fn on_message_output<C>(self, callback: C) -> Self
-    where
-        C: MessageCallback<Arc<Protocol>>,
-    {
-        self.0.on_message_output.add_callback(callback.into_boxed());
-        self
-    }
 }
 
 #[async_trait::async_trait]
@@ -61,6 +54,18 @@ impl Driver for FakeSink {
         let mut hub_receiver = hub_sender.subscribe();
 
         while let Ok(message) = hub_receiver.recv().await {
+            self.stats
+                .write()
+                .await
+                .update_input(Arc::clone(&message))
+                .await;
+
+            self.stats
+                .write()
+                .await
+                .update_input(Arc::clone(&message))
+                .await;
+
             for future in self.on_message_input.call_all(Arc::clone(&message)) {
                 if let Err(error) = future.await {
                     debug!("Dropping message: on_message_input callback returned error: {error:?}");
@@ -68,9 +73,9 @@ impl Driver for FakeSink {
                 }
             }
 
-            let mut bytes = mavlink::peek_reader::PeekReader::new(message.raw_bytes());
+            let mut bytes = mavlink::async_peek_reader::AsyncPeekReader::new(message.raw_bytes());
             let (header, message): (mavlink::MavHeader, mavlink::ardupilotmega::MavMessage) =
-                mavlink::read_v2_msg(&mut bytes).unwrap();
+                mavlink::read_v2_msg_async(&mut bytes).await.unwrap();
             if self.print {
                 println!("Message received: {header:?} {message:?}");
             } else {
@@ -84,6 +89,20 @@ impl Driver for FakeSink {
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
         Box::new(FakeSinkInfo)
+    }
+}
+
+#[async_trait::async_trait]
+impl DriverStats for FakeSink {
+    async fn stats(&self) -> DriverStatsInfo {
+        self.stats.read().await.clone()
+    }
+
+    async fn reset_stats(&self) {
+        *self.stats.write().await = DriverStatsInfo {
+            input: None,
+            output: None,
+        }
     }
 }
 
@@ -127,6 +146,7 @@ impl DriverInfo for FakeSinkInfo {
 pub struct FakeSource {
     period: std::time::Duration,
     on_message_output: Callbacks<Arc<Protocol>>,
+    stats: Arc<RwLock<DriverStatsInfo>>,
 }
 
 impl FakeSource {
@@ -134,6 +154,7 @@ impl FakeSource {
         FakeSourceBuilder(Self {
             period,
             on_message_output: Callbacks::new(),
+            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
         })
     }
 }
@@ -194,6 +215,12 @@ impl Driver for FakeSource {
                 async move {
                     trace!("Fake message created: {message:?}");
 
+                    self.stats
+                        .write()
+                        .await
+                        .update_output(Arc::clone(&message))
+                        .await;
+
                     for future in self.on_message_output.call_all(Arc::clone(&message)) {
                         if let Err(error) = future.await {
                             debug!(
@@ -216,6 +243,20 @@ impl Driver for FakeSource {
 
     fn info(&self) -> Box<dyn DriverInfo> {
         Box::new(FakeSourceInfo)
+    }
+}
+
+#[async_trait::async_trait]
+impl DriverStats for FakeSource {
+    async fn stats(&self) -> DriverStatsInfo {
+        self.stats.read().await.clone()
+    }
+
+    async fn reset_stats(&self) {
+        *self.stats.write().await = DriverStatsInfo {
+            input: None,
+            output: None,
+        }
     }
 }
 

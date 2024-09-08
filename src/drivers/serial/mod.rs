@@ -4,7 +4,7 @@ use anyhow::Result;
 use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    sync::{broadcast, Mutex},
+    sync::{broadcast, Mutex, RwLock},
 };
 use tokio_serial::{self, SerialPortBuilderExt};
 use tracing::*;
@@ -12,6 +12,7 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
+    stats::driver::{DriverStats, DriverStatsInfo},
 };
 
 pub struct Serial {
@@ -19,6 +20,7 @@ pub struct Serial {
     pub baud_rate: u32,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
+    stats: Arc<RwLock<DriverStatsInfo>>,
 }
 
 pub struct SerialBuilder(Serial);
@@ -53,6 +55,7 @@ impl Serial {
             baud_rate,
             on_message_input: Callbacks::new(),
             on_message_output: Callbacks::new(),
+            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
         })
     }
 
@@ -172,6 +175,20 @@ impl Driver for Serial {
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
         Box::new(SerialInfo)
+    }
+}
+
+#[async_trait::async_trait]
+impl DriverStats for Serial {
+    async fn stats(&self) -> DriverStatsInfo {
+        self.stats.read().await.clone()
+    }
+
+    async fn reset_stats(&self) {
+        *self.stats.write().await = DriverStatsInfo {
+            input: None,
+            output: None,
+        }
     }
 }
 
