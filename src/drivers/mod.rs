@@ -18,9 +18,9 @@ use crate::{protocol::Protocol, stats::driver::DriverStats};
 pub enum Type {
     FakeClient,
     FakeSource,
+    Serial,
     TlogWriter,
     TlogReader,
-    Serial,
     TcpClient,
     TcpServer,
     UdpClient,
