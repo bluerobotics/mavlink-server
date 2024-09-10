@@ -207,34 +207,35 @@ impl Driver for FakeSource {
             buf.clear();
             mavlink::write_v2_msg(&mut buf, header, &data).expect("Failed to write message");
 
-            let hub_sender_cloned = hub_sender.clone();
-            read_all_messages("FakeSource", &mut buf, move |message| {
-                let message = Arc::new(message);
-                let hub_sender = hub_sender_cloned.clone();
+            read_all_messages("FakeSource", &mut buf, {
+                let hub_sender = hub_sender.clone();
+                move |message| {
+                    let message = Arc::new(message);
+                    let hub_sender = hub_sender.clone();
 
-                async move {
-                    trace!("Fake message created: {message:?}");
+                    async move {
+                        trace!("Fake message created: {message:?}");
 
-                    self.stats
-                        .write()
-                        .await
-                        .update_output(Arc::clone(&message))
-                        .await;
+                        self.stats
+                            .write()
+                            .await
+                            .update_output(Arc::clone(&message))
+                            .await;
 
-                    for future in self.on_message_output.call_all(Arc::clone(&message)) {
-                        if let Err(error) = future.await {
-                            debug!(
-                                "Dropping message: on_message_input callback returned error: {error:?}"
-                            );
-                            continue;
+                        for future in self.on_message_output.call_all(Arc::clone(&message)) {
+                            if let Err(error) = future.await {
+                                debug!(
+                                    "Dropping message: on_message_input callback returned error: {error:?}"
+                                );
+                                continue;
+                            }
+                        }
+
+                        if let Err(error) = hub_sender.send(message) {
+                            error!("Failed to send message to hub: {error:?}");
                         }
                     }
-
-                    if let Err(error) = hub_sender.send(message) {
-                        error!("Failed to send message to hub: {error:?}");
-                    }
-                }
-            })
+            }})
             .await;
 
             tokio::time::sleep(self.period).await;
@@ -319,14 +320,17 @@ mod test {
         let sink_messages = Arc::new(RwLock::new(Vec::<Arc<Protocol>>::with_capacity(1000)));
 
         // FakeSink and task
-        let sink_messages_clone = sink_messages.clone();
         let sink = FakeSink::builder()
-            .on_message_input(move |message: Arc<Protocol>| {
-                let sink_messages = sink_messages_clone.clone();
+            .on_message_input({
+                let sink_messages = sink_messages.clone();
 
-                async move {
-                    sink_messages.write().await.push(message);
-                    Ok(())
+                move |message: Arc<Protocol>| {
+                    let sink_messages = sink_messages.clone();
+
+                    async move {
+                        sink_messages.write().await.push(message);
+                        Ok(())
+                    }
                 }
             })
             .build();
@@ -337,14 +341,16 @@ mod test {
         });
 
         // FakeSource and task
-        let source_messages_clone = source_messages.clone();
         let source = FakeSource::builder(message_period)
-            .on_message_output(move |message: Arc<Protocol>| {
-                let source_messages = source_messages_clone.clone();
+            .on_message_output({
+                let source_messages = source_messages.clone();
+                move |message: Arc<Protocol>| {
+                    let source_messages = source_messages.clone();
 
-                async move {
-                    source_messages.write().await.push(message);
-                    Ok(())
+                    async move {
+                        source_messages.write().await.push(message);
+                        Ok(())
+                    }
                 }
             })
             .build();
@@ -355,14 +361,16 @@ mod test {
         });
 
         // Monitoring task to wait the
-        let sink_messages_clone = sink_messages.clone();
-        let sink_monitor_task = tokio::spawn(async move {
-            loop {
-                if sink_messages_clone.read().await.len() >= number_of_messages {
-                    break;
-                }
+        let sink_monitor_task = tokio::spawn({
+            let sink_messages = sink_messages.clone();
+            async move {
+                loop {
+                    if sink_messages.read().await.len() >= number_of_messages {
+                        break;
+                    }
 
-                tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+                }
             }
         });
         let _ = tokio::time::timeout(timeout_time, sink_monitor_task)

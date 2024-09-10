@@ -233,25 +233,27 @@ mod tests {
 
         let messages_received_per_id =
             Arc::new(RwLock::new(BTreeMap::<u32, Vec<Arc<Protocol>>>::new()));
-        let messages_received_cloned = messages_received_per_id.clone();
 
         let tlog_file = PathBuf::from_str("tests/files/00025-2024-04-22_18-49-07.tlog").unwrap();
 
         let driver = TlogReader::builder(tlog_file.clone())
-            .on_message_input(move |message: Arc<Protocol>| {
-                let messages_received = messages_received_cloned.clone();
+            .on_message_input({
+                let messages_received_per_id = messages_received_per_id.clone();
+                move |message: Arc<Protocol>| {
+                    let messages_received = messages_received_per_id.clone();
 
-                async move {
-                    let message_id = message.message_id();
+                    async move {
+                        let message_id = message.message_id();
 
-                    let mut messages_received = messages_received.write().await;
-                    if let Some(samples) = messages_received.get_mut(&message_id) {
-                        samples.push(message);
-                    } else {
-                        messages_received.insert(message_id, Vec::from([message]));
+                        let mut messages_received = messages_received.write().await;
+                        if let Some(samples) = messages_received.get_mut(&message_id) {
+                            samples.push(message);
+                        } else {
+                            messages_received.insert(message_id, Vec::from([message]));
+                        }
+
+                        Ok(())
                     }
-
-                    Ok(())
                 }
             })
             .build();

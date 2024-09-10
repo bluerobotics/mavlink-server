@@ -347,15 +347,17 @@ mod tests {
         let (sender, _receiver) = tokio::sync::broadcast::channel(1);
 
         let called = Arc::new(RwLock::new(false));
-        let called_cloned = called.clone();
         let driver = ExampleDriver::new()
-            .on_message_input(move |_msg| {
-                let called = called_cloned.clone();
+            .on_message_input({
+                let called = called.clone();
+                move |_msg| {
+                    let called = called.clone();
 
-                async move {
-                    *called.write().await = true;
+                    async move {
+                        *called.write().await = true;
 
-                    Err(anyhow!("Finished from callback"))
+                        Err(anyhow!("Finished from callback"))
+                    }
                 }
             })
             .build();

@@ -80,10 +80,9 @@ impl Driver for TcpClient {
             debug!("TcpClient successfully connected to {server_addr:?}");
 
             let hub_receiver = hub_sender.subscribe();
-            let hub_sender_cloned = Arc::clone(&hub_sender);
 
             tokio::select! {
-                result = tcp_receive_task(read, server_addr, hub_sender_cloned, &self.on_message_input, &self.stats) => {
+                result = tcp_receive_task(read, server_addr,  Arc::clone(&hub_sender), &self.on_message_input, &self.stats) => {
                     if let Err(e) = result {
                         error!("Error in TCP receive task: {e:?}");
                     }
