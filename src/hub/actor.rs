@@ -14,7 +14,7 @@ use crate::{
 use super::protocol::HubCommand;
 
 pub struct HubActor {
-    drivers: Arc<RwLock<HashMap<u64, Arc<dyn Driver>>>>,
+    drivers: HashMap<u64, Arc<dyn Driver>>,
     bcst_sender: broadcast::Sender<Arc<Protocol>>,
     last_driver_id: Arc<RwLock<u64>>,
     component_id: Arc<RwLock<u8>>,
@@ -76,7 +76,7 @@ impl HubActor {
         });
 
         Self {
-            drivers: Arc::new(RwLock::new(HashMap::new())),
+            drivers: HashMap::new(),
             bcst_sender,
             last_driver_id: Arc::new(RwLock::new(0)),
             component_id,
@@ -86,14 +86,12 @@ impl HubActor {
     }
 
     #[instrument(level = "debug", skip(self, driver))]
-    pub async fn add_driver(&self, driver: Arc<dyn Driver>) -> Result<u64> {
+    pub async fn add_driver(&mut self, driver: Arc<dyn Driver>) -> Result<u64> {
         let mut last_id = self.last_driver_id.write().await;
         let id = *last_id;
         *last_id += 1;
 
-        let mut drivers = self.drivers.write().await;
-
-        if drivers.insert(id, driver.clone()).is_some() {
+        if self.drivers.insert(id, driver.clone()).is_some() {
             return Err(anyhow!(
                 "Failed addinng driver: id {id:?} is already present"
             ));
@@ -107,16 +105,16 @@ impl HubActor {
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub async fn remove_driver(&self, id: u64) -> Result<()> {
-        let mut drivers = self.drivers.write().await;
-        drivers.remove(&id).context("Driver id {id:?} not found")?;
+    pub async fn remove_driver(&mut self, id: u64) -> Result<()> {
+        self.drivers
+            .remove(&id)
+            .context("Driver id {id:?} not found")?;
         Ok(())
     }
 
     #[instrument(level = "debug", skip(self))]
     pub async fn drivers(&self) -> HashMap<u64, Box<dyn DriverInfo>> {
-        let drivers = self.drivers.read().await;
-        drivers
+        self.drivers
             .iter()
             .map(|(&id, driver)| (id, driver.info()))
             .collect()
@@ -170,10 +168,8 @@ impl HubActor {
 
     #[instrument(level = "debug", skip(self))]
     pub async fn get_stats(&self) -> Vec<(String, DriverStatsInfo)> {
-        let drivers = self.drivers.read().await;
-
-        let mut drivers_stats = Vec::with_capacity(drivers.len());
-        for (_id, driver) in drivers.iter() {
+        let mut drivers_stats = Vec::with_capacity(self.drivers.len());
+        for (_id, driver) in self.drivers.iter() {
             let stats = driver.stats().await;
             let info = driver.info();
             let name = info.name().to_owned();
@@ -185,10 +181,8 @@ impl HubActor {
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub async fn reset_all_stats(&self) -> Result<()> {
-        let drivers = self.drivers.write().await;
-
-        for (_id, driver) in drivers.iter() {
+    pub async fn reset_all_stats(&mut self) -> Result<()> {
+        for (_id, driver) in self.drivers.iter() {
             driver.reset_stats().await;
         }
 
