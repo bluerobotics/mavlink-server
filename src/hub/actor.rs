@@ -61,18 +61,15 @@ impl HubActor {
     ) -> Self {
         let (bcst_sender, _) = broadcast::channel(buffer_size);
 
-        let bcst_sender_cloned = bcst_sender.clone();
-        let component_id_cloned = component_id.clone();
-        let system_id_cloned = system_id.clone();
-        let frequency_cloned = frequency.clone();
-        let heartbeat_task = tokio::spawn(async move {
-            Self::heartbeat_task(
-                bcst_sender_cloned,
-                component_id_cloned,
-                system_id_cloned,
-                frequency_cloned,
-            )
-            .await
+        let heartbeat_task = tokio::spawn({
+            let bcst_sender = bcst_sender.clone();
+            let component_id = component_id.clone();
+            let system_id = system_id.clone();
+            let frequency = frequency.clone();
+
+            Self::heartbeat_task(bcst_sender, component_id, system_id, frequency)
+        });
+
         });
 
         Self {
