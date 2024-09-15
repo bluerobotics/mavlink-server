@@ -4,6 +4,7 @@ mod hub;
 mod logger;
 mod protocol;
 mod stats;
+mod web;
 
 use std::sync::Arc;
 
@@ -34,6 +35,7 @@ async fn main() -> Result<()> {
 
     let _stats = stats::Stats::new(hub.clone(), tokio::time::Duration::from_secs(1)).await;
 
+    web::start_server("0.0.0.0:8080".parse().unwrap());
     wait_ctrlc().await;
 
     for (id, driver_info) in hub.drivers().await? {
