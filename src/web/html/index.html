@@ -1,0 +1,52 @@
+<html>
+  <head>
+    <title>mavlink-server</title>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div id="app" style="display: flex; column-gap: 1em">
+      <div style="display: flex; column-gap: 1em">
+        <div>
+          <div v-if="info">
+            <div v-once>
+              {{info.service.name}} - {{info.service.version}} -
+              {{info.service.sha.substring(0, 7)}} - {{info.service.build_date.substring(0, 10)}}<br/>
+              By: {{formatAuthors(info.service.authors)}}<br />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="vue.global.js"></script>
+    <script>
+      const app = Vue.createApp({
+        mounted () {
+          fetch('info').then(
+            function (response) {
+              response.json().then((info) => this.info = info)
+            }.bind(this),
+          )
+        },
+        methods: {
+          formatAuthors (authors) {
+            const formatted = authors.split(':').map((author) => {
+              console.log(`author: ${author}`)
+              const {
+                groups: { name },
+              } = /(?<name>.*) <.*>/gm.exec(author)
+              return name
+            })
+            return formatted.join(', ')
+          },
+        },
+        data () {
+          return {
+            info: undefined,
+          }
+        },
+      })
+
+      app.mount('#app')
+    </script>
+  </body>
+</html>
