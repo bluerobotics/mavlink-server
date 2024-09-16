@@ -12,7 +12,7 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
-    stats::driver::{DriverStats, DriverStatsInfo},
+    stats::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
 };
 
 pub struct Serial {
@@ -20,7 +20,7 @@ pub struct Serial {
     pub baud_rate: u32,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
-    stats: Arc<RwLock<DriverStatsInfo>>,
+    stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
 
 pub struct SerialBuilder(Serial);
@@ -55,7 +55,7 @@ impl Serial {
             baud_rate,
             on_message_input: Callbacks::new(),
             on_message_output: Callbacks::new(),
-            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
         })
     }
 
@@ -179,13 +179,13 @@ impl Driver for Serial {
 }
 
 #[async_trait::async_trait]
-impl DriverStats for Serial {
-    async fn stats(&self) -> DriverStatsInfo {
+impl AccumulatedDriverStatsProvider for Serial {
+    async fn stats(&self) -> AccumulatedDriverStats {
         self.stats.read().await.clone()
     }
 
     async fn reset_stats(&self) {
-        *self.stats.write().await = DriverStatsInfo {
+        *self.stats.write().await = AccumulatedDriverStats {
             input: None,
             output: None,
         }

@@ -10,13 +10,13 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
-    stats::driver::{DriverStats, DriverStatsInfo},
+    stats::driver::{AccumulatedDriverStatsProvider, AccumulatedDriverStats},
 };
 
 pub struct TlogReader {
     pub path: PathBuf,
     on_message_input: Callbacks<Arc<Protocol>>,
-    stats: Arc<RwLock<DriverStatsInfo>>,
+    stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
 
 pub struct TlogReaderBuilder(TlogReader);
@@ -41,7 +41,7 @@ impl TlogReader {
         TlogReaderBuilder(Self {
             path,
             on_message_input: Callbacks::new(),
-            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
         })
     }
 
@@ -141,13 +141,13 @@ impl Driver for TlogReader {
 }
 
 #[async_trait::async_trait]
-impl DriverStats for TlogReader {
-    async fn stats(&self) -> DriverStatsInfo {
+impl AccumulatedDriverStatsProvider for TlogReader {
+    async fn stats(&self) -> AccumulatedDriverStats {
         self.stats.read().await.clone()
     }
 
     async fn reset_stats(&self) {
-        *self.stats.write().await = DriverStatsInfo {
+        *self.stats.write().await = AccumulatedDriverStats {
             input: None,
             output: None,
         }

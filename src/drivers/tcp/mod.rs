@@ -11,7 +11,7 @@ use tracing::*;
 
 use crate::{
     protocol::{read_all_messages, Protocol},
-    stats::driver::DriverStatsInfo,
+    stats::driver::AccumulatedDriverStats,
 };
 
 pub mod client;
@@ -24,7 +24,7 @@ async fn tcp_receive_task(
     remote_addr: &str,
     hub_sender: Arc<broadcast::Sender<Arc<Protocol>>>,
     on_message_input: &Callbacks<Arc<Protocol>>,
-    stats: &Arc<RwLock<DriverStatsInfo>>,
+    stats: &Arc<RwLock<AccumulatedDriverStats>>,
 ) -> Result<()> {
     let mut buf = Vec::with_capacity(1024);
 
@@ -67,7 +67,7 @@ async fn tcp_send_task(
     remote_addr: &str,
     mut hub_receiver: broadcast::Receiver<Arc<Protocol>>,
     on_message_output: &Callbacks<Arc<Protocol>>,
-    stats: &Arc<RwLock<DriverStatsInfo>>,
+    stats: &Arc<RwLock<AccumulatedDriverStats>>,
 ) -> Result<()> {
     loop {
         let message = match hub_receiver.recv().await {

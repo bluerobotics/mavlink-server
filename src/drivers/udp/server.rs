@@ -11,7 +11,7 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
-    stats::driver::{DriverStats, DriverStatsInfo},
+    stats::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
 };
 
 pub struct UdpServer {
@@ -19,7 +19,7 @@ pub struct UdpServer {
     clients: Arc<RwLock<HashMap<(u8, u8), String>>>,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
-    stats: Arc<RwLock<DriverStatsInfo>>,
+    stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
 
 pub struct UdpServerBuilder(UdpServer);
@@ -54,7 +54,7 @@ impl UdpServer {
             clients: Arc::new(RwLock::new(HashMap::new())),
             on_message_input: Callbacks::new(),
             on_message_output: Callbacks::new(),
-            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
         })
     }
 
@@ -217,13 +217,13 @@ impl Driver for UdpServer {
 }
 
 #[async_trait::async_trait]
-impl DriverStats for UdpServer {
-    async fn stats(&self) -> DriverStatsInfo {
+impl AccumulatedDriverStatsProvider for UdpServer {
+    async fn stats(&self) -> AccumulatedDriverStats {
         self.stats.read().await.clone()
     }
 
     async fn reset_stats(&self) {
-        *self.stats.write().await = DriverStatsInfo {
+        *self.stats.write().await = AccumulatedDriverStats {
             input: None,
             output: None,
         }

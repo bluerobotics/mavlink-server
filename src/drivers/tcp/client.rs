@@ -14,14 +14,14 @@ use crate::{
         Driver, DriverInfo,
     },
     protocol::Protocol,
-    stats::driver::{DriverStats, DriverStatsInfo},
+    stats::driver::{AccumulatedDriverStatsProvider, AccumulatedDriverStats},
 };
 
 pub struct TcpClient {
     pub remote_addr: String,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
-    stats: Arc<RwLock<DriverStatsInfo>>,
+    stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
 
 pub struct TcpClientBuilder(TcpClient);
@@ -55,7 +55,7 @@ impl TcpClient {
             remote_addr: remote_addr.to_string(),
             on_message_input: Callbacks::new(),
             on_message_output: Callbacks::new(),
-            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
         })
     }
 }
@@ -105,13 +105,13 @@ impl Driver for TcpClient {
 }
 
 #[async_trait::async_trait]
-impl DriverStats for TcpClient {
-    async fn stats(&self) -> DriverStatsInfo {
+impl AccumulatedDriverStatsProvider for TcpClient {
+    async fn stats(&self) -> AccumulatedDriverStats {
         self.stats.read().await.clone()
     }
 
     async fn reset_stats(&self) {
-        *self.stats.write().await = DriverStatsInfo {
+        *self.stats.write().await = AccumulatedDriverStats {
             input: None,
             output: None,
         }
