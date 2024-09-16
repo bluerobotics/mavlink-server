@@ -29,10 +29,10 @@ impl StatsActor {
     pub async fn start(mut self, mut receiver: mpsc::Receiver<StatsCommand>) {
         let drivers_stats_task = tokio::spawn({
             let hub = self.hub.clone();
-            let update_period = Arc::clone(&self.update_period);
-            let last_accumulated_drivers_stats = Arc::clone(&self.last_accumulated_drivers_stats);
-            let drivers_stats = Arc::clone(&self.drivers_stats);
-            let start_time = Arc::clone(&self.start_time);
+            let update_period = self.update_period.clone();
+            let last_accumulated_drivers_stats = self.last_accumulated_drivers_stats.clone();
+            let drivers_stats = self.drivers_stats.clone();
+            let start_time = self.start_time.clone();
 
             async move {
                 loop {
@@ -51,10 +51,10 @@ impl StatsActor {
 
         let hub_stats_task = tokio::spawn({
             let hub = self.hub.clone();
-            let update_period = Arc::clone(&self.update_period);
-            let last_accumulated_hub_stats = Arc::clone(&self.last_accumulated_hub_stats);
-            let hub_stats = Arc::clone(&self.hub_stats);
-            let start_time = Arc::clone(&self.start_time);
+            let update_period = self.update_period.clone();
+            let last_accumulated_hub_stats = self.last_accumulated_hub_stats.clone();
+            let hub_stats = self.hub_stats.clone();
+            let start_time = self.start_time.clone();
 
             async move {
                 loop {
