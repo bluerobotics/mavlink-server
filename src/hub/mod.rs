@@ -12,7 +12,7 @@ use tokio::sync::{broadcast, mpsc, oneshot, RwLock};
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
-    stats::driver::DriverStatsInfo,
+    stats::driver::AccumulatedDriverStats,
 };
 
 use actor::HubActor;
@@ -21,7 +21,7 @@ use protocol::HubCommand;
 #[derive(Clone)]
 pub struct Hub {
     sender: mpsc::Sender<HubCommand>,
-    task: Arc<Mutex<tokio::task::JoinHandle<()>>>,
+    _task: Arc<Mutex<tokio::task::JoinHandle<()>>>,
 }
 
 impl Hub {
@@ -33,8 +33,8 @@ impl Hub {
     ) -> Self {
         let (sender, receiver) = mpsc::channel(32);
         let hub = HubActor::new(buffer_size, component_id, system_id, frequency).await;
-        let task = Arc::new(Mutex::new(tokio::spawn(hub.start(receiver))));
-        Self { sender, task }
+        let _task = Arc::new(Mutex::new(tokio::spawn(hub.start(receiver))));
+        Self { sender, _task }
     }
 
     pub async fn add_driver(&self, driver: Arc<dyn Driver>) -> Result<u64> {
@@ -81,10 +81,10 @@ impl Hub {
         Ok(res)
     }
 
-    pub async fn stats(&self) -> Result<Vec<(String, DriverStatsInfo)>> {
+    pub async fn drivers_stats(&self) -> Result<Vec<(String, AccumulatedDriverStats)>> {
         let (response_tx, response_rx) = oneshot::channel();
         self.sender
-            .send(HubCommand::GetStats {
+            .send(HubCommand::GetDriversStats {
                 response: response_tx,
             })
             .await?;

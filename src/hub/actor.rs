@@ -7,11 +7,10 @@ use tracing::*;
 
 use crate::{
     drivers::{Driver, DriverInfo},
+    hub::HubCommand,
     protocol::Protocol,
-    stats::driver::DriverStatsInfo,
+    stats::driver::AccumulatedDriverStats,
 };
-
-use super::protocol::HubCommand;
 
 pub struct HubActor {
     drivers: HashMap<u64, Arc<dyn Driver>>,
@@ -41,9 +40,9 @@ impl HubActor {
                 HubCommand::GetSender { response } => {
                     let _ = response.send(self.bcst_sender.clone());
                 }
-                HubCommand::GetStats { response } => {
-                    let stats = self.get_stats().await;
-                    let _ = response.send(stats);
+                HubCommand::GetDriversStats { response } => {
+                    let drivers_stats = self.get_drivers_stats().await;
+                    let _ = response.send(drivers_stats);
                 }
                 HubCommand::ResetAllStats { response } => {
                     let _ = response.send(self.reset_all_stats().await);
@@ -68,8 +67,6 @@ impl HubActor {
             let frequency = frequency.clone();
 
             Self::heartbeat_task(bcst_sender, component_id, system_id, frequency)
-        });
-
         });
 
         Self {
@@ -164,7 +161,7 @@ impl HubActor {
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub async fn get_stats(&self) -> Vec<(String, DriverStatsInfo)> {
+    pub async fn get_drivers_stats(&self) -> Vec<(String, AccumulatedDriverStats)> {
         let mut drivers_stats = Vec::with_capacity(self.drivers.len());
         for (_id, driver) in self.drivers.iter() {
             let stats = driver.stats().await;
