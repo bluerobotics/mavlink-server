@@ -35,8 +35,8 @@ impl AccumulatedDriverStats {
 #[derive(Clone, Debug)]
 pub struct AccumulatedStatsInner {
     pub last_update: u64,
-    pub messages: usize,
-    pub bytes: usize,
+    pub messages: u64,
+    pub bytes: u64,
     pub delay: u64,
 }
 
