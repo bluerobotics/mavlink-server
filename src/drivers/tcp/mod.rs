@@ -40,9 +40,9 @@ async fn tcp_receive_task(
         read_all_messages(remote_addr, &mut buf, |message| async {
             let message = Arc::new(message);
 
-            stats.write().await.update_input(Arc::clone(&message)).await;
+            stats.write().await.update_input(message.clone()).await;
 
-            for future in on_message_input.call_all(Arc::clone(&message)) {
+            for future in on_message_input.call_all(message.clone()) {
                 if let Err(error) = future.await {
                     debug!("Dropping message: on_message_input callback returned error: {error:?}");
                     continue;
@@ -86,13 +86,9 @@ async fn tcp_send_task(
             continue; // Don't do loopback
         }
 
-        stats
-            .write()
-            .await
-            .update_output(Arc::clone(&message))
-            .await;
+        stats.write().await.update_output(message.clone()).await;
 
-        for future in on_message_output.call_all(Arc::clone(&message)) {
+        for future in on_message_output.call_all(message.clone()) {
             if let Err(error) = future.await {
                 debug!("Dropping message: on_message_output callback returned error: {error:?}");
                 continue;

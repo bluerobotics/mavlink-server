@@ -106,7 +106,7 @@ impl Driver for TcpServer {
             match listener.accept().await {
                 Ok((socket, remote_addr)) => {
                     let remote_addr = remote_addr.to_string();
-                    let hub_sender = Arc::clone(&hub_sender);
+                    let hub_sender = hub_sender.clone();
 
                     tokio::spawn(TcpServer::handle_client(
                         socket,
