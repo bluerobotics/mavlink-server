@@ -80,6 +80,10 @@ impl StatsActor {
                     let result = self.drivers_stats().await;
                     let _ = response.send(result);
                 }
+                StatsCommand::GetHubStats { response } => {
+                    let result = self.hub_stats().await;
+                    let _ = response.send(result);
+                }
             }
         }
 
