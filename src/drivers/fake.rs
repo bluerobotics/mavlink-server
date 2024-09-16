@@ -8,13 +8,13 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
-    stats::driver::{DriverStats, DriverStatsInfo},
+    stats::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
 };
 
 pub struct FakeSink {
     on_message_input: Callbacks<Arc<Protocol>>,
     print: bool,
-    stats: Arc<RwLock<DriverStatsInfo>>,
+    stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
 
 impl FakeSink {
@@ -22,7 +22,7 @@ impl FakeSink {
         FakeSinkBuilder(Self {
             on_message_input: Callbacks::new(),
             print: false,
-            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
         })
     }
 }
@@ -93,13 +93,13 @@ impl Driver for FakeSink {
 }
 
 #[async_trait::async_trait]
-impl DriverStats for FakeSink {
-    async fn stats(&self) -> DriverStatsInfo {
+impl AccumulatedDriverStatsProvider for FakeSink {
+    async fn stats(&self) -> AccumulatedDriverStats {
         self.stats.read().await.clone()
     }
 
     async fn reset_stats(&self) {
-        *self.stats.write().await = DriverStatsInfo {
+        *self.stats.write().await = AccumulatedDriverStats {
             input: None,
             output: None,
         }
@@ -146,7 +146,7 @@ impl DriverInfo for FakeSinkInfo {
 pub struct FakeSource {
     period: std::time::Duration,
     on_message_output: Callbacks<Arc<Protocol>>,
-    stats: Arc<RwLock<DriverStatsInfo>>,
+    stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
 
 impl FakeSource {
@@ -154,7 +154,7 @@ impl FakeSource {
         FakeSourceBuilder(Self {
             period,
             on_message_output: Callbacks::new(),
-            stats: Arc::new(RwLock::new(DriverStatsInfo::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
         })
     }
 }
@@ -248,13 +248,13 @@ impl Driver for FakeSource {
 }
 
 #[async_trait::async_trait]
-impl DriverStats for FakeSource {
-    async fn stats(&self) -> DriverStatsInfo {
+impl AccumulatedDriverStatsProvider for FakeSource {
+    async fn stats(&self) -> AccumulatedDriverStats {
         self.stats.read().await.clone()
     }
 
     async fn reset_stats(&self) {
-        *self.stats.write().await = DriverStatsInfo {
+        *self.stats.write().await = AccumulatedDriverStats {
             input: None,
             output: None,
         }
