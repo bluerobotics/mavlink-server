@@ -1,7 +1,7 @@
 use anyhow::Result;
 use tokio::sync::oneshot;
 
-use crate::stats::DriverStats;
+use crate::stats::DriversStats;
 
 pub enum StatsCommand {
     SetPeriod {
@@ -12,6 +12,6 @@ pub enum StatsCommand {
         response: oneshot::Sender<Result<()>>,
     },
     GetDriversStats {
-        response: oneshot::Sender<Result<Vec<(String, DriverStats)>>>,
+        response: oneshot::Sender<Result<DriversStats>>,
     },
 }
