@@ -11,7 +11,7 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
-    stats::driver::{AccumulatedDriverStatsProvider, AccumulatedDriverStats},
+    stats::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
 };
 
 pub struct TlogWriter {
