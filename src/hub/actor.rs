@@ -46,6 +46,10 @@ impl HubActor {
                     let drivers_stats = self.get_drivers_stats().await;
                     let _ = response.send(drivers_stats);
                 }
+                HubCommand::GetHubStats { response } => {
+                    let hub_stats = self.get_hub_stats().await;
+                    let _ = response.send(hub_stats);
+                }
                 HubCommand::ResetAllStats { response } => {
                     let _ = response.send(self.reset_all_stats().await);
                 }

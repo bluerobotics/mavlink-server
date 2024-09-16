@@ -6,7 +6,7 @@ use tokio::sync::{broadcast, oneshot};
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
-    stats::driver::AccumulatedDriverStats,
+    stats::driver::{AccumulatedDriverStats, AccumulatedStatsInner},
 };
 
 pub enum HubCommand {
@@ -23,6 +23,9 @@ pub enum HubCommand {
     },
     GetSender {
         response: oneshot::Sender<broadcast::Sender<Arc<Protocol>>>,
+    },
+    GetHubStats {
+        response: oneshot::Sender<AccumulatedStatsInner>,
     },
     GetDriversStats {
         response: oneshot::Sender<Vec<(String, AccumulatedDriverStats)>>,
