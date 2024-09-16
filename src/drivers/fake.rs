@@ -56,8 +56,6 @@ impl Driver for FakeSink {
         while let Ok(message) = hub_receiver.recv().await {
             self.stats.write().await.update_input(message.clone()).await;
 
-            self.stats.write().await.update_input(message.clone()).await;
-
             for future in self.on_message_input.call_all(message.clone()) {
                 if let Err(error) = future.await {
                     debug!("Dropping message: on_message_input callback returned error: {error:?}");
