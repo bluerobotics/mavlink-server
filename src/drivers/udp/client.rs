@@ -75,7 +75,7 @@ impl UdpClient {
                         self.stats
                             .write()
                             .await
-                            .update_input(message.clone())
+                            .update_input(&message)
                             .await;
 
                         for future in self.on_message_input.call_all(message.clone()) {
@@ -119,11 +119,7 @@ impl UdpClient {
                         continue; // Don't do loopback
                     }
 
-                    self.stats
-                        .write()
-                        .await
-                        .update_output(message.clone())
-                        .await;
+                    self.stats.write().await.update_output(&message).await;
 
                     for future in self.on_message_output.call_all(message.clone()) {
                         if let Err(error) = future.await {

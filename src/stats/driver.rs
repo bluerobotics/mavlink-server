@@ -15,7 +15,7 @@ pub struct AccumulatedDriverStats {
 }
 
 impl AccumulatedDriverStats {
-    pub async fn update_input(&mut self, message: Arc<Protocol>) {
+    pub async fn update_input(&mut self, message: &Arc<Protocol>) {
         if let Some(stats) = self.input.as_mut() {
             stats.update(message).await;
         } else {
@@ -23,7 +23,7 @@ impl AccumulatedDriverStats {
         }
     }
 
-    pub async fn update_output(&mut self, message: Arc<Protocol>) {
+    pub async fn update_output(&mut self, message: &Arc<Protocol>) {
         if let Some(stats) = self.output.as_mut() {
             stats.update(message).await;
         } else {
@@ -52,7 +52,7 @@ impl Default for AccumulatedStatsInner {
 }
 
 impl AccumulatedStatsInner {
-    pub async fn update(&mut self, message: Arc<Protocol>) {
+    pub async fn update(&mut self, message: &Arc<Protocol>) {
         self.last_update = chrono::Utc::now().timestamp_micros() as u64;
         self.bytes = self.bytes.wrapping_add(message.raw_bytes().len() as u64);
         self.messages = self.messages.wrapping_add(1);
