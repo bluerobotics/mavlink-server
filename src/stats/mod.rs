@@ -16,24 +16,24 @@ pub type DriversStats = Vec<(String, DriverStats)>;
 
 #[derive(Debug, Clone)]
 pub struct DriverStats {
-    input: Option<StatsInner>,
-    output: Option<StatsInner>,
+    pub input: Option<StatsInner>,
+    pub output: Option<StatsInner>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct StatsInner {
-    last_message_time: u64,
+    pub last_message_time: u64,
 
-    total_bytes: u64,
-    bytes_per_second: f64,
-    average_bytes_per_second: f64,
+    pub total_bytes: u64,
+    pub bytes_per_second: f64,
+    pub average_bytes_per_second: f64,
 
-    total_messages: u64,
-    messages_per_second: f64,
-    average_messages_per_second: f64,
+    pub total_messages: u64,
+    pub messages_per_second: f64,
+    pub average_messages_per_second: f64,
 
-    delay: f64,
-    jitter: f64,
+    pub delay: f64,
+    pub jitter: f64,
 }
 
 #[derive(Clone)]
