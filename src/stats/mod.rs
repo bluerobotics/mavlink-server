@@ -18,7 +18,7 @@ pub struct DriverStats {
     output: Option<DriverStatsInner>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DriverStatsInner {
     last_message_time: u64,
 
