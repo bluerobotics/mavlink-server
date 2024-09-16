@@ -12,14 +12,16 @@ use protocol::StatsCommand;
 
 use crate::hub::Hub;
 
+pub type DriversStats = Vec<(String, DriverStats)>;
+
 #[derive(Debug, Clone)]
 pub struct DriverStats {
-    input: Option<DriverStatsInner>,
-    output: Option<DriverStatsInner>,
+    input: Option<StatsInner>,
+    output: Option<StatsInner>,
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct DriverStatsInner {
+pub struct StatsInner {
     last_message_time: u64,
 
     total_bytes: u64,
@@ -48,7 +50,7 @@ impl Stats {
         Self { sender, task }
     }
 
-    pub async fn driver_stats(&mut self) -> Result<Vec<(String, DriverStats)>> {
+    pub async fn driver_stats(&mut self) -> Result<DriversStats> {
         let (response_tx, response_rx) = oneshot::channel();
         self.sender
             .send(StatsCommand::GetDriversStats {
