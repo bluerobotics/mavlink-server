@@ -78,10 +78,10 @@ impl UdpServer {
                         self.stats
                             .write()
                             .await
-                            .update_input(Arc::clone(&message))
+                            .update_input(message.clone())
                             .await;
 
-                        for future in self.on_message_input.call_all(Arc::clone(&message)) {
+                        for future in self.on_message_input.call_all(message.clone()) {
                             if let Err(error) = future.await {
                                 debug!("Dropping message: on_message_input callback returned error: {error:?}");
                                 continue;
@@ -141,10 +141,10 @@ impl UdpServer {
                         self.stats
                             .write()
                             .await
-                            .update_output(Arc::clone(&message))
+                            .update_output(message.clone())
                             .await;
 
-                        for future in self.on_message_output.call_all(Arc::clone(&message)) {
+                        for future in self.on_message_output.call_all(message.clone()) {
                             if let Err(error) = future.await {
                                 debug!("Dropping message: on_message_output callback returned error: {error:?}");
                                 continue;
