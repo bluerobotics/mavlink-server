@@ -84,21 +84,21 @@ impl StatsActor {
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub async fn drivers_stats(&mut self) -> Result<DriversStats> {
+    async fn drivers_stats(&mut self) -> Result<DriversStats> {
         let drivers_stats = self.drivers_stats.read().await.clone();
 
         Ok(drivers_stats)
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub async fn set_period(&mut self, period: tokio::time::Duration) -> Result<()> {
+    async fn set_period(&mut self, period: tokio::time::Duration) -> Result<()> {
         *self.update_period.write().await = period;
 
         Ok(())
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub async fn reset(&mut self) -> Result<()> {
+    async fn reset(&mut self) -> Result<()> {
         // note: hold the guards until the hub clear each driver stats to minimize weird states
         let mut driver_stats = self.drivers_stats.write().await;
 
