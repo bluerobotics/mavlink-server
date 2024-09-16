@@ -76,7 +76,7 @@ impl Serial {
                     read_all_messages("serial", &mut buf, |message| async {
                         let message = Arc::new(message);
 
-                        for future in on_message_input.call_all(Arc::clone(&message)) {
+                        for future in on_message_input.call_all(message.clone()) {
                             if let Err(error) = future.await {
                                 debug!("Dropping message: on_message_input callback returned error: {error:?}");
                                 continue;
@@ -114,7 +114,7 @@ impl Serial {
         loop {
             match hub_receiver.recv().await {
                 Ok(message) => {
-                    for future in on_message_output.call_all(Arc::clone(&message)) {
+                    for future in on_message_output.call_all(message.clone()) {
                         if let Err(error) = future.await {
                             debug!("Dropping message: on_message_output callback returned error: {error:?}");
                             continue;
