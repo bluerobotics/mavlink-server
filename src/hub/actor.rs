@@ -9,7 +9,7 @@ use crate::{
     drivers::{Driver, DriverInfo},
     hub::HubCommand,
     protocol::Protocol,
-    stats::driver::AccumulatedDriverStats,
+    stats::driver::{AccumulatedDriverStats, AccumulatedStatsInner},
 };
 
 pub struct HubActor {
@@ -19,6 +19,8 @@ pub struct HubActor {
     component_id: Arc<RwLock<u8>>,
     system_id: Arc<RwLock<u8>>,
     heartbeat_task: tokio::task::JoinHandle<Result<()>>,
+    hub_stats_task: tokio::task::JoinHandle<Result<()>>,
+    hub_stats: Arc<RwLock<AccumulatedStatsInner>>,
 }
 
 impl HubActor {
@@ -69,6 +71,14 @@ impl HubActor {
             Self::heartbeat_task(bcst_sender, component_id, system_id, frequency)
         });
 
+        let hub_stats = Arc::new(RwLock::new(AccumulatedStatsInner::default()));
+        let hub_stats_task = tokio::spawn({
+            let bcst_sender = bcst_sender.clone();
+            let hub_stats = hub_stats.clone();
+
+            Self::stats_task(bcst_sender, hub_stats)
+        });
+
         Self {
             drivers: HashMap::new(),
             bcst_sender,
@@ -76,6 +86,8 @@ impl HubActor {
             component_id,
             system_id,
             heartbeat_task,
+            hub_stats_task,
+            hub_stats,
         }
     }
 
@@ -155,6 +167,19 @@ impl HubActor {
         }
     }
 
+    async fn stats_task(
+        bcst_sender: broadcast::Sender<Arc<Protocol>>,
+        hub_stats: Arc<RwLock<AccumulatedStatsInner>>,
+    ) -> Result<()> {
+        let mut bsct_receiver = bcst_sender.subscribe();
+
+        while let Ok(message) = bsct_receiver.recv().await {
+            hub_stats.write().await.update(message).await;
+        }
+
+        Ok(())
+    }
+
     #[instrument(level = "debug", skip(self))]
     fn get_sender(&self) -> broadcast::Sender<Arc<Protocol>> {
         self.bcst_sender.clone()
@@ -175,10 +200,17 @@ impl HubActor {
     }
 
     #[instrument(level = "debug", skip(self))]
+    async fn get_hub_stats(&self) -> AccumulatedStatsInner {
+        self.hub_stats.read().await.clone()
+    }
+
+    #[instrument(level = "debug", skip(self))]
     async fn reset_all_stats(&mut self) -> Result<()> {
         for (_id, driver) in self.drivers.iter() {
             driver.reset_stats().await;
         }
+
+        *self.hub_stats.write().await = AccumulatedStatsInner::default();
 
         Ok(())
     }
