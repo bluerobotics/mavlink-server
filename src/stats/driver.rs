@@ -3,23 +3,23 @@ use std::sync::Arc;
 use crate::protocol::Protocol;
 
 #[async_trait::async_trait]
-pub trait DriverStats {
-    async fn stats(&self) -> DriverStatsInfo;
+pub trait AccumulatedDriverStatsProvider {
+    async fn stats(&self) -> AccumulatedDriverStats;
     async fn reset_stats(&self);
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct DriverStatsInfo {
-    pub input: Option<DriverStatsInfoInner>,
-    pub output: Option<DriverStatsInfoInner>,
+pub struct AccumulatedDriverStats {
+    pub input: Option<AccumulatedStatsInner>,
+    pub output: Option<AccumulatedStatsInner>,
 }
 
-impl DriverStatsInfo {
+impl AccumulatedDriverStats {
     pub async fn update_input(&mut self, message: Arc<Protocol>) {
         if let Some(stats) = self.input.as_mut() {
             stats.update(message).await;
         } else {
-            self.input.replace(DriverStatsInfoInner::default());
+            self.input.replace(AccumulatedStatsInner::default());
         }
     }
 
@@ -27,20 +27,20 @@ impl DriverStatsInfo {
         if let Some(stats) = self.output.as_mut() {
             stats.update(message).await;
         } else {
-            self.output.replace(DriverStatsInfoInner::default());
+            self.output.replace(AccumulatedStatsInner::default());
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct DriverStatsInfoInner {
+pub struct AccumulatedStatsInner {
     pub last_update: u64,
     pub messages: usize,
     pub bytes: usize,
     pub delay: u64,
 }
 
-impl Default for DriverStatsInfoInner {
+impl Default for AccumulatedStatsInner {
     fn default() -> Self {
         Self {
             last_update: chrono::Utc::now().timestamp_micros() as u64,
@@ -51,7 +51,7 @@ impl Default for DriverStatsInfoInner {
     }
 }
 
-impl DriverStatsInfoInner {
+impl AccumulatedStatsInner {
     pub async fn update(&mut self, message: Arc<Protocol>) {
         self.last_update = chrono::Utc::now().timestamp_micros() as u64;
         self.bytes += message.raw_bytes().len();
