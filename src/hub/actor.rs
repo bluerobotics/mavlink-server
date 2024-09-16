@@ -80,7 +80,7 @@ impl HubActor {
     }
 
     #[instrument(level = "debug", skip(self, driver))]
-    pub async fn add_driver(&mut self, driver: Arc<dyn Driver>) -> Result<u64> {
+    async fn add_driver(&mut self, driver: Arc<dyn Driver>) -> Result<u64> {
         let mut last_id = self.last_driver_id.write().await;
         let id = *last_id;
         *last_id += 1;
@@ -99,7 +99,7 @@ impl HubActor {
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub async fn remove_driver(&mut self, id: u64) -> Result<()> {
+    async fn remove_driver(&mut self, id: u64) -> Result<()> {
         self.drivers
             .remove(&id)
             .context("Driver id {id:?} not found")?;
@@ -107,7 +107,7 @@ impl HubActor {
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub async fn drivers(&self) -> HashMap<u64, Box<dyn DriverInfo>> {
+    async fn drivers(&self) -> HashMap<u64, Box<dyn DriverInfo>> {
         self.drivers
             .iter()
             .map(|(&id, driver)| (id, driver.info()))
@@ -156,12 +156,12 @@ impl HubActor {
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub fn get_sender(&self) -> broadcast::Sender<Arc<Protocol>> {
+    fn get_sender(&self) -> broadcast::Sender<Arc<Protocol>> {
         self.bcst_sender.clone()
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub async fn get_drivers_stats(&self) -> Vec<(String, AccumulatedDriverStats)> {
+    async fn get_drivers_stats(&self) -> Vec<(String, AccumulatedDriverStats)> {
         let mut drivers_stats = Vec::with_capacity(self.drivers.len());
         for (_id, driver) in self.drivers.iter() {
             let stats = driver.stats().await;
@@ -175,7 +175,7 @@ impl HubActor {
     }
 
     #[instrument(level = "debug", skip(self))]
-    pub async fn reset_all_stats(&mut self) -> Result<()> {
+    async fn reset_all_stats(&mut self) -> Result<()> {
         for (_id, driver) in self.drivers.iter() {
             driver.reset_stats().await;
         }
