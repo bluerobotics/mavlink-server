@@ -161,37 +161,9 @@ async fn update_hub_stats(
 ) {
     let last_stats = last_accumulated_hub_stats.read().await.clone();
     let current_stats = hub.hub_stats().await.unwrap();
-
     let start_time = start_time.read().await.clone();
 
-    let time_diff = calculate_time_diff(last_stats.last_update, current_stats.last_update);
-    let total_time = calculate_time_diff(start_time, current_stats.last_update);
-
-    let diff_messages = current_stats.messages - last_stats.messages;
-    let total_messages = current_stats.messages;
-    let messages_per_second = divide_safe(diff_messages as f64, time_diff);
-    let average_messages_per_second = divide_safe(total_messages as f64, total_time);
-
-    let diff_bytes = current_stats.bytes - last_stats.bytes;
-    let total_bytes = current_stats.bytes;
-    let bytes_per_second = divide_safe(diff_bytes as f64, time_diff);
-    let average_bytes_per_second = divide_safe(total_bytes as f64, total_time);
-
-    let delay = divide_safe(current_stats.delay as f64, current_stats.messages as f64);
-    let last_delay = divide_safe(last_stats.delay as f64, last_stats.messages as f64);
-    let jitter = (delay - last_delay).abs();
-
-    let new_hub_stats = StatsInner {
-        last_message_time: current_stats.last_update,
-        total_bytes,
-        bytes_per_second,
-        average_bytes_per_second,
-        total_messages,
-        messages_per_second,
-        average_messages_per_second,
-        delay,
-        jitter,
-    };
+    let new_hub_stats = StatsInner::from_accumulated(&current_stats, &last_stats, start_time);
 
     trace!("{new_hub_stats:#?}");
 
@@ -238,16 +210,41 @@ async fn update_driver_stats(
 
     for (name, (last, current)) in merged_stats {
         if let Some(current_stats) = current {
-            let new_input_stats = calculate_driver_stats(
-                last.as_ref().and_then(|l| l.input.clone()),
-                current_stats.input.clone(),
-                start_time,
-            );
-            let new_output_stats = calculate_driver_stats(
-                last.as_ref().and_then(|l| l.output.clone()),
-                current_stats.output.clone(),
-                start_time,
-            );
+            let new_input_stats = if let Some(current_input_stats) = &current_stats.input {
+                let default_input = AccumulatedStatsInner::default();
+
+                let last_input_stats = if let Some(last_stats) = &last {
+                    last_stats.input.as_ref().unwrap_or(&default_input)
+                } else {
+                    &default_input
+                };
+
+                Some(StatsInner::from_accumulated(
+                    current_input_stats,
+                    last_input_stats,
+                    start_time,
+                ))
+            } else {
+                None
+            };
+
+            let new_output_stats = if let Some(current_output_stats) = &current_stats.output {
+                let default_output = AccumulatedStatsInner::default();
+
+                let last_output_stats = if let Some(last_stats) = &last {
+                    last_stats.output.as_ref().unwrap_or(&default_output)
+                } else {
+                    &default_output
+                };
+
+                Some(StatsInner::from_accumulated(
+                    current_output_stats,
+                    last_output_stats,
+                    start_time,
+                ))
+            } else {
+                None
+            };
 
             new_driver_stats.push((
                 name,
@@ -263,85 +260,4 @@ async fn update_driver_stats(
 
     *driver_stats.write().await = new_driver_stats;
     *last_accumulated_drivers_stats.write().await = current_stats;
-}
-
-/// Function to calculate the driver stats for either input or output, with proper averages
-#[instrument(level = "debug")]
-fn calculate_driver_stats(
-    last_stats: Option<AccumulatedStatsInner>,
-    current_stats: Option<AccumulatedStatsInner>,
-    start_time: u64,
-) -> Option<StatsInner> {
-    if let Some(current_stats) = current_stats {
-        let time_diff = accumulated_driver_stats_time_diff(last_stats.as_ref(), &current_stats);
-        let total_time = total_time_since_start(start_time, &current_stats);
-
-        let diff_messages = current_stats.messages as u64
-            - last_stats.as_ref().map_or(0, |stats| stats.messages as u64);
-        let total_messages = current_stats.messages as u64;
-        let messages_per_second = divide_safe(diff_messages as f64, time_diff);
-        let average_messages_per_second = divide_safe(total_messages as f64, total_time);
-
-        let diff_bytes =
-            current_stats.bytes as u64 - last_stats.as_ref().map_or(0, |stats| stats.bytes as u64);
-        let total_bytes = current_stats.bytes as u64;
-        let bytes_per_second = divide_safe(diff_bytes as f64, time_diff);
-        let average_bytes_per_second = divide_safe(total_bytes as f64, total_time);
-
-        let delay = divide_safe(current_stats.delay as f64, current_stats.messages as f64);
-        let last_delay = divide_safe(
-            last_stats.as_ref().map_or(0f64, |stats| stats.delay as f64),
-            last_stats
-                .as_ref()
-                .map_or(0f64, |stats| stats.messages as f64),
-        );
-        let jitter = (delay - last_delay).abs();
-
-        Some(StatsInner {
-            last_message_time: current_stats.last_update,
-            total_bytes,
-            bytes_per_second,
-            average_bytes_per_second,
-            total_messages,
-            messages_per_second,
-            average_messages_per_second,
-            delay,
-            jitter,
-        })
-    } else {
-        None
-    }
-}
-
-/// Function to calculate the total time since the start (in seconds)
-#[instrument(level = "debug")]
-fn total_time_since_start(start_time: u64, current_stats: &AccumulatedStatsInner) -> f64 {
-    calculate_time_diff(start_time, current_stats.last_update)
-}
-
-/// Function to calculate the time difference (in seconds)
-#[instrument(level = "debug")]
-fn accumulated_driver_stats_time_diff(
-    last_stats: Option<&AccumulatedStatsInner>,
-    current_stats: &AccumulatedStatsInner,
-) -> f64 {
-    if let Some(last_stats) = last_stats {
-        // Microseconds to seconds
-        calculate_time_diff(last_stats.last_update, current_stats.last_update)
-    } else {
-        f64::INFINITY
-    }
-}
-
-fn calculate_time_diff(last_time: u64, current_time: u64) -> f64 {
-    (current_time as f64 - last_time as f64) / 1_000_000.0
-}
-
-#[instrument(level = "debug")]
-fn divide_safe(numerator: f64, denominator: f64) -> f64 {
-    if denominator > 0.0 {
-        numerator / denominator
-    } else {
-        0.0
-    }
 }
