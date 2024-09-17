@@ -81,3 +81,17 @@ impl DerefMut for Protocol {
         &mut self.message
     }
 }
+
+#[inline(always)]
+pub fn generate_timestamp_us() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_micros() as u64)
+        .unwrap()
+}
+
+#[inline(always)]
+pub fn check_timestamp_us(micros: u64) -> bool {
+    let duration = std::time::Duration::from_micros(micros);
+    std::time::UNIX_EPOCH.checked_add(duration).is_some()
+}
