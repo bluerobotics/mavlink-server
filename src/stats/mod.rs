@@ -1,5 +1,6 @@
 pub mod accumulated;
 mod actor;
+mod messages;
 mod protocol;
 
 use std::sync::{Arc, Mutex};
