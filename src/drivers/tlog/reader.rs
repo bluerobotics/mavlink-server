@@ -104,7 +104,7 @@ impl TlogReader {
 
             let message = Arc::new(message);
 
-            self.stats.write().await.update_input(&message).await;
+            self.stats.write().await.update_input(&message);
 
             for future in self.on_message_input.call_all(message.clone()) {
                 if let Err(error) = future.await {

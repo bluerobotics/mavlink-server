@@ -17,17 +17,17 @@ pub struct AccumulatedDriverStats {
 }
 
 impl AccumulatedDriverStats {
-    pub async fn update_input(&mut self, message: &Arc<Protocol>) {
+    pub fn update_input(&mut self, message: &Arc<Protocol>) {
         if let Some(stats) = self.input.as_mut() {
-            stats.update(message).await;
+            stats.update(message);
         } else {
             self.input.replace(AccumulatedStatsInner::default());
         }
     }
 
-    pub async fn update_output(&mut self, message: &Arc<Protocol>) {
+    pub fn update_output(&mut self, message: &Arc<Protocol>) {
         if let Some(stats) = self.output.as_mut() {
-            stats.update(message).await;
+            stats.update(message);
         } else {
             self.output.replace(AccumulatedStatsInner::default());
         }
