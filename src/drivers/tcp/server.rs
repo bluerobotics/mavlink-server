@@ -14,7 +14,7 @@ use crate::{
         Driver, DriverInfo,
     },
     protocol::Protocol,
-    stats::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+    stats::accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
 };
 
 #[derive(Clone)]

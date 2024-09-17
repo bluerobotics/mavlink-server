@@ -11,7 +11,7 @@ use tracing::*;
 
 use crate::{
     protocol::{read_all_messages, Protocol},
-    stats::driver::AccumulatedDriverStats,
+    stats::accumulated::driver::AccumulatedDriverStats,
 };
 
 pub mod client;

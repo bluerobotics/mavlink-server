@@ -11,7 +11,7 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
-    stats::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+    stats::accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
 };
 
 pub struct UdpServer {

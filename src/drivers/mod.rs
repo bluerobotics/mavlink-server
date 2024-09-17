@@ -12,7 +12,7 @@ use tokio::sync::broadcast;
 use tracing::*;
 use url::Url;
 
-use crate::{protocol::Protocol, stats::driver::AccumulatedDriverStatsProvider};
+use crate::{protocol::Protocol, stats::accumulated::driver::AccumulatedDriverStatsProvider};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Type {
@@ -224,7 +224,7 @@ mod tests {
     use tokio::sync::RwLock;
     use tracing::*;
 
-    use crate::stats::driver::AccumulatedDriverStats;
+    use crate::stats::accumulated::driver::AccumulatedDriverStats;
 
     use super::*;
 

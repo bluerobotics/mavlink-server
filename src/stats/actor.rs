@@ -10,7 +10,7 @@ use tracing::*;
 use crate::{
     hub::Hub,
     stats::{
-        driver::{AccumulatedDriverStats, AccumulatedStatsInner},
+        accumulated::{driver::AccumulatedDriverStats, AccumulatedStatsInner},
         DriverStats, DriversStats, StatsCommand, StatsInner,
     },
 };
