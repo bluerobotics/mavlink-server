@@ -1,5 +1,5 @@
+pub mod accumulated;
 mod actor;
-pub mod driver;
 mod protocol;
 
 use std::sync::{Arc, Mutex};

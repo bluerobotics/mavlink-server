@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use crate::protocol::Protocol;
 
+use super::AccumulatedStatsInner;
+
 #[async_trait::async_trait]
 pub trait AccumulatedDriverStatsProvider {
     async fn stats(&self) -> AccumulatedDriverStats;
@@ -29,35 +31,5 @@ impl AccumulatedDriverStats {
         } else {
             self.output.replace(AccumulatedStatsInner::default());
         }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct AccumulatedStatsInner {
-    pub last_update: u64,
-    pub messages: u64,
-    pub bytes: u64,
-    pub delay: u64,
-}
-
-impl Default for AccumulatedStatsInner {
-    fn default() -> Self {
-        Self {
-            last_update: chrono::Utc::now().timestamp_micros() as u64,
-            messages: 0,
-            bytes: 0,
-            delay: 0,
-        }
-    }
-}
-
-impl AccumulatedStatsInner {
-    pub async fn update(&mut self, message: &Arc<Protocol>) {
-        self.last_update = chrono::Utc::now().timestamp_micros() as u64;
-        self.bytes = self.bytes.wrapping_add(message.raw_bytes().len() as u64);
-        self.messages = self.messages.wrapping_add(1);
-        self.delay = self
-            .delay
-            .wrapping_add(self.last_update - message.timestamp);
     }
 }
