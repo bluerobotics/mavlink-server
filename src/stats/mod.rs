@@ -22,7 +22,7 @@ pub struct DriverStats {
 
 #[derive(Debug, Clone, Default)]
 pub struct StatsInner {
-    pub last_message_time: u64,
+    pub last_message_time_us: u64,
 
     pub total_bytes: u64,
     pub bytes_per_second: f64,
