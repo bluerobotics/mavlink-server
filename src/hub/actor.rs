@@ -54,6 +54,10 @@ impl HubActor {
                     let hub_stats = self.get_hub_stats().await;
                     let _ = response.send(hub_stats);
                 }
+                HubCommand::GetHubMessagesStats { response } => {
+                    let hub_messages_stats = self.get_hub_messages_stats().await;
+                    let _ = response.send(hub_messages_stats);
+                }
                 HubCommand::ResetAllStats { response } => {
                     let _ = response.send(self.reset_all_stats().await);
                 }
