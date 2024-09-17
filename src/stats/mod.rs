@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use accumulated::AccumulatedStatsInner;
 use anyhow::Result;
+use messages::HubMessagesStats;
 use tokio::sync::{mpsc, oneshot};
 
 use actor::StatsActor;
@@ -104,6 +105,16 @@ impl Stats {
         let (response_tx, response_rx) = oneshot::channel();
         self.sender
             .send(StatsCommand::GetHubStats {
+                response: response_tx,
+            })
+            .await?;
+        response_rx.await?
+    }
+
+    pub async fn hub_messages_stats(&mut self) -> Result<HubMessagesStats> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.sender
+            .send(StatsCommand::GetHubMessagesStats {
                 response: response_tx,
             })
             .await?;
