@@ -12,7 +12,7 @@ use tokio::sync::{broadcast, mpsc, oneshot, RwLock};
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
-    stats::driver::{AccumulatedDriverStats, AccumulatedStatsInner},
+    stats::accumulated::{driver::AccumulatedDriverStats, AccumulatedStatsInner},
 };
 
 use actor::HubActor;

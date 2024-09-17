@@ -6,7 +6,7 @@ use tokio::sync::{broadcast, oneshot};
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
-    stats::driver::{AccumulatedDriverStats, AccumulatedStatsInner},
+    stats::accumulated::{driver::AccumulatedDriverStats, AccumulatedStatsInner},
 };
 
 pub enum HubCommand {

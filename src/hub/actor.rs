@@ -9,7 +9,7 @@ use crate::{
     drivers::{Driver, DriverInfo},
     hub::HubCommand,
     protocol::Protocol,
-    stats::driver::{AccumulatedDriverStats, AccumulatedStatsInner},
+    stats::accumulated::{driver::AccumulatedDriverStats, AccumulatedStatsInner},
 };
 
 pub struct HubActor {
