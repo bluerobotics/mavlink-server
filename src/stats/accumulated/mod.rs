@@ -1,4 +1,5 @@
 pub mod driver;
+pub mod messages;
 
 use std::sync::Arc;
 
