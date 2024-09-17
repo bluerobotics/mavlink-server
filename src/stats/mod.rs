@@ -5,6 +5,7 @@ mod protocol;
 
 use std::sync::{Arc, Mutex};
 
+use accumulated::AccumulatedStatsInner;
 use anyhow::Result;
 use tokio::sync::{mpsc, oneshot};
 
@@ -35,6 +36,44 @@ pub struct StatsInner {
 
     pub delay: f64,
     pub jitter: f64,
+}
+
+impl StatsInner {
+    pub fn from_accumulated(
+        current_stats: &AccumulatedStatsInner,
+        last_stats: &AccumulatedStatsInner,
+        start_time: u64,
+    ) -> Self {
+        let time_diff =
+            calculate_time_diff_us(last_stats.last_update_us, current_stats.last_update_us);
+        let total_time = calculate_time_diff_us(start_time, current_stats.last_update_us);
+
+        let diff_messages = current_stats.messages - last_stats.messages;
+        let total_messages = current_stats.messages;
+        let messages_per_second = divide_safe(diff_messages as f64, time_diff);
+        let average_messages_per_second = divide_safe(total_messages as f64, total_time);
+
+        let diff_bytes = current_stats.bytes - last_stats.bytes;
+        let total_bytes = current_stats.bytes;
+        let bytes_per_second = divide_safe(diff_bytes as f64, time_diff);
+        let average_bytes_per_second = divide_safe(total_bytes as f64, total_time);
+
+        let delay = divide_safe(current_stats.delay as f64, current_stats.messages as f64);
+        let last_delay = divide_safe(last_stats.delay as f64, last_stats.messages as f64);
+        let jitter = (delay - last_delay).abs();
+
+        Self {
+            last_message_time_us: current_stats.last_update_us,
+            total_bytes,
+            bytes_per_second,
+            average_bytes_per_second,
+            total_messages,
+            messages_per_second,
+            average_messages_per_second,
+            delay,
+            jitter,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -90,5 +129,17 @@ impl Stats {
             })
             .await?;
         response_rx.await?
+    }
+}
+
+fn calculate_time_diff_us(last_micros: u64, current_micros: u64) -> f64 {
+    (current_micros as f64 - last_micros as f64) / 1_000_000.0
+}
+
+fn divide_safe(numerator: f64, denominator: f64) -> f64 {
+    if denominator > 0.0 {
+        numerator / denominator
+    } else {
+        0.0
     }
 }
