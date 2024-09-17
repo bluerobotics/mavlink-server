@@ -113,6 +113,10 @@ impl StatsActor {
                     let result = self.hub_stats().await;
                     let _ = response.send(result);
                 }
+                StatsCommand::GetHubMessagesStats { response } => {
+                    let result = self.hub_messages_stats().await;
+                    let _ = response.send(result);
+                }
             }
         }
 
@@ -151,6 +155,13 @@ impl StatsActor {
         let hub_stats = self.hub_stats.read().await.clone();
 
         Ok(hub_stats)
+    }
+
+    #[instrument(level = "debug", skip(self))]
+    async fn hub_messages_stats(&self) -> Result<HubMessagesStats> {
+        let hub_messages_stats = self.hub_messages_stats.read().await.clone();
+
+        Ok(hub_messages_stats)
     }
 
     #[instrument(level = "debug", skip(self))]
