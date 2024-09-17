@@ -12,7 +12,10 @@ use tokio::sync::{broadcast, mpsc, oneshot, RwLock};
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
-    stats::accumulated::{driver::AccumulatedDriverStats, AccumulatedStatsInner},
+    stats::accumulated::{
+        driver::AccumulatedDriverStats, messages::AccumulatedHubMessagesStats,
+        AccumulatedStatsInner,
+    },
 };
 
 use actor::HubActor;
@@ -96,6 +99,17 @@ impl Hub {
         let (response_tx, response_rx) = oneshot::channel();
         self.sender
             .send(HubCommand::GetHubStats {
+                response: response_tx,
+            })
+            .await?;
+        let res = response_rx.await?;
+        Ok(res)
+    }
+
+    pub async fn hub_messages_stats(&self) -> Result<AccumulatedHubMessagesStats> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.sender
+            .send(HubCommand::GetHubMessagesStats {
                 response: response_tx,
             })
             .await?;
