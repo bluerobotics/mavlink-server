@@ -54,7 +54,7 @@ impl Driver for FakeSink {
         let mut hub_receiver = hub_sender.subscribe();
 
         while let Ok(message) = hub_receiver.recv().await {
-            self.stats.write().await.update_input(&message).await;
+            self.stats.write().await.update_input(&message);
 
             for future in self.on_message_input.call_all(message.clone()) {
                 if let Err(error) = future.await {
@@ -209,8 +209,7 @@ impl Driver for FakeSource {
                         self.stats
                             .write()
                             .await
-                            .update_output(&message)
-                            .await;
+                            .update_output(&message);
 
                         for future in self.on_message_output.call_all(message.clone()) {
                             if let Err(error) = future.await {

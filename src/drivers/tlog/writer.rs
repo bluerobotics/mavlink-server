@@ -59,7 +59,7 @@ impl TlogWriter {
                 Ok(message) => {
                     let timestamp = chrono::Utc::now().timestamp_micros() as u64;
 
-                    self.stats.write().await.update_output(&message).await;
+                    self.stats.write().await.update_output(&message);
 
                     for future in self.on_message_output.call_all(message.clone()) {
                         if let Err(error) = future.await {

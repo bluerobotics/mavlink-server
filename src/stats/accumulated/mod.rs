@@ -25,8 +25,8 @@ impl Default for AccumulatedStatsInner {
 }
 
 impl AccumulatedStatsInner {
-    pub async fn update(&mut self, message: &Arc<Protocol>) {
-        self.last_update = chrono::Utc::now().timestamp_micros() as u64;
+    pub fn update(&mut self, message: &Arc<Protocol>) {
+        self.last_update_us = chrono::Utc::now().timestamp_micros() as u64;
         self.bytes = self.bytes.wrapping_add(message.raw_bytes().len() as u64);
         self.messages = self.messages.wrapping_add(1);
         self.delay = self

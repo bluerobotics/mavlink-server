@@ -190,9 +190,9 @@ impl HubActor {
         let mut bsct_receiver = bcst_sender.subscribe();
 
         while let Ok(message) = bsct_receiver.recv().await {
-            hub_stats.write().await.update(&message).await;
+            hub_stats.write().await.update(&message);
 
-            hub_messages_stats.write().await.update(&message).await;
+            hub_messages_stats.write().await.update(&message);
         }
 
         Ok(())

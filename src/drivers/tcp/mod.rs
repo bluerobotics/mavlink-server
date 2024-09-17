@@ -40,7 +40,7 @@ async fn tcp_receive_task(
         read_all_messages(remote_addr, &mut buf, |message| async {
             let message = Arc::new(message);
 
-            stats.write().await.update_input(&message).await;
+            stats.write().await.update_input(&message);
 
             for future in on_message_input.call_all(message.clone()) {
                 if let Err(error) = future.await {
@@ -86,7 +86,7 @@ async fn tcp_send_task(
             continue; // Don't do loopback
         }
 
-        stats.write().await.update_output(&message).await;
+        stats.write().await.update_output(&message);
 
         for future in on_message_output.call_all(message.clone()) {
             if let Err(error) = future.await {
