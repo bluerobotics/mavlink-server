@@ -126,6 +126,7 @@ impl Rest {
     async fn send_task(
         mut hub_receiver: broadcast::Receiver<Arc<Protocol>>,
         on_message_output: &Callbacks<Arc<Protocol>>,
+        stats: &Arc<RwLock<AccumulatedDriverStats>>,
     ) -> Result<()> {
         loop {
             match hub_receiver.recv().await {
