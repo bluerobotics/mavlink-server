@@ -175,7 +175,7 @@ impl Driver for Rest {
             let mut ws_receiver = crate::web::create_message_receiver();
 
             tokio::select! {
-                result = Rest::send_task(hub_receiver, &self.on_message_output) => {
+                result = Rest::send_task(hub_receiver, &self.on_message_output, &self.stats) => {
                     if let Err(e) = result {
                         error!("Error in rest sender task: {e:?}");
                     }
