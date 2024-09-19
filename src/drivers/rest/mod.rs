@@ -131,6 +131,7 @@ impl Rest {
         loop {
             match hub_receiver.recv().await {
                 Ok(message) => {
+                    stats.write().await.update_output(&message);
                     for future in on_message_output.call_all(message.clone()) {
                         if let Err(error) = future.await {
                             debug!("Dropping message: on_message_output callback returned error: {error:?}");
