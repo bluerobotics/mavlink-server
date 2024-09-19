@@ -66,6 +66,7 @@ impl Rest {
         hub_sender: broadcast::Sender<Arc<Protocol>>,
         on_message_input: &Callbacks<Arc<Protocol>>,
         ws_receiver: &mut broadcast::Receiver<String>,
+        stats: &Arc<RwLock<AccumulatedDriverStats>>,
     ) -> Result<()> {
         match ws_receiver.recv().await {
             Ok(message) => {
