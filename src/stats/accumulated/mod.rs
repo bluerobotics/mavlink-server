@@ -7,6 +7,7 @@ use crate::protocol::Protocol;
 
 #[derive(Clone, Debug)]
 pub struct AccumulatedStatsInner {
+    pub last_message: Option<Arc<Protocol>>,
     pub last_update_us: u64,
     pub messages: u64,
     pub bytes: u64,
@@ -16,6 +17,7 @@ pub struct AccumulatedStatsInner {
 impl Default for AccumulatedStatsInner {
     fn default() -> Self {
         Self {
+            last_message: None,
             last_update_us: chrono::Utc::now().timestamp_micros() as u64,
             messages: 0,
             bytes: 0,
@@ -26,6 +28,7 @@ impl Default for AccumulatedStatsInner {
 
 impl AccumulatedStatsInner {
     pub fn update(&mut self, message: &Arc<Protocol>) {
+        self.last_message = Some(message.clone());
         self.last_update_us = chrono::Utc::now().timestamp_micros() as u64;
         self.bytes = self.bytes.wrapping_add(message.raw_bytes().len() as u64);
         self.messages = self.messages.wrapping_add(1);
