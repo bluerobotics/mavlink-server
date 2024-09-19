@@ -76,6 +76,7 @@ impl Rest {
                     let mut message_raw = mavlink::MAVLinkV2MessageRaw::new();
                     message_raw.serialize_message(content.header, &content.message);
                     let bus_message = Arc::new(Protocol::new("Ws", message_raw));
+                    stats.write().await.update_input(&bus_message);
 
                     for future in on_message_input.call_all(bus_message.clone()) {
                         if let Err(error) = future.await {
