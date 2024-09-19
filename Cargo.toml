@@ -49,6 +49,7 @@ serde_derive = "1.0.210"
 json5 = "0.4.1"
 axum = { version = "0.7.5", features = ["ws"] }
 include_dir = "0.7.4"
+uuid = { version = "1.10.0", features = ["v4"] }
 
 [dev-dependencies]
 criterion = "0.5"
