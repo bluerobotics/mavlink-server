@@ -1,4 +1,5 @@
 pub mod fake;
+pub mod rest;
 pub mod serial;
 pub mod tcp;
 pub mod tlog;
