@@ -180,7 +180,7 @@ impl Driver for Rest {
                         error!("Error in rest sender task: {e:?}");
                     }
                 }
-                result = Rest::receive_task(hub_sender, &self.on_message_input, &mut ws_receiver) => {
+                result = Rest::receive_task(hub_sender, &self.on_message_input, &mut ws_receiver, &self.stats) => {
                     if let Err(e) = result {
                         error!("Error in rest receive task: {e:?}");
                     }
