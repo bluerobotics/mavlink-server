@@ -7,7 +7,7 @@ pub mod udp;
 
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use regex::Regex;
 use tokio::sync::broadcast;
 use tracing::*;
@@ -59,9 +59,9 @@ pub trait DriverInfo: Sync + Send {
     fn url_from_legacy(
         &self,
         legacy_entry: crate::drivers::DriverDescriptionLegacy,
-    ) -> Result<url::Url, String> {
+    ) -> Result<url::Url> {
         let debug_entry = legacy_entry.clone();
-        let scheme = self.default_scheme();
+        let scheme = self.default_scheme().context("No default scheme set")?;
         let mut host = std::net::Ipv4Addr::UNSPECIFIED.to_string();
 
         // For cases like serial baudrate, the number may not be under u16
@@ -87,32 +87,29 @@ pub trait DriverInfo: Sync + Send {
             };
         };
 
-        match url::Url::parse(&format!("{scheme}://{host}")) {
-            Ok(mut url) => {
-                if let Some(port) = port {
-                    if url.set_port(Some(port)).is_err() {
-                        debug!("Failed to set port {port} in URL: {url}, moving to argument");
-                        if argument.is_none() {
-                            argument = Some(port.to_string());
-                        }
-                    };
-                }
+        let mut url = url::Url::parse(&format!("{scheme}://{host}")).context(format!(
+            "Failed to parse URL from legacy entry: {debug_entry:?}"
+        ))?;
 
-                if let Some(argument) = argument {
-                    url.query_pairs_mut().append_pair("arg2", &argument);
+        if let Some(port) = port {
+            if url.set_port(Some(port)).is_err() {
+                debug!("Failed to set port {port} in URL: {url}, moving to argument");
+                if argument.is_none() {
+                    argument = Some(port.to_string());
                 }
-                Ok(url)
-            }
-            Err(error) => Err(format!(
-                "Failed to parse URL: {error:?}, from legacy entry: {debug_entry:?}"
-            )),
+            };
         }
+
+        if let Some(argument) = argument {
+            url.query_pairs_mut().append_pair("arg2", &argument);
+        }
+        Ok(url)
     }
 }
 
 impl std::fmt::Debug for dyn DriverInfo {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let scheme = self.default_scheme();
+        let scheme = self.default_scheme().unwrap_or("None");
         write!(f, "DriverInfo ({scheme})")
     }
 }

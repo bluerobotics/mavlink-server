@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::DateTime;
 use mavlink::ardupilotmega::MavMessage;
 use mavlink_server::callbacks::{Callbacks, MessageCallback};
@@ -180,36 +180,26 @@ impl DriverInfo for TlogReaderInfo {
     fn url_from_legacy(
         &self,
         legacy_entry: crate::drivers::DriverDescriptionLegacy,
-    ) -> Result<url::Url, String> {
-        let scheme = self.default_scheme();
+    ) -> Result<url::Url> {
+        let scheme = self.default_scheme().context("No default scheme")?;
         let path = legacy_entry.arg1;
-        if let Err(error) = std::fs::metadata(&path) {
-            return Err(format!("Failed to get metadata for file: {error:?}"));
-        }
+        std::fs::metadata(&path).context("Failed to get metadata for file")?;
         // Get absolute path of file
-        let path = match std::fs::canonicalize(&path) {
-            Ok(path) => path,
-            Err(error) => {
-                return Err(format!("Failed to get absolute path for file: {error:?}"));
-            }
-        };
+        let path = std::fs::canonicalize(&path).context("Failed to get absolute path for file")?;
 
-        let Some(path_string) = path.to_str() else {
-            return Err(format!("Failed to convert path to string: {path:?}"));
-        };
+        let path_string = path.to_str().context("Failed to convert path to string")?;
 
         if let Some(arg2) = legacy_entry.arg2 {
             warn!("Ignoring extra argument: {arg2:?}");
         }
 
-        match url::Url::parse(&format!("{scheme}://{path_string}")) {
-            Ok(url) => Ok(url),
-            Err(error) => Err(format!("Failed to parse URL: {error:?}")),
-        }
+        url::Url::parse(&format!("{scheme}://{path_string}")).context("Failed to parse URL")
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
-        Some(Arc::new(TlogReader::builder(url.path().into()).build()))
+        Some(Arc::new(
+            TlogReader::builder("TlogReader", url.path().into()).build(),
+        ))
     }
 }
 
