@@ -51,8 +51,8 @@ pub trait DriverInfo: Sync + Send {
 
     fn create_endpoint_from_url(&self, url: &Url) -> Option<Arc<dyn Driver>>;
 
-    fn default_scheme(&self) -> &'static str {
-        self.valid_schemes().first().unwrap()
+    fn default_scheme(&self) -> Option<&'static str> {
+        self.valid_schemes().first().copied()
     }
 
     // This is mostly used by network based endpoints, other endpoints can overwrite it
