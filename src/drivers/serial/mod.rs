@@ -194,16 +194,16 @@ impl AccumulatedDriverStatsProvider for Serial {
 
 pub struct SerialInfo;
 impl DriverInfo for SerialInfo {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Serial"
     }
-
-    fn valid_schemes(&self) -> Vec<String> {
-        vec!["serial".to_string()]
+    fn valid_schemes(&self) -> &'static [&'static str] {
+        &["serial"]
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {
-        let first_schema = &self.valid_schemes()[0];
+        let first_schema = self.valid_schemes()[0];
+
         vec![
             format!("{first_schema}:<PORT>:<BAUDRATE>"),
             format!("{first_schema}:/dev/ttyACM0:115200"),

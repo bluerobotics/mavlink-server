@@ -120,12 +120,11 @@ impl AccumulatedDriverStatsProvider for TcpClient {
 
 pub struct TcpClientInfo;
 impl DriverInfo for TcpClientInfo {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "TcpClient"
     }
-
-    fn valid_schemes(&self) -> Vec<String> {
-        vec!["tcpc".to_string(), "tcpclient".to_string()]
+    fn valid_schemes(&self) -> &'static [&'static str] {
+        &["tcpc", "tcpclient"]
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {

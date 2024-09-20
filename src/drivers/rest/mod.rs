@@ -211,12 +211,12 @@ impl AccumulatedDriverStatsProvider for Rest {
 
 pub struct RestInfo;
 impl DriverInfo for RestInfo {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Rest"
     }
 
-    fn valid_schemes(&self) -> Vec<String> {
-        vec![]
+    fn valid_schemes(&self) -> &'static [&'static str] {
+        &[]
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {
@@ -228,6 +228,6 @@ impl DriverInfo for RestInfo {
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
-        Some(Arc::new(Rest::builder().build()))
+        None
     }
 }

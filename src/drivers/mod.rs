@@ -43,17 +43,16 @@ pub trait Driver: Send + Sync + AccumulatedDriverStatsProvider {
 }
 
 pub trait DriverInfo: Sync + Send {
-    fn name(&self) -> &str;
-
-    fn valid_schemes(&self) -> Vec<String>;
+    fn name(&self) -> &'static str;
+    fn valid_schemes(&self) -> &'static [&'static str];
     // CLI helpers
     fn cli_example_legacy(&self) -> Vec<String>;
     fn cli_example_url(&self) -> Vec<String>;
 
     fn create_endpoint_from_url(&self, url: &Url) -> Option<Arc<dyn Driver>>;
 
-    fn default_scheme(&self) -> String {
-        self.valid_schemes().first().unwrap().clone()
+    fn default_scheme(&self) -> &'static str {
+        self.valid_schemes().first().unwrap()
     }
 
     // This is mostly used by network based endpoints, other endpoints can overwrite it
@@ -128,12 +127,9 @@ fn process_old_format(entry: &str) -> Option<DriverDescriptionLegacy> {
     let arg2 = captures.name("arg2").map(|m| m.as_str());
 
     let endpoints = endpoints();
-    let endpoint = endpoints.iter().find(|endpoint| {
-        endpoint
-            .driver_ext
-            .valid_schemes()
-            .contains(&prefix.to_string())
-    })?;
+    let endpoint = endpoints
+        .iter()
+        .find(|endpoint| endpoint.driver_ext.valid_schemes().contains(&prefix))?;
 
     Some(DriverDescriptionLegacy {
         typ: endpoint.typ.clone(),
@@ -156,10 +152,7 @@ pub fn create_driver_from_entry(entry: &str) -> Result<Arc<dyn Driver>, String> 
             }
 
             let url = Url::parse(entry).map_err(|e| e.to_string()).ok()?;
-            if driver_ext
-                .valid_schemes()
-                .contains(&url.scheme().to_string())
-            {
+            if driver_ext.valid_schemes().contains(&url.scheme()) {
                 return driver_ext.create_endpoint_from_url(&url);
             }
             None
@@ -318,12 +311,11 @@ mod tests {
 
     pub struct ExampleDriverInfo;
     impl DriverInfo for ExampleDriverInfo {
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "ExampleDriver"
         }
-
-        fn valid_schemes(&self) -> Vec<String> {
-            vec!["exampledriver".to_string()]
+        fn valid_schemes(&self) -> &'static [&'static str] {
+            &["exampledriver"]
         }
 
         fn cli_example_legacy(&self) -> Vec<String> {
