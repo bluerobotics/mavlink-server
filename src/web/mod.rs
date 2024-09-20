@@ -26,7 +26,7 @@ fn default_router(state: AppState) -> Router {
         .route("/", get(endpoints::root))
         .route("/:path", get(endpoints::root))
         .route("/info", get(endpoints::info))
-        .route("/mavlink/ws", get(websocket_handler))
+        .route("/rest/ws", get(websocket_handler))
         .fallback(get(|| async { (StatusCode::NOT_FOUND, "Not found :(") }))
         .with_state(state)
 }
