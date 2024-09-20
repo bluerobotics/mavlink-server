@@ -27,6 +27,10 @@ fn default_router(state: AppState) -> Router {
         .route("/:path", get(endpoints::root))
         .route("/info", get(endpoints::info))
         .route("/rest/ws", get(websocket_handler))
+        // We are matching all possible keys for the user
+        .route("/rest/mavlink", get(endpoints::mavlink))
+        .route("/rest/mavlink/", get(endpoints::mavlink))
+        .route("/rest/mavlink/*path", get(endpoints::mavlink))
         .fallback(get(|| async { (StatusCode::NOT_FOUND, "Not found :(") }))
         .with_state(state)
 }

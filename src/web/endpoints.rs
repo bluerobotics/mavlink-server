@@ -59,3 +59,11 @@ pub async fn info() -> Json<Info> {
 
     Json(info)
 }
+
+pub async fn mavlink(path: Option<Path<String>>) -> impl IntoResponse {
+    let path = match path {
+        Some(path) => path.0.to_string(),
+        None => String::default(),
+    };
+    crate::drivers::rest::data::messages(&path)
+}
