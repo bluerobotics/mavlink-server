@@ -14,11 +14,16 @@ use crate::{
         Driver, DriverInfo,
     },
     protocol::Protocol,
-    stats::accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+    stats::{
+        accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+        driver::DriverUuid,
+    },
 };
 
 pub struct TcpClient {
     pub remote_addr: String,
+    name: arc_swap::ArcSwap<String>,
+    uuid: DriverUuid,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
@@ -50,12 +55,19 @@ impl TcpClientBuilder {
 
 impl TcpClient {
     #[instrument(level = "debug")]
-    pub fn builder(remote_addr: &str) -> TcpClientBuilder {
+    pub fn builder(name: &str, remote_addr: &str) -> TcpClientBuilder {
+        let name = Arc::new(name.to_string());
+
         TcpClientBuilder(Self {
             remote_addr: remote_addr.to_string(),
+            name: arc_swap::ArcSwap::new(name.clone()),
+            uuid: Self::generate_uuid(remote_addr),
             on_message_input: Callbacks::new(),
             on_message_output: Callbacks::new(),
-            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
+                name,
+                &TcpClientInfo,
+            ))),
         })
     }
 }
@@ -101,6 +113,14 @@ impl Driver for TcpClient {
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
         return Box::new(TcpClientInfo);
+    }
+
+    fn name(&self) -> Arc<String> {
+        self.name.load_full()
+    }
+
+    fn uuid(&self) -> &DriverUuid {
+        &self.uuid
     }
 }
 
@@ -154,7 +174,7 @@ impl DriverInfo for TcpClientInfo {
         let host = url.host_str().unwrap();
         let port = url.port().unwrap();
         Some(Arc::new(
-            TcpClient::builder(&format!("{host}:{port}")).build(),
+            TcpClient::builder("TcpClient", &format!("{host}:{port}")).build(),
         ))
     }
 }

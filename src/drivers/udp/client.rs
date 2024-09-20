@@ -11,11 +11,16 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
-    stats::accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+    stats::{
+        accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+        driver::DriverUuid,
+    },
 };
 
 pub struct UdpClient {
     pub remote_addr: String,
+    name: arc_swap::ArcSwap<String>,
+    uuid: DriverUuid,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
@@ -47,12 +52,19 @@ impl UdpClientBuilder {
 
 impl UdpClient {
     #[instrument(level = "debug")]
-    pub fn builder(remote_addr: &str) -> UdpClientBuilder {
+    pub fn builder(name: &str, remote_addr: &str) -> UdpClientBuilder {
+        let name = Arc::new(name.to_string());
+
         UdpClientBuilder(Self {
             remote_addr: remote_addr.to_string(),
+            name: arc_swap::ArcSwap::new(name.clone()),
+            uuid: Self::generate_uuid(remote_addr),
             on_message_input: Callbacks::new(),
             on_message_output: Callbacks::new(),
-            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
+                name,
+                &UdpClientInfo,
+            ))),
         })
     }
 
@@ -202,6 +214,14 @@ impl Driver for UdpClient {
     fn info(&self) -> Box<dyn DriverInfo> {
         return Box::new(UdpClientInfo);
     }
+
+    fn name(&self) -> Arc<String> {
+        self.name.load_full()
+    }
+
+    fn uuid(&self) -> &DriverUuid {
+        &self.uuid
+    }
 }
 
 #[async_trait::async_trait]
@@ -254,7 +274,7 @@ impl DriverInfo for UdpClientInfo {
         let host = url.host_str().unwrap();
         let port = url.port().unwrap();
         Some(Arc::new(
-            UdpClient::builder(&format!("{host}:{port}")).build(),
+            UdpClient::builder("UdpClient", &format!("{host}:{port}")).build(),
         ))
     }
 }

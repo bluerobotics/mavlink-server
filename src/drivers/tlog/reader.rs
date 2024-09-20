@@ -10,11 +10,16 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
-    stats::accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+    stats::{
+        accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+        driver::DriverUuid,
+    },
 };
 
 pub struct TlogReader {
     pub path: PathBuf,
+    name: arc_swap::ArcSwap<String>,
+    uuid: DriverUuid,
     on_message_input: Callbacks<Arc<Protocol>>,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
@@ -37,11 +42,19 @@ impl TlogReaderBuilder {
 
 impl TlogReader {
     #[instrument(level = "debug")]
-    pub fn builder(path: PathBuf) -> TlogReaderBuilder {
+    pub fn builder(name: &str, path: PathBuf) -> TlogReaderBuilder {
+        let name = Arc::new(name.to_string());
+        let path_str = path.clone().display().to_string();
+
         TlogReaderBuilder(Self {
             path,
+            name: arc_swap::ArcSwap::new(name.clone()),
+            uuid: Self::generate_uuid(&path_str),
             on_message_input: Callbacks::new(),
-            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
+                name,
+                &TlogReaderInfo,
+            ))),
         })
     }
 
@@ -134,6 +147,14 @@ impl Driver for TlogReader {
     fn info(&self) -> Box<dyn DriverInfo> {
         return Box::new(TlogReaderInfo);
     }
+
+    fn name(&self) -> Arc<String> {
+        self.name.load_full()
+    }
+
+    fn uuid(&self) -> &DriverUuid {
+        &self.uuid
+    }
 }
 
 #[async_trait::async_trait]
@@ -220,7 +241,7 @@ mod tests {
 
         let tlog_file = PathBuf::from_str("tests/files/00025-2024-04-22_18-49-07.tlog").unwrap();
 
-        let driver = TlogReader::builder(tlog_file.clone())
+        let driver = TlogReader::builder("test", tlog_file.clone())
             .on_message_input({
                 let messages_received_per_id = messages_received_per_id.clone();
                 move |message: Arc<Protocol>| {

@@ -152,7 +152,7 @@ pub fn log_path() -> String {
 }
 
 pub fn endpoints() -> Vec<Arc<dyn drivers::Driver>> {
-    let default_endpoints = Arc::new(crate::drivers::rest::Rest::builder().build());
+    let default_endpoints = Arc::new(crate::drivers::rest::Rest::builder("Default").build());
     let mut endpoints = MANAGER.clap_matches.endpoints.clone();
     endpoints.push(default_endpoints);
     return endpoints;

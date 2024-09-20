@@ -9,7 +9,10 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
-    stats::accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+    stats::{
+        accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+        driver::DriverUuid,
+    },
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -19,6 +22,8 @@ pub struct MAVLinkMessage<T> {
 }
 
 pub struct Rest {
+    name: arc_swap::ArcSwap<String>,
+    uuid: DriverUuid,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
@@ -50,11 +55,15 @@ impl RestBuilder {
 
 impl Rest {
     #[instrument(level = "debug")]
-    pub fn builder() -> RestBuilder {
+    pub fn builder(name: &str) -> RestBuilder {
+        let name = Arc::new(name.to_string());
+
         RestBuilder(Self {
+            name: arc_swap::ArcSwap::new(name.clone()),
+            uuid: Self::generate_uuid(&name),
             on_message_input: Callbacks::new(),
             on_message_output: Callbacks::new(),
-            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(name, &RestInfo))),
         })
     }
 
@@ -189,6 +198,14 @@ impl Driver for Rest {
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
         Box::new(RestInfo)
+    }
+
+    fn name(&self) -> Arc<String> {
+        self.name.load_full()
+    }
+
+    fn uuid(&self) -> &DriverUuid {
+        &self.uuid
     }
 }
 

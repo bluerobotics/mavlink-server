@@ -11,11 +11,16 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
-    stats::accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+    stats::{
+        accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+        driver::DriverUuid,
+    },
 };
 
 pub struct UdpServer {
     pub local_addr: String,
+    name: arc_swap::ArcSwap<String>,
+    uuid: DriverUuid,
     clients: Arc<RwLock<HashMap<(u8, u8), String>>>,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
@@ -48,13 +53,20 @@ impl UdpServerBuilder {
 
 impl UdpServer {
     #[instrument(level = "debug")]
-    pub fn builder(local_addr: String) -> UdpServerBuilder {
+    pub fn builder(name: &str, local_addr: &str) -> UdpServerBuilder {
+        let name = Arc::new(name.to_string());
+
         UdpServerBuilder(Self {
-            local_addr,
+            local_addr: local_addr.to_string(),
+            name: arc_swap::ArcSwap::new(name.clone()),
+            uuid: Self::generate_uuid(local_addr),
             clients: Arc::new(RwLock::new(HashMap::new())),
             on_message_input: Callbacks::new(),
             on_message_output: Callbacks::new(),
-            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
+                name,
+                &UdpServerInfo,
+            ))),
         })
     }
 
@@ -210,6 +222,14 @@ impl Driver for UdpServer {
     fn info(&self) -> Box<dyn DriverInfo> {
         return Box::new(UdpServerInfo);
     }
+
+    fn name(&self) -> Arc<String> {
+        self.name.load_full()
+    }
+
+    fn uuid(&self) -> &DriverUuid {
+        &self.uuid
+    }
 }
 
 #[async_trait::async_trait]
@@ -262,7 +282,7 @@ impl DriverInfo for UdpServerInfo {
         let host = url.host_str().unwrap();
         let port = url.port().unwrap();
         Some(Arc::new(
-            UdpServer::builder(format!("{host}:{port}")).build(),
+            UdpServer::builder("UdpServer", &format!("{host}:{port}")).build(),
         ))
     }
 }
