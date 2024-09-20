@@ -140,7 +140,7 @@ impl AccumulatedDriverStatsProvider for TlogWriter {
 pub struct TlogWriterInfo;
 impl DriverInfo for TlogWriterInfo {
     fn name(&self) -> &'static str {
-        "Tlogwriter"
+        "TlogWriter"
     }
     fn valid_schemes(&self) -> &'static [&'static str] {
         &["tlogwriter", "tlogw"]
