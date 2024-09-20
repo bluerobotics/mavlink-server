@@ -21,22 +21,28 @@ bench = false
 [dependencies]
 anyhow = "1"
 async-trait = "0.1.81"
+axum = { version = "0.7.5", features = ["ws"] }
 byteorder = "1.5.0"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
 ctrlc = "3.4"
 futures = "0.3"
-lazy_static = "1.5.0"
+include_dir = "0.7.4"
 indexmap = "2.5.0"
-# mavlink = { version = "0.13.1", default-features = false, features = ["ardupilotmega", "std"] }
+json5 = "0.4.1"
+lazy_static = "1.5.0"
 # mavlink = { default-features = false, features = ["ardupilotmega", "std", "tokio-1"], path = "../rust-mavlink/mavlink" }
+# mavlink = { version = "0.13.1", default-features = false, features = ["ardupilotmega", "std"] }
 mavlink = { default-features = false, features = ["ardupilotmega", "serde", "std", "tokio-1"], git = "https://github.com/joaoantoniocardoso/rust-mavlink", branch = "add-tokio" }
 regex = "1.10.6"
 serde = "1"
+serde_derive = "1.0.210"
+serde_json = "1.0.128"
 shellexpand = "3.1"
 tokio = { version = "1", features = ["full"] }
 tokio-serial = "5.4.4"
 url = { version = "2.5.2", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
 
 tracing = { version = "0.1.40", features = ["log", "async-await"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
@@ -44,12 +50,6 @@ tracing-log = "0.2.0"
 # This is a custom revision adding file name suffix on top of tracing-appender-0.2.2" "0.2.2", but compatible with the current tracing version.
 # Reference: https://github.com/tokio-rs/tracing/issues/2441
 tracing-appender = { git = "https://github.com/joaoantoniocardoso/tracing", branch = "tracing-appender-0.2.2-with-filename-suffix" }
-serde_json = "1.0.128"
-serde_derive = "1.0.210"
-json5 = "0.4.1"
-axum = { version = "0.7.5", features = ["ws"] }
-include_dir = "0.7.4"
-uuid = { version = "1.10.0", features = ["v4"] }
 
 [dev-dependencies]
 criterion = "0.5"
@@ -57,3 +57,8 @@ tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
 vergen-gix = { version = "1.0.0-beta.2", default-features = false, features = ["build", "cargo"] }
+
+[profile.profiling]
+inherits = "release"
+debug = 1
+jemalloc = false
