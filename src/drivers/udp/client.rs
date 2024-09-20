@@ -219,16 +219,11 @@ impl AccumulatedDriverStatsProvider for UdpClient {
 
 pub struct UdpClientInfo;
 impl DriverInfo for UdpClientInfo {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "UdpClient"
     }
-
-    fn valid_schemes(&self) -> Vec<String> {
-        vec![
-            "udpclient".to_string(),
-            "udpout".to_string(),
-            "udpc".to_string(),
-        ]
+    fn valid_schemes(&self) -> &'static [&'static str] {
+        &["udpclient", "udpout", "udpc"]
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {

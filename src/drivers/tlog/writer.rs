@@ -119,12 +119,11 @@ impl AccumulatedDriverStatsProvider for TlogWriter {
 }
 pub struct TlogWriterInfo;
 impl DriverInfo for TlogWriterInfo {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Tlogwriter"
     }
-
-    fn valid_schemes(&self) -> Vec<String> {
-        vec!["tlogwriter".to_string(), "tlogw".to_string()]
+    fn valid_schemes(&self) -> &'static [&'static str] {
+        &["tlogwriter", "tlogw"]
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {

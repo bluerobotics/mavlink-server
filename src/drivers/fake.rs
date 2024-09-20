@@ -98,16 +98,12 @@ impl AccumulatedDriverStatsProvider for FakeSink {
 
 pub struct FakeSinkInfo;
 impl DriverInfo for FakeSinkInfo {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "FakeSink"
     }
 
-    fn valid_schemes(&self) -> Vec<String> {
-        vec![
-            "fakeclient".to_string(),
-            "fakesink".to_string(),
-            "fakec".to_string(),
-        ]
+    fn valid_schemes(&self) -> &'static [&'static str] {
+        &["fakeclient", "fakesink", "fakec"]
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {
@@ -252,17 +248,12 @@ impl AccumulatedDriverStatsProvider for FakeSource {
 
 pub struct FakeSourceInfo;
 impl DriverInfo for FakeSourceInfo {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "FakeSource"
     }
 
-    fn valid_schemes(&self) -> Vec<String> {
-        vec![
-            "fakesource".to_string(),
-            "fakeserver".to_string(),
-            "fakesrc".to_string(),
-            "fakes".to_string(),
-        ]
+    fn valid_schemes(&self) -> &'static [&'static str] {
+        &["fakesource", "fakeserver", "fakesrc", "fakes"]
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {
