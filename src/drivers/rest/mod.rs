@@ -1,3 +1,5 @@
+pub mod data;
+
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -151,11 +153,14 @@ impl Rest {
                         mavlink::MavHeader,
                         mavlink::ardupilotmega::MavMessage,
                     ) = mavlink::read_v2_msg_async(&mut bytes).await.unwrap();
-                    crate::web::send_message(parse_query(&MAVLinkMessage {
+
+                    let mavlink_message = MAVLinkMessage {
                         header: header,
                         message: message,
-                    }))
-                    .await;
+                    };
+                    let json_string = parse_query(&mavlink_message);
+                    data::update((header, mavlink_message.message));
+                    crate::web::send_message(json_string).await;
                 }
                 Err(error) => {
                     error!("Failed to receive message from hub: {error:?}");
