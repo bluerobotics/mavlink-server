@@ -111,10 +111,9 @@ impl AccumulatedDriverStatsProvider for TcpClient {
     }
 
     async fn reset_stats(&self) {
-        *self.stats.write().await = AccumulatedDriverStats {
-            input: None,
-            output: None,
-        }
+        let mut stats = self.stats.write().await;
+        stats.stats.input = None;
+        stats.stats.output = None
     }
 }
 
