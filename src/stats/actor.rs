@@ -1,10 +1,8 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use anyhow::Result;
-use tokio::sync::{mpsc, RwLock};
+use indexmap::IndexMap;
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::*;
 
 use crate::{
@@ -24,11 +22,11 @@ pub struct StatsActor {
     hub: Hub,
     start_time: Arc<RwLock<u64>>,
     update_period: Arc<RwLock<tokio::time::Duration>>,
-    last_accumulated_drivers_stats: Arc<RwLock<Vec<(String, AccumulatedDriverStats)>>>,
+    last_accumulated_drivers_stats: Arc<Mutex<AccumulatedDriversStats>>,
     drivers_stats: Arc<RwLock<DriversStats>>,
-    last_accumulated_hub_stats: Arc<RwLock<AccumulatedStatsInner>>,
+    last_accumulated_hub_stats: Arc<Mutex<AccumulatedStatsInner>>,
     hub_stats: Arc<RwLock<StatsInner>>,
-    last_accumulated_hub_messages_stats: Arc<RwLock<AccumulatedHubMessagesStats>>,
+    last_accumulated_hub_messages_stats: Arc<Mutex<AccumulatedHubMessagesStats>>,
     hub_messages_stats: Arc<RwLock<HubMessagesStats>>,
 }
 
@@ -129,12 +127,13 @@ impl StatsActor {
     #[instrument(level = "debug", skip(hub))]
     pub async fn new(hub: Hub, update_period: tokio::time::Duration) -> Self {
         let update_period = Arc::new(RwLock::new(update_period));
-        let last_accumulated_hub_stats = Arc::new(RwLock::new(AccumulatedStatsInner::default()));
+        let last_accumulated_hub_stats = Arc::new(Mutex::new(AccumulatedStatsInner::default()));
         let hub_stats = Arc::new(RwLock::new(StatsInner::default()));
-        let last_accumulated_drivers_stats = Arc::new(RwLock::new(Vec::new()));
-        let drivers_stats = Arc::new(RwLock::new(Vec::new()));
+        let last_accumulated_drivers_stats =
+            Arc::new(Mutex::new(AccumulatedDriversStats::default()));
+        let drivers_stats = Arc::new(RwLock::new(DriversStats::default()));
         let last_accumulated_hub_messages_stats =
-            Arc::new(RwLock::new(AccumulatedHubMessagesStats::default()));
+            Arc::new(Mutex::new(AccumulatedHubMessagesStats::default()));
         let hub_messages_stats = Arc::new(RwLock::new(HubMessagesStats::default()));
         let start_time = Arc::new(RwLock::new(chrono::Utc::now().timestamp_micros() as u64));
 
@@ -191,30 +190,29 @@ impl StatsActor {
         }
         *self.start_time.write().await = chrono::Utc::now().timestamp_micros() as u64;
 
-        self.last_accumulated_drivers_stats.write().await.clear();
+        self.last_accumulated_drivers_stats.lock().await.clear();
         driver_stats.clear();
 
         *hub_messages_stats = HubMessagesStats::default();
-        *self.last_accumulated_hub_messages_stats.write().await =
+        *self.last_accumulated_hub_messages_stats.lock().await =
             AccumulatedHubMessagesStats::default();
 
         *hub_stats = StatsInner::default();
-        *self.last_accumulated_hub_stats.write().await = AccumulatedStatsInner::default();
+        *self.last_accumulated_hub_stats.lock().await = AccumulatedStatsInner::default();
 
         Ok(())
     }
 }
 
-#[instrument(level = "debug", skip_all)]
 async fn update_hub_messages_stats(
     hub: &Hub,
-    last_accumulated_hub_messages_stats: &RwLock<AccumulatedHubMessagesStats>,
+    last_accumulated_hub_messages_stats: &Mutex<AccumulatedHubMessagesStats>,
     hub_messages_stats: &RwLock<HubMessagesStats>,
     start_time: &RwLock<u64>,
 ) {
-    let last_stats = last_accumulated_hub_messages_stats.read().await.clone();
+    let mut last_stats = last_accumulated_hub_messages_stats.lock().await;
     let current_stats = hub.hub_messages_stats().await.unwrap();
-    let start_time = start_time.read().await.clone();
+    let start_time = *start_time.read().await;
 
     let mut new_hub_messages_stats = HubMessagesStats::default();
 
@@ -254,75 +252,61 @@ async fn update_hub_messages_stats(
     trace!("{new_hub_messages_stats:#?}");
 
     *hub_messages_stats.write().await = new_hub_messages_stats;
-    *last_accumulated_hub_messages_stats.write().await = current_stats;
+    *last_stats = current_stats;
 }
 
-#[instrument(level = "debug", skip_all)]
 async fn update_hub_stats(
     hub: &Hub,
-    last_accumulated_hub_stats: &Arc<RwLock<AccumulatedStatsInner>>,
+    last_accumulated_hub_stats: &Arc<Mutex<AccumulatedStatsInner>>,
     hub_stats: &Arc<RwLock<StatsInner>>,
     start_time: &Arc<RwLock<u64>>,
 ) {
-    let last_stats = last_accumulated_hub_stats.read().await.clone();
+    let mut last_stats = last_accumulated_hub_stats.lock().await;
     let current_stats = hub.hub_stats().await.unwrap();
-    let start_time = start_time.read().await.clone();
+    let start_time = *start_time.read().await;
 
     let new_hub_stats = StatsInner::from_accumulated(&current_stats, &last_stats, start_time);
 
     trace!("{new_hub_stats:#?}");
 
     *hub_stats.write().await = new_hub_stats;
-    *last_accumulated_hub_stats.write().await = current_stats;
+    *last_stats = current_stats;
 }
 
-#[instrument(level = "debug", skip_all)]
 async fn update_driver_stats(
     hub: &Hub,
-    last_accumulated_drivers_stats: &Arc<RwLock<Vec<(String, AccumulatedDriverStats)>>>,
+    last_accumulated_drivers_stats: &Arc<Mutex<AccumulatedDriversStats>>,
     driver_stats: &Arc<RwLock<DriversStats>>,
     start_time: &Arc<RwLock<u64>>,
 ) {
-    let last_stats = last_accumulated_drivers_stats.read().await.clone();
-    let current_stats = hub.drivers_stats().await.unwrap();
+    let mut last_map = last_accumulated_drivers_stats.lock().await;
+    let current_map = hub.drivers_stats().await.unwrap();
+    let start_time = *start_time.read().await;
 
-    let last_map: HashMap<_, _> = last_stats.into_iter().collect();
-    let current_map: HashMap<_, _> = current_stats
-        .iter()
-        .map(|(name, raw)| (name.clone(), raw.clone()))
-        .collect();
+    let mut merged_stats = IndexMap::with_capacity(last_map.len().max(current_map.len()));
 
-    let merged_keys: HashSet<String> = last_map.keys().chain(current_map.keys()).cloned().collect();
+    for (uuid, last_struct) in last_map.iter() {
+        merged_stats.insert(*uuid, (Some(last_struct), None));
+    }
 
-    let merged_stats: Vec<(
-        String,
-        (
-            Option<AccumulatedDriverStats>,
-            Option<AccumulatedDriverStats>,
-        ),
-    )> = merged_keys
-        .into_iter()
-        .map(|name| {
-            let last = last_map.get(&name).cloned();
-            let current = current_map.get(&name).cloned();
-            (name, (last, current))
-        })
-        .collect();
+    for (uuid, current_struct) in &current_map {
+        merged_stats
+            .entry(*uuid)
+            .and_modify(|e| e.1 = Some(current_struct))
+            .or_insert((None, Some(current_struct)));
+    }
 
-    let mut new_driver_stats = Vec::new();
+    let mut new_map = IndexMap::with_capacity(merged_stats.len());
 
-    let start_time = start_time.read().await.clone();
+    let default_input = AccumulatedStatsInner::default();
+    let default_output = AccumulatedStatsInner::default();
 
-    for (name, (last, current)) in merged_stats {
+    for (uuid, (last, current)) in merged_stats {
         if let Some(current_stats) = current {
-            let new_input_stats = if let Some(current_input_stats) = &current_stats.input {
-                let default_input = AccumulatedStatsInner::default();
-
-                let last_input_stats = if let Some(last_stats) = &last {
-                    last_stats.input.as_ref().unwrap_or(&default_input)
-                } else {
-                    &default_input
-                };
+            let new_input_stats = if let Some(current_input_stats) = &current_stats.stats.input {
+                let last_input_stats = last
+                    .and_then(|l| l.stats.input.as_ref())
+                    .unwrap_or(&default_input);
 
                 Some(StatsInner::from_accumulated(
                     current_input_stats,
@@ -333,14 +317,10 @@ async fn update_driver_stats(
                 None
             };
 
-            let new_output_stats = if let Some(current_output_stats) = &current_stats.output {
-                let default_output = AccumulatedStatsInner::default();
-
-                let last_output_stats = if let Some(last_stats) = &last {
-                    last_stats.output.as_ref().unwrap_or(&default_output)
-                } else {
-                    &default_output
-                };
+            let new_output_stats = if let Some(current_output_stats) = &current_stats.stats.output {
+                let last_output_stats = last
+                    .and_then(|l| l.stats.output.as_ref())
+                    .unwrap_or(&default_output);
 
                 Some(StatsInner::from_accumulated(
                     current_output_stats,
@@ -351,18 +331,22 @@ async fn update_driver_stats(
                 None
             };
 
-            new_driver_stats.push((
-                name,
+            new_map.insert(
+                uuid,
                 DriverStats {
-                    input: new_input_stats,
-                    output: new_output_stats,
+                    name: current_stats.name.clone(),
+                    driver_type: current_stats.driver_type,
+                    stats: DriverStatsInner {
+                        input: new_input_stats,
+                        output: new_output_stats,
+                    },
                 },
-            ));
+            );
         }
     }
 
-    trace!("{new_driver_stats:#?}");
+    trace!("{new_map:#?}");
 
-    *driver_stats.write().await = new_driver_stats;
-    *last_accumulated_drivers_stats.write().await = current_stats;
+    *driver_stats.write().await = new_map;
+    *last_map = current_map;
 }
