@@ -20,6 +20,7 @@ bench = false
 
 [dependencies]
 anyhow = "1"
+arc-swap = "1.7"
 async-trait = "0.1.81"
 axum = { version = "0.7.5", features = ["ws"] }
 byteorder = "1.5.0"
@@ -42,7 +43,7 @@ shellexpand = "3.1"
 tokio = { version = "1", features = ["full"] }
 tokio-serial = "5.4.4"
 url = { version = "2.5.2", features = ["serde"] }
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v5", "v4"] }
 
 tracing = { version = "0.1.40", features = ["log", "async-await"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
