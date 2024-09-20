@@ -54,7 +54,7 @@ impl Driver for FakeSink {
         let mut hub_receiver = hub_sender.subscribe();
 
         while let Ok(message) = hub_receiver.recv().await {
-            self.stats.write().await.update_input(&message);
+            self.stats.write().await.stats.update_input(&message);
 
             for future in self.on_message_input.call_all(message.clone()) {
                 if let Err(error) = future.await {
@@ -89,10 +89,9 @@ impl AccumulatedDriverStatsProvider for FakeSink {
     }
 
     async fn reset_stats(&self) {
-        *self.stats.write().await = AccumulatedDriverStats {
-            input: None,
-            output: None,
-        }
+        let mut stats = self.stats.write().await;
+        stats.stats.input = None;
+        stats.stats.output = None
     }
 }
 
@@ -125,7 +124,7 @@ impl DriverInfo for FakeSinkInfo {
     }
 
     fn create_endpoint_from_url(&self, _url: &url::Url) -> Option<Arc<dyn Driver>> {
-        Some(Arc::new(FakeSink::builder().build()))
+        Some(Arc::new(FakeSink::builder("Unnamed").print().build()))
     }
 }
 
@@ -205,6 +204,7 @@ impl Driver for FakeSource {
                         self.stats
                             .write()
                             .await
+                            .stats
                             .update_output(&message);
 
                         for future in self.on_message_output.call_all(message.clone()) {
@@ -239,10 +239,9 @@ impl AccumulatedDriverStatsProvider for FakeSource {
     }
 
     async fn reset_stats(&self) {
-        *self.stats.write().await = AccumulatedDriverStats {
-            input: None,
-            output: None,
-        }
+        let mut stats = self.stats.write().await;
+        stats.stats.input = None;
+        stats.stats.output = None
     }
 }
 
@@ -275,7 +274,7 @@ impl DriverInfo for FakeSourceInfo {
     }
 
     fn create_endpoint_from_url(&self, _url: &url::Url) -> Option<Arc<dyn Driver>> {
-        Some(Arc::new(FakeSink::builder().print().build()))
+        Some(Arc::new(FakeSink::builder("Unnamed").print().build()))
     }
 }
 

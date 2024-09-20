@@ -104,7 +104,7 @@ impl TlogReader {
 
             let message = Arc::new(message);
 
-            self.stats.write().await.update_input(&message);
+            self.stats.write().await.stats.update_input(&message);
 
             for future in self.on_message_input.call_all(message.clone()) {
                 if let Err(error) = future.await {
@@ -143,10 +143,9 @@ impl AccumulatedDriverStatsProvider for TlogReader {
     }
 
     async fn reset_stats(&self) {
-        *self.stats.write().await = AccumulatedDriverStats {
-            input: None,
-            output: None,
-        }
+        let mut stats = self.stats.write().await;
+        stats.stats.input = None;
+        stats.stats.output = None
     }
 }
 

@@ -76,7 +76,7 @@ impl Rest {
                     let mut message_raw = mavlink::MAVLinkV2MessageRaw::new();
                     message_raw.serialize_message(content.header, &content.message);
                     let bus_message = Arc::new(Protocol::new("Ws", message_raw));
-                    stats.write().await.update_input(&bus_message);
+                    stats.write().await.stats.update_input(&bus_message);
 
                     for future in on_message_input.call_all(bus_message.clone()) {
                         if let Err(error) = future.await {
@@ -95,7 +95,7 @@ impl Rest {
                     let mut message_raw = mavlink::MAVLinkV2MessageRaw::new();
                     message_raw.serialize_message(content.header, &content.message);
                     let bus_message = Arc::new(Protocol::new("Ws", message_raw));
-                    stats.write().await.update_input(&bus_message);
+                    stats.write().await.stats.update_input(&bus_message);
 
                     for future in on_message_input.call_all(bus_message.clone()) {
                         if let Err(error) = future.await {
@@ -131,7 +131,7 @@ impl Rest {
         loop {
             match hub_receiver.recv().await {
                 Ok(message) => {
-                    stats.write().await.update_output(&message);
+                    stats.write().await.stats.update_output(&message);
                     for future in on_message_output.call_all(message.clone()) {
                         if let Err(error) = future.await {
                             debug!("Dropping message: on_message_output callback returned error: {error:?}");
@@ -202,10 +202,9 @@ impl AccumulatedDriverStatsProvider for Rest {
     }
 
     async fn reset_stats(&self) {
-        *self.stats.write().await = AccumulatedDriverStats {
-            input: None,
-            output: None,
-        }
+        let mut stats = self.stats.write().await;
+        stats.stats.input = None;
+        stats.stats.output = None
     }
 }
 
