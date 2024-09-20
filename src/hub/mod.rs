@@ -1,20 +1,21 @@
 mod actor;
 mod protocol;
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
+use indexmap::IndexMap;
 use tokio::sync::{broadcast, mpsc, oneshot, RwLock};
 
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
-    stats::accumulated::{
-        driver::AccumulatedDriverStats, messages::AccumulatedHubMessagesStats,
-        AccumulatedStatsInner,
+    stats::{
+        accumulated::{
+            driver::AccumulatedDriversStats, messages::AccumulatedHubMessagesStats,
+            AccumulatedStatsInner,
+        },
+        driver::DriverUuid,
     },
 };
 
@@ -40,7 +41,7 @@ impl Hub {
         Self { sender, _task }
     }
 
-    pub async fn add_driver(&self, driver: Arc<dyn Driver>) -> Result<u64> {
+    pub async fn add_driver(&self, driver: Arc<dyn Driver>) -> Result<DriverUuid> {
         let (response_tx, response_rx) = oneshot::channel();
         self.sender
             .send(HubCommand::AddDriver {
@@ -51,18 +52,18 @@ impl Hub {
         response_rx.await?
     }
 
-    pub async fn remove_driver(&self, id: u64) -> Result<()> {
+    pub async fn remove_driver(&self, uuid: DriverUuid) -> Result<()> {
         let (response_tx, response_rx) = oneshot::channel();
         self.sender
             .send(HubCommand::RemoveDriver {
-                id,
+                uuid,
                 response: response_tx,
             })
             .await?;
         response_rx.await?
     }
 
-    pub async fn drivers(&self) -> Result<HashMap<u64, Box<dyn DriverInfo>>> {
+    pub async fn drivers(&self) -> Result<IndexMap<DriverUuid, Box<dyn DriverInfo>>> {
         let (response_tx, response_rx) = oneshot::channel();
         self.sender
             .send(HubCommand::GetDrivers {
@@ -84,7 +85,7 @@ impl Hub {
         Ok(res)
     }
 
-    pub async fn drivers_stats(&self) -> Result<Vec<(String, AccumulatedDriverStats)>> {
+    pub async fn drivers_stats(&self) -> Result<AccumulatedDriversStats> {
         let (response_tx, response_rx) = oneshot::channel();
         self.sender
             .send(HubCommand::GetDriversStats {

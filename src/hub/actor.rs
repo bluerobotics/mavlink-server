@@ -1,6 +1,7 @@
-use std::{collections::HashMap, ops::Div, sync::Arc};
+use std::{ops::Div, sync::Arc};
 
 use anyhow::{anyhow, Context, Result};
+use indexmap::IndexMap;
 use mavlink::MAVLinkV2MessageRaw;
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tracing::*;
@@ -9,16 +10,18 @@ use crate::{
     drivers::{Driver, DriverInfo},
     hub::HubCommand,
     protocol::Protocol,
-    stats::accumulated::{
-        driver::AccumulatedDriverStats, messages::AccumulatedHubMessagesStats,
-        AccumulatedStatsInner,
+    stats::{
+        accumulated::{
+            driver::AccumulatedDriversStats, messages::AccumulatedHubMessagesStats,
+            AccumulatedStatsInner,
+        },
+        driver::DriverUuid,
     },
 };
 
 pub struct HubActor {
-    drivers: HashMap<u64, Arc<dyn Driver>>,
+    drivers: IndexMap<DriverUuid, Arc<dyn Driver>>,
     bcst_sender: broadcast::Sender<Arc<Protocol>>,
-    last_driver_id: Arc<RwLock<u64>>,
     component_id: Arc<RwLock<u8>>,
     system_id: Arc<RwLock<u8>>,
     heartbeat_task: tokio::task::JoinHandle<Result<()>>,
@@ -35,8 +38,8 @@ impl HubActor {
                     let result = self.add_driver(driver).await;
                     let _ = response.send(result);
                 }
-                HubCommand::RemoveDriver { id, response } => {
-                    let result = self.remove_driver(id).await;
+                HubCommand::RemoveDriver { uuid, response } => {
+                    let result = self.remove_driver(uuid).await;
                     let _ = response.send(result);
                 }
                 HubCommand::GetDrivers { response } => {
@@ -94,9 +97,8 @@ impl HubActor {
         });
 
         Self {
-            drivers: HashMap::new(),
+            drivers: IndexMap::new(),
             bcst_sender,
-            last_driver_id: Arc::new(RwLock::new(0)),
             component_id,
             system_id,
             heartbeat_task,
@@ -107,14 +109,11 @@ impl HubActor {
     }
 
     #[instrument(level = "debug", skip(self, driver))]
-    async fn add_driver(&mut self, driver: Arc<dyn Driver>) -> Result<u64> {
-        let mut last_id = self.last_driver_id.write().await;
-        let id = *last_id;
-        *last_id += 1;
-
-        if self.drivers.insert(id, driver.clone()).is_some() {
+    async fn add_driver(&mut self, driver: Arc<dyn Driver>) -> Result<DriverUuid> {
+        let uuid = *driver.uuid();
+        if self.drivers.insert(uuid, driver.clone()).is_some() {
             return Err(anyhow!(
-                "Failed addinng driver: id {id:?} is already present"
+                "Failed addinng driver: uuid {uuid:?} is already present"
             ));
         }
 
@@ -122,19 +121,19 @@ impl HubActor {
 
         tokio::spawn(async move { driver.run(hub_sender).await });
 
-        Ok(id)
+        Ok(uuid)
     }
 
     #[instrument(level = "debug", skip(self))]
-    async fn remove_driver(&mut self, id: u64) -> Result<()> {
+    async fn remove_driver(&mut self, uuid: DriverUuid) -> Result<()> {
         self.drivers
-            .remove(&id)
-            .context("Driver id {id:?} not found")?;
+            .swap_remove(&uuid)
+            .context("Driver uuid {uuid:?} not found")?;
         Ok(())
     }
 
     #[instrument(level = "debug", skip(self))]
-    async fn drivers(&self) -> HashMap<u64, Box<dyn DriverInfo>> {
+    async fn drivers(&self) -> IndexMap<DriverUuid, Box<dyn DriverInfo>> {
         self.drivers
             .iter()
             .map(|(&id, driver)| (id, driver.info()))
@@ -204,14 +203,13 @@ impl HubActor {
     }
 
     #[instrument(level = "debug", skip(self))]
-    async fn get_drivers_stats(&self) -> Vec<(String, AccumulatedDriverStats)> {
-        let mut drivers_stats = Vec::with_capacity(self.drivers.len());
+    async fn get_drivers_stats(&self) -> AccumulatedDriversStats {
+        let mut drivers_stats = IndexMap::with_capacity(self.drivers.len());
         for (_id, driver) in self.drivers.iter() {
             let stats = driver.stats().await;
-            let info = driver.info();
-            let name = info.name().to_owned();
+            let uuid = *driver.uuid();
 
-            drivers_stats.push((name, stats));
+            drivers_stats.insert(uuid, stats);
         }
 
         drivers_stats

@@ -1,28 +1,32 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Result;
+use indexmap::IndexMap;
 use tokio::sync::{broadcast, oneshot};
 
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
-    stats::accumulated::{
-        driver::AccumulatedDriverStats, messages::AccumulatedHubMessagesStats,
-        AccumulatedStatsInner,
+    stats::{
+        accumulated::{
+            driver::AccumulatedDriversStats, messages::AccumulatedHubMessagesStats,
+            AccumulatedStatsInner,
+        },
+        driver::DriverUuid,
     },
 };
 
 pub enum HubCommand {
     AddDriver {
         driver: Arc<dyn Driver>,
-        response: oneshot::Sender<Result<u64>>,
+        response: oneshot::Sender<Result<DriverUuid>>,
     },
     RemoveDriver {
-        id: u64,
+        uuid: DriverUuid,
         response: oneshot::Sender<Result<()>>,
     },
     GetDrivers {
-        response: oneshot::Sender<HashMap<u64, Box<dyn DriverInfo>>>,
+        response: oneshot::Sender<IndexMap<DriverUuid, Box<dyn DriverInfo>>>,
     },
     GetSender {
         response: oneshot::Sender<broadcast::Sender<Arc<Protocol>>>,
@@ -34,7 +38,7 @@ pub enum HubCommand {
         response: oneshot::Sender<AccumulatedHubMessagesStats>,
     },
     GetDriversStats {
-        response: oneshot::Sender<Vec<(String, AccumulatedDriverStats)>>,
+        response: oneshot::Sender<AccumulatedDriversStats>,
     },
     ResetAllStats {
         response: oneshot::Sender<Result<()>>,
