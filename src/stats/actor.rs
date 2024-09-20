@@ -11,11 +11,12 @@ use crate::{
     hub::Hub,
     stats::{
         accumulated::{
-            driver::AccumulatedDriverStats, messages::AccumulatedHubMessagesStats,
+            driver::AccumulatedDriversStats, messages::AccumulatedHubMessagesStats,
             AccumulatedStatsInner,
         },
+        driver::{DriverStats, DriverStatsInner},
         messages::HubMessagesStats,
-        DriverStats, DriversStats, StatsCommand, StatsInner,
+        DriversStats, StatsCommand, StatsInner,
     },
 };
 

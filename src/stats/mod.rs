@@ -1,5 +1,6 @@
 pub mod accumulated;
 mod actor;
+pub mod driver;
 mod messages;
 mod protocol;
 
@@ -7,6 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use accumulated::AccumulatedStatsInner;
 use anyhow::Result;
+use driver::DriversStats;
 use messages::HubMessagesStats;
 use tokio::sync::{mpsc, oneshot};
 
@@ -14,14 +16,6 @@ use actor::StatsActor;
 use protocol::StatsCommand;
 
 use crate::hub::Hub;
-
-pub type DriversStats = Vec<(String, DriverStats)>;
-
-#[derive(Debug, Clone)]
-pub struct DriverStats {
-    pub input: Option<StatsInner>,
-    pub output: Option<StatsInner>,
-}
 
 #[derive(Debug, Clone, Default)]
 pub struct StatsInner {
