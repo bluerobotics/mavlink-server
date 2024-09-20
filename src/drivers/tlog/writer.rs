@@ -11,11 +11,16 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
-    stats::accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+    stats::{
+        accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+        driver::DriverUuid,
+    },
 };
 
 pub struct TlogWriter {
     pub path: PathBuf,
+    name: arc_swap::ArcSwap<String>,
+    uuid: DriverUuid,
     on_message_output: Callbacks<Arc<Protocol>>,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
@@ -38,11 +43,19 @@ impl TlogWriterBuilder {
 
 impl TlogWriter {
     #[instrument(level = "debug")]
-    pub fn builder(path: PathBuf) -> TlogWriterBuilder {
+    pub fn builder(name: &str, path: PathBuf) -> TlogWriterBuilder {
+        let name = Arc::new(name.to_string());
+        let path_str = path.clone().display().to_string();
+
         TlogWriterBuilder(Self {
             path,
+            name: arc_swap::ArcSwap::new(name.clone()),
+            uuid: Self::generate_uuid(&path_str),
             on_message_output: Callbacks::new(),
-            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
+                name,
+                &TlogWriterInfo,
+            ))),
         })
     }
 
@@ -102,6 +115,14 @@ impl Driver for TlogWriter {
     fn info(&self) -> Box<dyn DriverInfo> {
         return Box::new(TlogWriterInfo);
     }
+
+    fn name(&self) -> Arc<String> {
+        self.name.load_full()
+    }
+
+    fn uuid(&self) -> &DriverUuid {
+        &self.uuid
+    }
 }
 
 #[async_trait::async_trait]
@@ -144,6 +165,8 @@ impl DriverInfo for TlogWriterInfo {
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
-        Some(Arc::new(TlogWriter::builder(url.path().into()).build()))
+        Some(Arc::new(
+            TlogWriter::builder("TlogWriter", url.path().into()).build(),
+        ))
     }
 }

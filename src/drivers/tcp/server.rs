@@ -14,12 +14,16 @@ use crate::{
         Driver, DriverInfo,
     },
     protocol::Protocol,
-    stats::accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+    stats::{
+        accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+        driver::DriverUuid,
+    },
 };
 
-#[derive(Clone)]
 pub struct TcpServer {
     pub local_addr: String,
+    name: arc_swap::ArcSwap<String>,
+    uuid: DriverUuid,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
@@ -51,12 +55,19 @@ impl TcpServerBuilder {
 
 impl TcpServer {
     #[instrument(level = "debug")]
-    pub fn builder(local_addr: &str) -> TcpServerBuilder {
+    pub fn builder(name: &str, local_addr: &str) -> TcpServerBuilder {
+        let name = Arc::new(name.to_string());
+
         TcpServerBuilder(Self {
             local_addr: local_addr.to_string(),
+            name: arc_swap::ArcSwap::new(name.clone()),
+            uuid: Self::generate_uuid(local_addr),
             on_message_input: Callbacks::new(),
             on_message_output: Callbacks::new(),
-            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
+                name,
+                &TcpServerInfo,
+            ))),
         })
     }
 
@@ -129,6 +140,14 @@ impl Driver for TcpServer {
     fn info(&self) -> Box<dyn DriverInfo> {
         return Box::new(TcpServerInfo);
     }
+
+    fn name(&self) -> Arc<String> {
+        self.name.load_full()
+    }
+
+    fn uuid(&self) -> &DriverUuid {
+        &self.uuid
+    }
 }
 
 #[async_trait::async_trait]
@@ -182,7 +201,7 @@ impl DriverInfo for TcpServerInfo {
         let host = url.host_str().unwrap();
         let port = url.port().unwrap();
         Some(Arc::new(
-            TcpServer::builder(&format!("{host}:{port}")).build(),
+            TcpServer::builder("TcpServer", &format!("{host}:{port}")).build(),
         ))
     }
 }

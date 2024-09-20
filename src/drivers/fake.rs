@@ -8,21 +8,33 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
-    stats::accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+    stats::{
+        accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+        driver::DriverUuid,
+    },
 };
 
 pub struct FakeSink {
+    name: arc_swap::ArcSwap<String>,
+    uuid: DriverUuid,
     on_message_input: Callbacks<Arc<Protocol>>,
     print: bool,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
 
 impl FakeSink {
-    pub fn builder() -> FakeSinkBuilder {
+    pub fn builder(name: &str) -> FakeSinkBuilder {
+        let name = Arc::new(name.to_string());
+
         FakeSinkBuilder(Self {
+            name: arc_swap::ArcSwap::new(name.clone()),
+            uuid: Self::generate_uuid(&name),
             on_message_input: Callbacks::new(),
             print: false,
-            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
+                name,
+                &FakeSinkInfo,
+            ))),
         })
     }
 }
@@ -80,6 +92,14 @@ impl Driver for FakeSink {
     fn info(&self) -> Box<dyn DriverInfo> {
         Box::new(FakeSinkInfo)
     }
+
+    fn name(&self) -> Arc<String> {
+        self.name.load_full()
+    }
+
+    fn uuid(&self) -> &DriverUuid {
+        &self.uuid
+    }
 }
 
 #[async_trait::async_trait]
@@ -129,17 +149,26 @@ impl DriverInfo for FakeSinkInfo {
 }
 
 pub struct FakeSource {
+    name: arc_swap::ArcSwap<String>,
+    uuid: DriverUuid,
     period: std::time::Duration,
     on_message_output: Callbacks<Arc<Protocol>>,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
 
 impl FakeSource {
-    pub fn builder(period: std::time::Duration) -> FakeSourceBuilder {
+    pub fn builder(name: &str, period: std::time::Duration) -> FakeSourceBuilder {
+        let name = Arc::new(name.to_string());
+
         FakeSourceBuilder(Self {
+            name: arc_swap::ArcSwap::new(name.clone()),
+            uuid: Self::generate_uuid(&name),
             period,
             on_message_output: Callbacks::new(),
-            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
+                name,
+                &FakeSourceInfo,
+            ))),
         })
     }
 }
@@ -230,6 +259,14 @@ impl Driver for FakeSource {
     fn info(&self) -> Box<dyn DriverInfo> {
         Box::new(FakeSourceInfo)
     }
+
+    fn name(&self) -> Arc<String> {
+        self.name.load_full()
+    }
+
+    fn uuid(&self) -> &DriverUuid {
+        &self.uuid
+    }
 }
 
 #[async_trait::async_trait]
@@ -299,7 +336,7 @@ mod test {
         let sink_messages = Arc::new(RwLock::new(Vec::<Arc<Protocol>>::with_capacity(1000)));
 
         // FakeSink and task
-        let sink = FakeSink::builder()
+        let sink = FakeSink::builder("test")
             .on_message_input({
                 let sink_messages = sink_messages.clone();
 
@@ -320,7 +357,7 @@ mod test {
         });
 
         // FakeSource and task
-        let source = FakeSource::builder(message_period)
+        let source = FakeSource::builder("test", message_period)
             .on_message_output({
                 let source_messages = source_messages.clone();
                 move |message: Arc<Protocol>| {

@@ -39,7 +39,27 @@ pub struct DriverDescriptionLegacy {
 #[async_trait::async_trait]
 pub trait Driver: Send + Sync + AccumulatedDriverStatsProvider {
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()>;
+
     fn info(&self) -> Box<dyn DriverInfo>;
+
+    fn name(&self) -> Arc<String>;
+
+    fn uuid(&self) -> &uuid::Uuid;
+
+    fn generate_uuid(name: &str) -> uuid::Uuid
+    where
+        Self: Sized,
+    {
+        uuid::Uuid::new_v5(
+            &uuid::Uuid::NAMESPACE_DNS,
+            format!(
+                "{typ}:{name}",
+                typ = std::any::type_name::<Self>(),
+                name = name
+            )
+            .as_bytes(),
+        )
+    }
 }
 
 pub trait DriverInfo: Sync + Send {
@@ -215,7 +235,7 @@ mod tests {
     use tokio::sync::RwLock;
     use tracing::*;
 
-    use crate::stats::accumulated::driver::AccumulatedDriverStats;
+    use crate::stats::{accumulated::driver::AccumulatedDriverStats, driver::DriverUuid};
 
     use super::*;
 
@@ -233,22 +253,29 @@ mod tests {
 
     // Example struct implementing Driver
     pub struct ExampleDriver {
+        name: arc_swap::ArcSwap<String>,
+        uuid: DriverUuid,
         on_message_input: Callbacks<Arc<Protocol>>,
-        on_message_output: Callbacks<Arc<Protocol>>,
         stats: Arc<RwLock<AccumulatedDriverStats>>,
     }
 
     impl ExampleDriver {
-        pub fn new() -> ExampleDriverBuilder {
+        pub fn new(name: &str) -> ExampleDriverBuilder {
+            let name = Arc::new(name.to_string());
+
             ExampleDriverBuilder(Self {
+                name: arc_swap::ArcSwap::new(name.clone()),
+                uuid: Self::generate_uuid(&name),
                 on_message_input: Callbacks::new(),
-                on_message_output: Callbacks::new(),
-                stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
+                stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
+                    name,
+                    &ExampleDriverInfo,
+                ))),
             })
         }
     }
 
-    struct ExampleDriverBuilder(ExampleDriver);
+    pub struct ExampleDriverBuilder(ExampleDriver);
 
     impl ExampleDriverBuilder {
         pub fn build(self) -> ExampleDriver {
@@ -289,6 +316,14 @@ mod tests {
 
         fn info(&self) -> Box<dyn DriverInfo> {
             Box::new(ExampleDriverInfo)
+        }
+
+        fn name(&self) -> Arc<String> {
+            self.name.load_full()
+        }
+
+        fn uuid(&self) -> &DriverUuid {
+            &self.uuid
         }
     }
 
@@ -332,7 +367,7 @@ mod tests {
         let (sender, _receiver) = tokio::sync::broadcast::channel(1);
 
         let called = Arc::new(RwLock::new(false));
-        let driver = ExampleDriver::new()
+        let driver = ExampleDriver::new("test")
             .on_message_input({
                 let called = called.clone();
                 move |_msg| {

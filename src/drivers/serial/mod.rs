@@ -12,10 +12,15 @@ use tracing::*;
 use crate::{
     drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
-    stats::accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+    stats::{
+        accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
+        driver::DriverUuid,
+    },
 };
 
 pub struct Serial {
+    name: arc_swap::ArcSwap<String>,
+    uuid: DriverUuid,
     pub port_name: String,
     pub baud_rate: u32,
     on_message_input: Callbacks<Arc<Protocol>>,
@@ -49,13 +54,17 @@ impl SerialBuilder {
 
 impl Serial {
     #[instrument(level = "debug")]
-    pub fn builder(port_name: &str, baud_rate: u32) -> SerialBuilder {
+    pub fn builder(name: &str, port_name: &str, baud_rate: u32) -> SerialBuilder {
+        let name = Arc::new(name.to_string());
+
         SerialBuilder(Self {
+            name: arc_swap::ArcSwap::new(name.clone()),
+            uuid: Self::generate_uuid(&format!("{port_name}:{baud_rate}")),
             port_name: port_name.to_string(),
             baud_rate,
             on_message_input: Callbacks::new(),
             on_message_output: Callbacks::new(),
-            stats: Arc::new(RwLock::new(AccumulatedDriverStats::default())),
+            stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(name, &SerialInfo))),
         })
     }
 
@@ -176,6 +185,14 @@ impl Driver for Serial {
     fn info(&self) -> Box<dyn DriverInfo> {
         Box::new(SerialInfo)
     }
+
+    fn name(&self) -> Arc<String> {
+        self.name.load_full()
+    }
+
+    fn uuid(&self) -> &DriverUuid {
+        &self.uuid
+    }
 }
 
 #[async_trait::async_trait]
@@ -236,6 +253,8 @@ impl DriverInfo for SerialInfo {
             })
             .unwrap_or(115200); // Commun baudrate between flight controllers
 
-        Some(Arc::new(Serial::builder(&port_name, baud_rate).build()))
+        Some(Arc::new(
+            Serial::builder("Serial", &port_name, baud_rate).build(),
+        ))
     }
 }
