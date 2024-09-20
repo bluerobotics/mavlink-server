@@ -20,17 +20,9 @@ use crate::hub::Hub;
 #[derive(Debug, Clone, Default)]
 pub struct StatsInner {
     pub last_message_time_us: u64,
-
-    pub total_bytes: u64,
-    pub bytes_per_second: f64,
-    pub average_bytes_per_second: f64,
-
-    pub total_messages: u64,
-    pub messages_per_second: f64,
-    pub average_messages_per_second: f64,
-
-    pub delay: f64,
-    pub jitter: f64,
+    pub bytes: ByteStats,
+    pub messages: MessageStats,
+    pub delay_stats: DelayStats,
 }
 
 impl StatsInner {
@@ -43,31 +35,106 @@ impl StatsInner {
             calculate_time_diff_us(last_stats.last_update_us, current_stats.last_update_us);
         let total_time = calculate_time_diff_us(start_time, current_stats.last_update_us);
 
-        let diff_messages = current_stats.messages - last_stats.messages;
-        let total_messages = current_stats.messages;
-        let messages_per_second = divide_safe(diff_messages as f64, time_diff);
-        let average_messages_per_second = divide_safe(total_messages as f64, total_time);
+        let byte_stats = ByteStats::from_accumulated(
+            current_stats.bytes,
+            last_stats.bytes,
+            time_diff,
+            total_time,
+        );
 
-        let diff_bytes = current_stats.bytes - last_stats.bytes;
-        let total_bytes = current_stats.bytes;
-        let bytes_per_second = divide_safe(diff_bytes as f64, time_diff);
-        let average_bytes_per_second = divide_safe(total_bytes as f64, total_time);
+        let message_stats = MessageStats::from_accumulated(
+            current_stats.messages,
+            last_stats.messages,
+            time_diff,
+            total_time,
+        );
 
-        let delay = divide_safe(current_stats.delay as f64, current_stats.messages as f64);
-        let last_delay = divide_safe(last_stats.delay as f64, last_stats.messages as f64);
-        let jitter = (delay - last_delay).abs();
+        let delay_stats = DelayStats::from_accumulated(
+            current_stats.delay,
+            last_stats.delay,
+            current_stats.messages,
+            last_stats.messages,
+        );
 
         Self {
             last_message_time_us: current_stats.last_update_us,
-            total_bytes,
+            bytes: byte_stats,
+            messages: message_stats,
+            delay_stats: delay_stats,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ByteStats {
+    pub total_bytes: u64,
+    pub bytes_per_second: f64,
+    pub average_bytes_per_second: f64,
+}
+
+impl ByteStats {
+    pub fn from_accumulated(
+        current_bytes: u64,
+        last_bytes: u64,
+        time_diff: f64,
+        total_time: f64,
+    ) -> Self {
+        let diff_bytes = current_bytes - last_bytes;
+        let bytes_per_second = divide_safe(diff_bytes as f64, time_diff);
+        let average_bytes_per_second = divide_safe(current_bytes as f64, total_time);
+
+        Self {
+            total_bytes: current_bytes,
             bytes_per_second,
             average_bytes_per_second,
-            total_messages,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct MessageStats {
+    pub total_messages: u64,
+    pub messages_per_second: f64,
+    pub average_messages_per_second: f64,
+}
+
+impl MessageStats {
+    pub fn from_accumulated(
+        current_messages: u64,
+        last_messages: u64,
+        time_diff: f64,
+        total_time: f64,
+    ) -> Self {
+        let diff_messages = current_messages - last_messages;
+        let messages_per_second = divide_safe(diff_messages as f64, time_diff);
+        let average_messages_per_second = divide_safe(current_messages as f64, total_time);
+
+        Self {
+            total_messages: current_messages,
             messages_per_second,
             average_messages_per_second,
-            delay,
-            jitter,
         }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct DelayStats {
+    pub delay: f64,
+    pub jitter: f64,
+}
+
+impl DelayStats {
+    pub fn from_accumulated(
+        current_delay: u64,
+        last_delay: u64,
+        current_messages: u64,
+        last_messages: u64,
+    ) -> Self {
+        let delay = divide_safe(current_delay as f64, current_messages as f64);
+        let last_delay = divide_safe(last_delay as f64, last_messages as f64);
+        let jitter = (delay - last_delay).abs();
+
+        Self { delay, jitter }
     }
 }
 
@@ -141,6 +208,7 @@ fn calculate_time_diff_us(last_micros: u64, current_micros: u64) -> f64 {
     (current_micros as f64 - last_micros as f64) / 1_000_000.0
 }
 
+#[inline(always)]
 fn divide_safe(numerator: f64, denominator: f64) -> f64 {
     if denominator > 0.0 {
         numerator / denominator
