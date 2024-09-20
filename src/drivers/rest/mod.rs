@@ -3,10 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use serde::{Deserialize, Serialize};
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    sync::{broadcast, RwLock},
-};
+use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 
 use crate::{
