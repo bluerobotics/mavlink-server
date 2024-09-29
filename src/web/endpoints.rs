@@ -8,7 +8,7 @@ use serde::Serialize;
 
 use crate::hub;
 
-static HTML_DIST: Dir = include_dir!("src/web/html");
+static HTML_DIST: Dir = include_dir!("src/webpage/dist");
 
 #[derive(Serialize, Debug, Default)]
 pub struct InfoContent {
