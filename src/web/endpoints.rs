@@ -1,9 +1,12 @@
 use axum::{
+    body::Bytes,
     extract::Path,
-    response::{Html, IntoResponse},
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
     Json,
 };
 use include_dir::{include_dir, Dir};
+use mime_guess::from_path;
 use serde::Serialize;
 
 use crate::hub;
@@ -32,17 +35,26 @@ pub struct Info {
 }
 
 pub async fn root(filename: Option<Path<String>>) -> impl IntoResponse {
-    let filename = if filename.is_none() {
-        "index.html".to_string()
-    } else {
-        filename.unwrap().0
-    };
+    let filename = filename
+        .map(|Path(name)| {
+            if name.is_empty() {
+                "index.html".into()
+            } else {
+                name
+            }
+        })
+        .unwrap_or_else(|| "index.html".into());
 
-    HTML_DIST.get_file(filename).map_or(
-        Html("File not found".to_string()).into_response(),
+    HTML_DIST.get_file(&filename).map_or_else(
+        || {
+            // Return 404 Not Found if the file doesn't exist
+            (StatusCode::NOT_FOUND, "404 Not Found").into_response()
+        },
         |file| {
-            let content = file.contents_utf8().unwrap_or("");
-            Html(content.to_string()).into_response()
+            // Determine the MIME type based on the file extension
+            let mime_type = from_path(&filename).first_or_octet_stream();
+            let content = file.contents();
+            ([(header::CONTENT_TYPE, mime_type.as_ref())], content).into_response()
         },
     )
 }
