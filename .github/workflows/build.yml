@@ -52,11 +52,29 @@ jobs:
       run: echo "${{ matrix.TARGET }}"
 
     - uses: actions/checkout@master
-    - name: Build
-      uses: houseabsolute/actions-rust-cross@v0
-      with:
-        target: ${{ matrix.TARGET }}
-        args: "--locked --release"
+
+    - name: Install build dependencies - Rustup
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target ${{ matrix.TARGET }} wasm32-unknown-unknown -y
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install build dependencies - Cargo-Binstall
+      uses: cargo-bins/cargo-binstall@main
+
+    - name: Install build dependencies - Cross, Trunk
+      run: cargo binstall -y trunk cross
+
+    - name: Building frontend (wasm32)
+      working-directory: src/webpage
+      run: trunk build --release --locked --verbose
+
+    - name: Building for ${{ matrix.os }} ${{ matrix.target }}
+      if: ${{ contains(matrix.TARGET, 'linux') }}
+      run: SKIP_FRONTEND=1 cross build --release --locked --target ${{matrix.target}} --verbose
+
+    - name: Building for ${{ matrix.os }} ${{ matrix.target }}
+      if: ${{ !contains(matrix.TARGET, 'linux') }}
+      run: cross build --release --locked --target ${{matrix.target}} --verbose
 
     - name: Rename
       run: cp target/${{ matrix.TARGET }}/release/${{ github.event.repository.name }}${{ matrix.EXTENSION }} ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
