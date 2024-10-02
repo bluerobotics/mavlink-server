@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use indexmap::IndexMap;
+use serde::Serialize;
 
 use crate::{drivers::DriverInfo, protocol::Protocol, stats::driver::DriverUuid};
 
@@ -14,7 +15,7 @@ pub trait AccumulatedDriverStatsProvider {
     async fn reset_stats(&self);
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AccumulatedDriverStats {
     pub name: Arc<String>,
     pub driver_type: &'static str,
@@ -31,7 +32,7 @@ impl AccumulatedDriverStats {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Serialize)]
 pub struct AccumulatedDriverStatsInner {
     pub input: Option<AccumulatedStatsInner>,
     pub output: Option<AccumulatedStatsInner>,
