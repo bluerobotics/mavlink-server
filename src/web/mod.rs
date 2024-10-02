@@ -28,6 +28,9 @@ fn default_router(state: AppState) -> Router {
         .route("/", get(endpoints::root))
         .route("/:path", get(endpoints::root))
         .route("/info", get(endpoints::info))
+        .route("/stats/driver", get(endpoints::driver_stats))
+        .route("/stats/hub", get(endpoints::hub_stats))
+        .route("/stats/messages", get(endpoints::hub_messages_stats))
         .route("/rest/ws", get(websocket_handler))
         // We are matching all possible keys for the user
         .route("/rest/mavlink", get(endpoints::mavlink))
