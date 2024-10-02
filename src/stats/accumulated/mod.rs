@@ -3,9 +3,11 @@ pub mod messages;
 
 use std::sync::Arc;
 
+use serde::Serialize;
+
 use crate::protocol::Protocol;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct AccumulatedStatsInner {
     pub last_message: Option<Arc<Protocol>>,
     pub last_update_us: u64,
