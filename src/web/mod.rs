@@ -1,8 +1,10 @@
 mod endpoints;
 
-use std::collections::HashMap;
-use std::future::IntoFuture;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    future::IntoFuture,
+    sync::{Arc, Mutex},
+};
 
 use axum::{
     extract::{
