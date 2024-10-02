@@ -8,4 +8,4 @@ image = "joaoantoniocardoso/cross-rs:armv7-unknown-linux-gnueabihf-bullseye-slim
 image = "joaoantoniocardoso/cross-rs:aarch64-unknown-linux-gnu-bullseye-slim-with-gstreamer"
 
 [build.env]
-passthrough = ["SKIP_BINDINGS", "SKIP_BUN"]
+passthrough = ["SKIP_FRONTEND"]
