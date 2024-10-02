@@ -21,6 +21,7 @@ bench = false
 [dependencies]
 anyhow = "1"
 arc-swap = "1.7"
+async_once = "0.2.6"
 async-trait = "0.1.81"
 axum = { version = "0.7.5", features = ["ws"] }
 byteorder = "1.5.0"
