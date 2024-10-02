@@ -15,8 +15,6 @@ use tokio::sync::{mpsc, oneshot};
 use actor::StatsActor;
 use protocol::StatsCommand;
 
-use crate::hub::Hub;
-
 #[derive(Debug, Clone, Default)]
 pub struct StatsInner {
     pub last_message_time_us: u64,
@@ -145,9 +143,9 @@ pub struct Stats {
 }
 
 impl Stats {
-    pub async fn new(hub: Hub, update_period: tokio::time::Duration) -> Self {
+    pub async fn new(update_period: tokio::time::Duration) -> Self {
         let (sender, receiver) = mpsc::channel(32);
-        let actor = StatsActor::new(hub, update_period).await;
+        let actor = StatsActor::new(update_period).await;
         let task = Arc::new(Mutex::new(tokio::spawn(actor.start(receiver))));
         Self { sender, task }
     }
