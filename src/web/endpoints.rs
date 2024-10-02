@@ -6,6 +6,8 @@ use axum::{
 use include_dir::{include_dir, Dir};
 use serde::Serialize;
 
+use crate::hub;
+
 static HTML_DIST: Dir = include_dir!("src/web/html");
 
 #[derive(Serialize, Debug, Default)]
@@ -66,4 +68,16 @@ pub async fn mavlink(path: Option<Path<String>>) -> impl IntoResponse {
         None => String::default(),
     };
     crate::drivers::rest::data::messages(&path)
+}
+
+pub async fn driver_stats() -> impl IntoResponse {
+    Json(hub::drivers_stats().await.unwrap())
+}
+
+pub async fn hub_stats() -> impl IntoResponse {
+    Json(hub::hub_stats().await.unwrap())
+}
+
+pub async fn hub_messages_stats() -> impl IntoResponse {
+    Json(hub::hub_messages_stats().await.unwrap())
 }
