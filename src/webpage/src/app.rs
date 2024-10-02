@@ -21,7 +21,7 @@ pub struct App {
 
 #[derive(Clone)]
 struct MessageInfo {
-    last_sample_time: DateTime<chrono::Utc>,
+    last_sample_time: DateTime<Utc>,
     fields: BTreeMap<String, FieldInfo>,
 }
 
