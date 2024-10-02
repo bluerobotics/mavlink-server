@@ -8,10 +8,12 @@ use humantime::format_duration;
 use url::Url;
 use web_sys::window;
 
+type VehiclesMessages = BTreeMap<u8, BTreeMap<u8, BTreeMap<String, MessageInfo>>>;
+
 pub struct App {
     receiver: WsReceiver,
     sender: WsSender,
-    vehicles: BTreeMap<u8, BTreeMap<u8, BTreeMap<String, MessageInfo>>>,
+    vehicles: VehiclesMessages,
     search_query: String,
     collapse_all: bool,
     expand_all: bool,
