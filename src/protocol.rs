@@ -5,13 +5,15 @@ use std::{
 };
 
 use mavlink::{ardupilotmega::MavMessage, MAVLinkV2MessageRaw};
+use serde::Serialize;
 
 use tracing::*;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct Protocol {
     pub origin: String,
     pub timestamp: u64,
+    #[serde(skip)]
     message: MAVLinkV2MessageRaw,
 }
 
