@@ -30,7 +30,7 @@ clap = { version = "4.5", features = ["derive"] }
 ctrlc = "3.4"
 futures = "0.3"
 include_dir = "0.7.4"
-indexmap = "2.5.0"
+indexmap = { version = "2.5.0", features = ["serde"] }
 json5 = "0.4.1"
 lazy_static = "1.5.0"
 # mavlink = { default-features = false, features = ["ardupilotmega", "std", "tokio-1"], path = "../rust-mavlink/mavlink" }
