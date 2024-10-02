@@ -6,7 +6,7 @@ use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::*;
 
 use crate::{
-    hub::Hub,
+    hub,
     stats::{
         accumulated::{
             driver::AccumulatedDriversStats, messages::AccumulatedHubMessagesStats,
@@ -19,7 +19,6 @@ use crate::{
 };
 
 pub struct StatsActor {
-    hub: Hub,
     start_time: Arc<RwLock<u64>>,
     update_period: Arc<RwLock<tokio::time::Duration>>,
     last_accumulated_drivers_stats: Arc<Mutex<AccumulatedDriversStats>>,
@@ -33,7 +32,6 @@ pub struct StatsActor {
 impl StatsActor {
     pub async fn start(mut self, mut receiver: mpsc::Receiver<StatsCommand>) {
         let drivers_stats_task = tokio::spawn({
-            let hub = self.hub.clone();
             let update_period = self.update_period.clone();
             let last_accumulated_drivers_stats = self.last_accumulated_drivers_stats.clone();
             let drivers_stats = self.drivers_stats.clone();
@@ -42,7 +40,6 @@ impl StatsActor {
             async move {
                 loop {
                     update_driver_stats(
-                        &hub,
                         &last_accumulated_drivers_stats,
                         &drivers_stats,
                         &start_time,
@@ -55,7 +52,6 @@ impl StatsActor {
         });
 
         let hub_stats_task = tokio::spawn({
-            let hub = self.hub.clone();
             let update_period = self.update_period.clone();
             let last_accumulated_hub_stats = self.last_accumulated_hub_stats.clone();
             let hub_stats = self.hub_stats.clone();
@@ -63,8 +59,7 @@ impl StatsActor {
 
             async move {
                 loop {
-                    update_hub_stats(&hub, &last_accumulated_hub_stats, &hub_stats, &start_time)
-                        .await;
+                    update_hub_stats(&last_accumulated_hub_stats, &hub_stats, &start_time).await;
 
                     tokio::time::sleep(*update_period.read().await).await;
                 }
@@ -72,7 +67,6 @@ impl StatsActor {
         });
 
         let hub_messages_stats_task = tokio::spawn({
-            let hub = self.hub.clone();
             let update_period = self.update_period.clone();
             let last_accumulated_hub_messages_stats =
                 self.last_accumulated_hub_messages_stats.clone();
@@ -82,7 +76,6 @@ impl StatsActor {
             async move {
                 loop {
                     update_hub_messages_stats(
-                        &hub,
                         &last_accumulated_hub_messages_stats,
                         &hub_messages_stats,
                         &start_time,
@@ -124,8 +117,8 @@ impl StatsActor {
         hub_stats_task.abort();
     }
 
-    #[instrument(level = "debug", skip(hub))]
-    pub async fn new(hub: Hub, update_period: tokio::time::Duration) -> Self {
+    #[instrument(level = "debug")]
+    pub async fn new(update_period: tokio::time::Duration) -> Self {
         let update_period = Arc::new(RwLock::new(update_period));
         let last_accumulated_hub_stats = Arc::new(Mutex::new(AccumulatedStatsInner::default()));
         let hub_stats = Arc::new(RwLock::new(StatsInner::default()));
@@ -138,7 +131,6 @@ impl StatsActor {
         let start_time = Arc::new(RwLock::new(chrono::Utc::now().timestamp_micros() as u64));
 
         Self {
-            hub,
             start_time,
             update_period,
             last_accumulated_hub_stats,
@@ -185,7 +177,7 @@ impl StatsActor {
         let mut driver_stats = self.drivers_stats.write().await;
         let mut hub_messages_stats = self.hub_messages_stats.write().await;
 
-        if let Err(error) = self.hub.reset_all_stats().await {
+        if let Err(error) = hub::reset_all_stats().await {
             error!("Failed resetting stats: {error:?}");
         }
         *self.start_time.write().await = chrono::Utc::now().timestamp_micros() as u64;
@@ -205,13 +197,12 @@ impl StatsActor {
 }
 
 async fn update_hub_messages_stats(
-    hub: &Hub,
     last_accumulated_hub_messages_stats: &Mutex<AccumulatedHubMessagesStats>,
     hub_messages_stats: &RwLock<HubMessagesStats>,
     start_time: &RwLock<u64>,
 ) {
     let mut last_stats = last_accumulated_hub_messages_stats.lock().await;
-    let current_stats = hub.hub_messages_stats().await.unwrap();
+    let current_stats = hub::hub_messages_stats().await.unwrap();
     let start_time = *start_time.read().await;
 
     let mut new_hub_messages_stats = HubMessagesStats::default();
@@ -256,13 +247,12 @@ async fn update_hub_messages_stats(
 }
 
 async fn update_hub_stats(
-    hub: &Hub,
     last_accumulated_hub_stats: &Arc<Mutex<AccumulatedStatsInner>>,
     hub_stats: &Arc<RwLock<StatsInner>>,
     start_time: &Arc<RwLock<u64>>,
 ) {
     let mut last_stats = last_accumulated_hub_stats.lock().await;
-    let current_stats = hub.hub_stats().await.unwrap();
+    let current_stats = hub::hub_stats().await.unwrap();
     let start_time = *start_time.read().await;
 
     let new_hub_stats = StatsInner::from_accumulated(&current_stats, &last_stats, start_time);
@@ -274,13 +264,12 @@ async fn update_hub_stats(
 }
 
 async fn update_driver_stats(
-    hub: &Hub,
     last_accumulated_drivers_stats: &Arc<Mutex<AccumulatedDriversStats>>,
     driver_stats: &Arc<RwLock<DriversStats>>,
     start_time: &Arc<RwLock<u64>>,
 ) {
     let mut last_map = last_accumulated_drivers_stats.lock().await;
-    let current_map = hub.drivers_stats().await.unwrap();
+    let current_map = hub::drivers_stats().await.unwrap();
     let start_time = *start_time.read().await;
 
     let mut merged_stats = IndexMap::with_capacity(last_map.len().max(current_map.len()));
