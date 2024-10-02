@@ -45,7 +45,7 @@ shellexpand = "3.1"
 tokio = { version = "1", features = ["full"] }
 tokio-serial = "5.4.4"
 url = { version = "2.5.2", features = ["serde"] }
-uuid = { version = "1", features = ["v5", "v4"] }
+uuid = { version = "1", features = ["v5", "v4", "serde"] }
 mime_guess = "2.0.5"
 
 tracing = { version = "0.1.40", features = ["log", "async-await"] }
