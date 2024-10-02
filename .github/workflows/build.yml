@@ -19,7 +19,6 @@ jobs:
       run: cargo test --verbose -- --nocapture
 
   build:
-    needs: test
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
