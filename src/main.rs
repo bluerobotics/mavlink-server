@@ -19,28 +19,18 @@ async fn main() -> Result<()> {
     // Logger should start before everything else to register any log information
     logger::init();
 
-    let hub = hub::Hub::new(
-        10000,
-        Arc::new(RwLock::new(
-            mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_ONBOARD_COMPUTER as u8,
-        )),
-        Arc::new(RwLock::new(1)),
-        Arc::new(RwLock::new(1.)),
-    )
-    .await;
-
     for driver in cli::endpoints() {
-        hub.add_driver(driver).await?;
+        hub::add_driver(driver).await?;
     }
 
-    let _stats = stats::Stats::new(hub.clone(), tokio::time::Duration::from_secs(1)).await;
+    let _stats = stats::Stats::new(tokio::time::Duration::from_secs(1)).await;
 
     web::start_server("0.0.0.0:8080".parse().unwrap());
     wait_ctrlc().await;
 
-    for (id, driver_info) in hub.drivers().await? {
+    for (id, driver_info) in hub::drivers().await? {
         debug!("Removing driver id {id:?} ({driver_info:?})");
-        hub.remove_driver(id).await?;
+        hub::remove_driver(id).await?;
     }
 
     Ok(())
