@@ -10,12 +10,13 @@ use accumulated::AccumulatedStatsInner;
 use anyhow::Result;
 use driver::DriversStats;
 use messages::HubMessagesStats;
+use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 
 use actor::StatsActor;
 use protocol::StatsCommand;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct StatsInner {
     pub last_message_time_us: u64,
     pub bytes: ByteStats,
@@ -63,7 +64,7 @@ impl StatsInner {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct ByteStats {
     pub total_bytes: u64,
     pub bytes_per_second: f64,
@@ -89,7 +90,7 @@ impl ByteStats {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct MessageStats {
     pub total_messages: u64,
     pub messages_per_second: f64,
@@ -115,7 +116,7 @@ impl MessageStats {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct DelayStats {
     pub delay: f64,
     pub jitter: f64,
