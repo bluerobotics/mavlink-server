@@ -26,7 +26,6 @@ async fn main() -> Result<()> {
     let _stats = stats::Stats::new(tokio::time::Duration::from_secs(1)).await;
 
     web::start_server("0.0.0.0:8080".parse().unwrap());
-    wait_ctrlc().await;
 
     for (id, driver_info) in hub::drivers().await? {
         debug!("Removing driver id {id:?} ({driver_info:?})");
@@ -34,20 +33,4 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-async fn wait_ctrlc() {
-    let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-    let r = running.clone();
-
-    ctrlc::set_handler(move || {
-        r.store(false, std::sync::atomic::Ordering::SeqCst);
-    })
-    .expect("Error setting Ctrl-C handler");
-
-    info!("Waiting for Ctrl-C...");
-    while running.load(std::sync::atomic::Ordering::SeqCst) {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await
-    }
-    info!("Received Ctrl-C! Exiting...");
 }
