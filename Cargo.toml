@@ -28,7 +28,6 @@ axum = { version = "0.7.5", features = ["ws"] }
 byteorder = "1.5.0"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
-ctrlc = "3.4"
 futures = "0.3"
 include_dir = "0.7.4"
 indexmap = { version = "2.5.0", features = ["serde"] }
