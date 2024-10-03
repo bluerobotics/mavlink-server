@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
 
     let _stats = stats::Stats::new(tokio::time::Duration::from_secs(1)).await;
 
-    web::start_server("0.0.0.0:8080".parse().unwrap());
+    web::run("0.0.0.0:8080".parse().unwrap()).await;
 
     for (id, driver_info) in hub::drivers().await? {
         debug!("Removing driver id {id:?} ({driver_info:?})");

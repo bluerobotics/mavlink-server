@@ -215,23 +215,22 @@ struct AppState {
 
 type ClientSender = mpsc::UnboundedSender<Message>;
 
-pub fn start_server(address: String) {
+pub async fn run(address: String) {
     let router = SERVER.router.lock().unwrap().clone();
-    tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            let listener = match tokio::net::TcpListener::bind(&address).await {
-                Ok(listener) => listener,
-                Err(e) => {
-                    error!("WebServer TCP bind error: {}", e);
-                    continue;
-                }
-            };
-            if let Err(error) = axum::serve(listener, router.clone()).into_future().await {
-                error!("WebServer error: {}", error);
+
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        let listener = match tokio::net::TcpListener::bind(&address).await {
+            Ok(listener) => listener,
+            Err(error) => {
+                error!("WebServer TCP bind error: {error}");
+                continue;
             }
+        };
+        if let Err(error) = axum::serve(listener, router.clone()).into_future().await {
+            error!("WebServer error: {}", error);
         }
-    });
+    }
 }
 
 pub fn configure_router<F>(modifier: F)
