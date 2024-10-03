@@ -62,6 +62,20 @@ impl App {
         }
     }
 
+    fn top_bar(&mut self, ctx: &Context) {
+        eframe::egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            eframe::egui::menu::bar(ui, |ui| {
+                ui.label("MAVLink Server");
+                ui.add_space(16.0);
+
+                ui.with_layout(eframe::egui::Layout::right_to_left(eframe::egui::Align::RIGHT), |ui| {
+                    eframe::egui::widgets::global_dark_light_mode_switch(ui);
+                    ui.separator();
+                });
+            });
+        });
+    }
+
 
 fn process_mavlink_websocket(&mut self) {
     while let Some(ewebsock::WsEvent::Message(ewebsock::WsMessage::Text(message))) = self.receiver.try_recv() {
@@ -299,6 +313,9 @@ fn process_mavlink_websocket(&mut self) {
 impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.now = Utc::now();
+
+        self.top_bar(ctx);
+
         eframe::egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("Search:");
