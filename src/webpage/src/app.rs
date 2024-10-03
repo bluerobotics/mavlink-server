@@ -124,7 +124,7 @@ impl App {
                 ui.with_layout(
                     eframe::egui::Layout::right_to_left(eframe::egui::Align::RIGHT),
                     |ui| {
-                        eframe::egui::widgets::global_dark_light_mode_switch(ui);
+                        eframe::egui::widgets::global_theme_preference_switch(ui);
                         ui.separator();
                     },
                 );
