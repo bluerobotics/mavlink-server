@@ -12,8 +12,8 @@ type VehiclesMessages = BTreeMap<u8, BTreeMap<u8, BTreeMap<String, MessageInfo>>
 
 pub struct App {
     now: DateTime<Utc>,
-    receiver: WsReceiver,
-    sender: WsSender,
+    mavlink_receiver: WsReceiver,
+    mavlink_sender: WsSender,
     vehicles: VehiclesMessages,
     search_query: String,
     collapse_all: bool,
@@ -44,15 +44,15 @@ impl App {
 
         let url = format!("{}//{}/rest/ws", protocol, host);
 
-        let (sender, receiver) = {
+        let (mavlink_sender, mavlink_receiver) = {
             let url = Url::parse(&url).unwrap().to_string();
             connect(url, ewebsock::Options::default()).expect("Can't connect")
         };
 
         Self {
             now: Utc::now(),
-            receiver,
-            sender,
+            mavlink_receiver,
+            mavlink_sender,
             vehicles: Default::default(),
             search_query: String::new(),
             collapse_all: false,
@@ -79,7 +79,7 @@ impl App {
 
     fn process_mavlink_websocket(&mut self) {
         while let Some(ewebsock::WsEvent::Message(ewebsock::WsMessage::Text(message))) =
-            self.receiver.try_recv()
+            self.mavlink_receiver.try_recv()
         {
             let Ok(message_json) = serde_json::from_str::<serde_json::Value>(&message) else {
                 continue;
