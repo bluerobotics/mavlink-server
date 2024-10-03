@@ -3,8 +3,6 @@ fn main() {
     // Redirect `log` message to `console.log` and friends:
     eframe::WebLogger::init(log::LevelFilter::Debug).ok();
 
-    wasm_logger::init(wasm_logger::Config::default());
-
     let web_options = eframe::WebOptions::default();
 
     wasm_bindgen_futures::spawn_local(async {
