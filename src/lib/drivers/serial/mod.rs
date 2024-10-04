@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     sync::{broadcast, Mutex, RwLock},
@@ -10,6 +9,7 @@ use tokio_serial::{self, SerialPortBuilderExt};
 use tracing::*;
 
 use crate::{
+    callbacks::{Callbacks, MessageCallback},
     drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
     stats::{

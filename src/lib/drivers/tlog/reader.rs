@@ -3,11 +3,11 @@ use std::{path::PathBuf, sync::Arc};
 use anyhow::{Context, Result};
 use chrono::DateTime;
 use mavlink::ardupilotmega::MavMessage;
-use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 
 use crate::{
+    callbacks::{Callbacks, MessageCallback},
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
     stats::{
