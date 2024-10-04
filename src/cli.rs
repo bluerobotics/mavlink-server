@@ -107,7 +107,6 @@ struct Manager {
 
 lazy_static! {
     static ref MANAGER: Arc<Manager> = Arc::new(Manager::new());
-    static ref UDP_ENDPOINTS: Arc<Mutex<Vec<u16>>> = Arc::new(Mutex::new(Vec::new()));
 }
 
 impl Manager {
