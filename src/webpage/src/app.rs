@@ -95,7 +95,6 @@ impl App {
         };
 
         let url = format!("{protocol}//{host}/stats/ws?frequency=20");
-        log::error!("url: {url}");
         let (stats_sender, stats_receiver) = {
             let url = Url::parse(&url).unwrap().to_string();
             connect(url, ewebsock::Options::default()).expect("Can't connect")
@@ -203,7 +202,6 @@ impl App {
         while let Some(ewebsock::WsEvent::Message(ewebsock::WsMessage::Text(message))) =
             self.stats_receiver.try_recv()
         {
-            log::error!("got message");
             // Parse the JSON message
             let root_json = match serde_json::from_str::<serde_json::Value>(&message) {
                 Ok(json) => json,
@@ -284,7 +282,6 @@ impl App {
                             }
                         };
 
-                        log::error!("update!");
                         let message_stats = parse_message_stats(message_stats_json);
                         self.messages_stats
                             .entry(system_id)
