@@ -6,10 +6,7 @@ mod protocol;
 mod stats;
 mod web;
 
-use std::sync::Arc;
-
 use anyhow::*;
-use tokio::sync::RwLock;
 use tracing::*;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
