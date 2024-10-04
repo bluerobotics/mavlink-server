@@ -26,7 +26,7 @@ use uuid::Uuid;
 
 use lazy_static::lazy_static;
 
-use crate::hub;
+use crate::{hub, stats};
 
 fn default_router(state: AppState) -> Router {
     Router::new()
