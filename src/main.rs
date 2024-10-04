@@ -20,8 +20,6 @@ async fn main() -> Result<()> {
         hub::add_driver(driver).await?;
     }
 
-    let _stats = stats::Stats::new(tokio::time::Duration::from_secs(1)).await;
-
     web::run("0.0.0.0:8080".parse().unwrap()).await;
 
     for (id, driver_info) in hub::drivers().await? {
