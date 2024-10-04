@@ -2,7 +2,6 @@ mod endpoints;
 
 use std::{
     collections::HashMap,
-    future::IntoFuture,
     sync::{Arc, Mutex},
 };
 
