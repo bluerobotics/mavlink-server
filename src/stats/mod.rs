@@ -7,6 +7,7 @@ mod protocol;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
+use lazy_static::lazy_static;
 use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 
@@ -16,8 +17,12 @@ use driver::DriversStats;
 use messages::HubMessagesStats;
 use protocol::StatsCommand;
 
+lazy_static! {
+    static ref STATS: Stats = Stats::new(tokio::time::Duration::from_secs(1));
+}
+
 #[derive(Clone)]
-pub struct Stats {
+struct Stats {
     sender: mpsc::Sender<StatsCommand>,
     task: Arc<Mutex<tokio::task::JoinHandle<()>>>,
 }
@@ -51,63 +56,68 @@ pub struct StatsInner {
 }
 
 impl Stats {
-    pub async fn new(update_period: tokio::time::Duration) -> Self {
+    fn new(update_period: tokio::time::Duration) -> Self {
         let (sender, receiver) = mpsc::channel(32);
-        let actor = StatsActor::new(update_period).await;
+        let actor = StatsActor::new(update_period);
         let task = Arc::new(Mutex::new(tokio::spawn(actor.start(receiver))));
         Self { sender, task }
     }
+}
 
-    pub async fn driver_stats(&self) -> Result<DriversStats> {
-        let (response_tx, response_rx) = oneshot::channel();
-        self.sender
-            .send(StatsCommand::GetDriversStats {
-                response: response_tx,
-            })
-            .await?;
-        response_rx.await?
-    }
+pub async fn drivers_stats() -> Result<DriversStats> {
+    let (response_tx, response_rx) = oneshot::channel();
+    STATS
+        .sender
+        .send(StatsCommand::GetDriversStats {
+            response: response_tx,
+        })
+        .await?;
+    response_rx.await?
+}
 
-    pub async fn hub_stats(&self) -> Result<StatsInner> {
-        let (response_tx, response_rx) = oneshot::channel();
-        self.sender
-            .send(StatsCommand::GetHubStats {
-                response: response_tx,
-            })
-            .await?;
-        response_rx.await?
-    }
+pub async fn hub_stats() -> Result<StatsInner> {
+    let (response_tx, response_rx) = oneshot::channel();
+    STATS
+        .sender
+        .send(StatsCommand::GetHubStats {
+            response: response_tx,
+        })
+        .await?;
+    response_rx.await?
+}
 
-    pub async fn hub_messages_stats(&self) -> Result<HubMessagesStats> {
-        let (response_tx, response_rx) = oneshot::channel();
-        self.sender
-            .send(StatsCommand::GetHubMessagesStats {
-                response: response_tx,
-            })
-            .await?;
-        response_rx.await?
-    }
+pub async fn hub_messages_stats() -> Result<HubMessagesStats> {
+    let (response_tx, response_rx) = oneshot::channel();
+    STATS
+        .sender
+        .send(StatsCommand::GetHubMessagesStats {
+            response: response_tx,
+        })
+        .await?;
+    response_rx.await?
+}
 
-    pub async fn set_period(&self, period: tokio::time::Duration) -> Result<()> {
-        let (response_tx, response_rx) = oneshot::channel();
-        self.sender
-            .send(StatsCommand::SetPeriod {
-                period,
-                response: response_tx,
-            })
-            .await?;
-        response_rx.await?
-    }
+pub async fn set_period(period: tokio::time::Duration) -> Result<()> {
+    let (response_tx, response_rx) = oneshot::channel();
+    STATS
+        .sender
+        .send(StatsCommand::SetPeriod {
+            period,
+            response: response_tx,
+        })
+        .await?;
+    response_rx.await?
+}
 
-    pub async fn reset(&self) -> Result<()> {
-        let (response_tx, response_rx) = oneshot::channel();
-        self.sender
-            .send(StatsCommand::Reset {
-                response: response_tx,
-            })
-            .await?;
-        response_rx.await?
-    }
+pub async fn reset() -> Result<()> {
+    let (response_tx, response_rx) = oneshot::channel();
+    STATS
+        .sender
+        .send(StatsCommand::Reset {
+            response: response_tx,
+        })
+        .await?;
+    response_rx.await?
 }
 
 impl StatsInner {

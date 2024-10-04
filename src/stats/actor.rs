@@ -118,7 +118,7 @@ impl StatsActor {
     }
 
     #[instrument(level = "debug")]
-    pub async fn new(update_period: tokio::time::Duration) -> Self {
+    pub fn new(update_period: tokio::time::Duration) -> Self {
         let update_period = Arc::new(RwLock::new(update_period));
         let last_accumulated_hub_stats = Arc::new(Mutex::new(AccumulatedStatsInner::default()));
         let hub_stats = Arc::new(RwLock::new(StatsInner::default()));
