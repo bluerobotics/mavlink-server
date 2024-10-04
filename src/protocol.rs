@@ -21,7 +21,7 @@ impl Protocol {
     pub fn new(origin: &str, message: MAVLinkV2MessageRaw) -> Self {
         Self {
             origin: origin.to_string(),
-            timestamp: chrono::Utc::now().timestamp_micros() as u64,
+            timestamp: timestamp_micros(),
             message,
         }
     }
@@ -83,7 +83,7 @@ impl DerefMut for Protocol {
 }
 
 #[inline(always)]
-pub fn generate_timestamp_us() -> u64 {
+pub fn timestamp_micros() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_micros() as u64)

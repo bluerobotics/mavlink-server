@@ -1,7 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};
-use chrono::DateTime;
 use mavlink::ardupilotmega::MavMessage;
 use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use tokio::sync::{broadcast, RwLock};
@@ -9,7 +8,7 @@ use tracing::*;
 
 use crate::{
     drivers::{Driver, DriverInfo},
-    protocol::Protocol,
+    protocol::{check_timestamp_us, Protocol},
     stats::{
         accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
         driver::DriverUuid,
@@ -85,7 +84,7 @@ impl TlogReader {
                 u64::from_be_bytes(timestamp_bytes)
             };
 
-            if DateTime::from_timestamp_micros(us_since_epoch as i64).is_none() {
+            if !check_timestamp_us(us_since_epoch) {
                 warn!("Failed to convert unix time: {us_since_epoch:?}");
 
                 reader.consume(1);

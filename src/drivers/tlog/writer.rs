@@ -10,7 +10,7 @@ use tracing::*;
 
 use crate::{
     drivers::{Driver, DriverInfo},
-    protocol::Protocol,
+    protocol::{timestamp_micros, Protocol},
     stats::{
         accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
         driver::DriverUuid,
@@ -70,7 +70,7 @@ impl TlogWriter {
         loop {
             match hub_receiver.recv().await {
                 Ok(message) => {
-                    let timestamp = chrono::Utc::now().timestamp_micros() as u64;
+                    let timestamp = timestamp_micros();
 
                     self.stats.write().await.stats.update_output(&message);
 
