@@ -8,7 +8,7 @@ use include_dir::{include_dir, Dir};
 use mime_guess::from_path;
 use serde::Serialize;
 
-use crate::hub;
+use crate::stats;
 
 static HTML_DIST: Dir = include_dir!("src/webpage/dist");
 
@@ -82,13 +82,13 @@ pub async fn mavlink(path: Option<Path<String>>) -> impl IntoResponse {
 }
 
 pub async fn driver_stats() -> impl IntoResponse {
-    Json(hub::drivers_stats().await.unwrap())
+    Json(stats::drivers_stats().await.unwrap())
 }
 
 pub async fn hub_stats() -> impl IntoResponse {
-    Json(hub::hub_stats().await.unwrap())
+    Json(stats::hub_stats().await.unwrap())
 }
 
 pub async fn hub_messages_stats() -> impl IntoResponse {
-    Json(hub::hub_messages_stats().await.unwrap())
+    Json(stats::hub_messages_stats().await.unwrap())
 }
