@@ -89,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Add --release argument if not in debug mode
     if cfg!(not(debug_assertions)) {
-        trunk_command.arg("--release");
+        trunk_command.args(["--release", "--locked"]);
     }
 
     let trunk_output = trunk_command.output().expect("Failed to execute trunk");
