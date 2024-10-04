@@ -7,6 +7,7 @@ use tracing::*;
 
 use crate::{
     hub,
+    protocol::timestamp_micros,
     stats::{
         accumulated::{
             driver::AccumulatedDriversStats, messages::AccumulatedHubMessagesStats,
@@ -128,7 +129,7 @@ impl StatsActor {
         let last_accumulated_hub_messages_stats =
             Arc::new(Mutex::new(AccumulatedHubMessagesStats::default()));
         let hub_messages_stats = Arc::new(RwLock::new(HubMessagesStats::default()));
-        let start_time = Arc::new(RwLock::new(chrono::Utc::now().timestamp_micros() as u64));
+        let start_time = Arc::new(RwLock::new(timestamp_micros()));
 
         Self {
             start_time,
@@ -180,7 +181,7 @@ impl StatsActor {
         if let Err(error) = hub::reset_all_stats().await {
             error!("Failed resetting stats: {error:?}");
         }
-        *self.start_time.write().await = chrono::Utc::now().timestamp_micros() as u64;
+        *self.start_time.write().await = timestamp_micros();
 
         self.last_accumulated_drivers_stats.lock().await.clear();
         driver_stats.clear();

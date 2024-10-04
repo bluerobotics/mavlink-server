@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use serde::Serialize;
 
-use crate::protocol::Protocol;
+use crate::protocol::{timestamp_micros, Protocol};
 
 #[derive(Clone, Debug, Serialize)]
 pub struct AccumulatedStatsInner {
@@ -20,7 +20,7 @@ impl Default for AccumulatedStatsInner {
     fn default() -> Self {
         Self {
             last_message: None,
-            last_update_us: chrono::Utc::now().timestamp_micros() as u64,
+            last_update_us: timestamp_micros(),
             messages: 0,
             bytes: 0,
             delay: 0,
@@ -31,7 +31,7 @@ impl Default for AccumulatedStatsInner {
 impl AccumulatedStatsInner {
     pub fn update(&mut self, message: &Arc<Protocol>) {
         self.last_message = Some(message.clone());
-        self.last_update_us = chrono::Utc::now().timestamp_micros() as u64;
+        self.last_update_us = timestamp_micros();
         self.bytes = self.bytes.wrapping_add(message.raw_bytes().len() as u64);
         self.messages = self.messages.wrapping_add(1);
         self.delay = self

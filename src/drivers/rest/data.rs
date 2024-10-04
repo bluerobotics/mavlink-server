@@ -7,6 +7,8 @@ use lazy_static::lazy_static;
 use mavlink::{self, Message};
 use serde::{Deserialize, Serialize};
 
+use crate::protocol::timestamp_micros;
+
 lazy_static! {
     static ref DATA: Data = Data {
         messages: Arc::new(Mutex::new(MAVLinkVehiclesData::default())),
@@ -135,7 +137,7 @@ struct Temporal {
 
 impl Default for Temporal {
     fn default() -> Self {
-        let now_us = chrono::Local::now().timestamp_micros() as u64;
+        let now_us = timestamp_micros();
         Self {
             first_update_us: now_us,
             last_update_us: now_us,
@@ -147,7 +149,7 @@ impl Default for Temporal {
 
 impl Temporal {
     fn update(&mut self) {
-        self.last_update_us = chrono::Local::now().timestamp_micros() as u64;
+        self.last_update_us = timestamp_micros();
         self.counter = self.counter.wrapping_add(1);
         self.frequency =
             (10e6 * self.counter as f32) / ((self.last_update_us - self.first_update_us) as f32);
