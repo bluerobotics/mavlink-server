@@ -1,8 +1,7 @@
 use axum::{
-    body::Bytes,
     extract::Path,
     http::{header, StatusCode},
-    response::{IntoResponse, Response},
+    response::IntoResponse,
     Json,
 };
 use include_dir::{include_dir, Dir};
