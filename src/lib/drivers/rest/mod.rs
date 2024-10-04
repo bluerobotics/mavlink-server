@@ -3,12 +3,12 @@ pub mod data;
 use std::sync::Arc;
 
 use anyhow::Result;
-use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 
 use crate::{
+    callbacks::{Callbacks, MessageCallback},
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
     stats::{

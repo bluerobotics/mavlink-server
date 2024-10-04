@@ -1,7 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
-use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use tokio::{
     io::{AsyncWriteExt, BufWriter},
     sync::{broadcast, RwLock},
@@ -9,6 +8,7 @@ use tokio::{
 use tracing::*;
 
 use crate::{
+    callbacks::{Callbacks, MessageCallback},
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
     stats::{

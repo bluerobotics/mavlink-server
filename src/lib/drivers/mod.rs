@@ -231,11 +231,13 @@ mod tests {
 
     use anyhow::{anyhow, Result};
     use mavlink::MAVLinkV2MessageRaw;
-    use mavlink_server::callbacks::{Callbacks, MessageCallback};
     use tokio::sync::RwLock;
     use tracing::*;
 
-    use crate::stats::{accumulated::driver::AccumulatedDriverStats, driver::DriverUuid};
+    use crate::{
+        callbacks::{Callbacks, MessageCallback},
+        stats::{accumulated::driver::AccumulatedDriverStats, driver::DriverUuid},
+    };
 
     use super::*;
 

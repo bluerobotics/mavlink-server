@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use mavlink_server::callbacks::{Callbacks, MessageCallback};
 use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 
 use crate::{
+    callbacks::{Callbacks, MessageCallback},
     drivers::{Driver, DriverInfo},
     protocol::{read_all_messages, Protocol},
     stats::{

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use mavlink_server::callbacks::Callbacks;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
@@ -10,6 +9,7 @@ use tokio::{
 use tracing::*;
 
 use crate::{
+    callbacks::Callbacks,
     protocol::{read_all_messages, Protocol},
     stats::accumulated::driver::AccumulatedDriverStats,
 };
