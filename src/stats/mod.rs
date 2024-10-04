@@ -6,14 +6,14 @@ mod protocol;
 
 use std::sync::{Arc, Mutex};
 
-use accumulated::AccumulatedStatsInner;
 use anyhow::Result;
-use driver::DriversStats;
-use messages::HubMessagesStats;
 use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 
+use accumulated::AccumulatedStatsInner;
 use actor::StatsActor;
+use driver::DriversStats;
+use messages::HubMessagesStats;
 use protocol::StatsCommand;
 
 #[derive(Clone)]
