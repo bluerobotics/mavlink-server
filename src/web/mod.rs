@@ -112,7 +112,7 @@ async fn stats_websocket_connection(
     let identifier = Uuid::new_v4();
     debug!("WS client connected with ID: {identifier}");
 
-    let (mut sender, mut receiver) = socket.split();
+    let (mut sender, _receiver) = socket.split();
 
     let interval_duration = tokio::time::Duration::from_secs_f32(1.0 / frequency as f32);
     let periodic_task = tokio::spawn(async move {
