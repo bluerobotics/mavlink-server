@@ -16,12 +16,98 @@ use tokio::sync::{mpsc, oneshot};
 use actor::StatsActor;
 use protocol::StatsCommand;
 
+#[derive(Clone)]
+pub struct Stats {
+    sender: mpsc::Sender<StatsCommand>,
+    task: Arc<Mutex<tokio::task::JoinHandle<()>>>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ByteStats {
+    pub total_bytes: u64,
+    pub bytes_per_second: f64,
+    pub average_bytes_per_second: f64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct MessageStats {
+    pub total_messages: u64,
+    pub messages_per_second: f64,
+    pub average_messages_per_second: f64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct DelayStats {
+    pub delay: f64,
+    pub jitter: f64,
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct StatsInner {
     pub last_message_time_us: u64,
     pub bytes: ByteStats,
     pub messages: MessageStats,
     pub delay_stats: DelayStats,
+}
+
+impl Stats {
+    pub async fn new(update_period: tokio::time::Duration) -> Self {
+        let (sender, receiver) = mpsc::channel(32);
+        let actor = StatsActor::new(update_period).await;
+        let task = Arc::new(Mutex::new(tokio::spawn(actor.start(receiver))));
+        Self { sender, task }
+    }
+
+    pub async fn driver_stats(&self) -> Result<DriversStats> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.sender
+            .send(StatsCommand::GetDriversStats {
+                response: response_tx,
+            })
+            .await?;
+        response_rx.await?
+    }
+
+    pub async fn hub_stats(&self) -> Result<StatsInner> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.sender
+            .send(StatsCommand::GetHubStats {
+                response: response_tx,
+            })
+            .await?;
+        response_rx.await?
+    }
+
+    pub async fn hub_messages_stats(&self) -> Result<HubMessagesStats> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.sender
+            .send(StatsCommand::GetHubMessagesStats {
+                response: response_tx,
+            })
+            .await?;
+        response_rx.await?
+    }
+
+    pub async fn set_period(&self, period: tokio::time::Duration) -> Result<()> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.sender
+            .send(StatsCommand::SetPeriod {
+                period,
+                response: response_tx,
+            })
+            .await?;
+        response_rx.await?
+    }
+
+    pub async fn reset(&self) -> Result<()> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.sender
+            .send(StatsCommand::Reset {
+                response: response_tx,
+            })
+            .await?;
+        response_rx.await?
+    }
 }
 
 impl StatsInner {
@@ -64,13 +150,6 @@ impl StatsInner {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
-pub struct ByteStats {
-    pub total_bytes: u64,
-    pub bytes_per_second: f64,
-    pub average_bytes_per_second: f64,
-}
-
 impl ByteStats {
     pub fn from_accumulated(
         current_bytes: u64,
@@ -88,13 +167,6 @@ impl ByteStats {
             average_bytes_per_second,
         }
     }
-}
-
-#[derive(Debug, Clone, Default, Serialize)]
-pub struct MessageStats {
-    pub total_messages: u64,
-    pub messages_per_second: f64,
-    pub average_messages_per_second: f64,
 }
 
 impl MessageStats {
@@ -116,12 +188,6 @@ impl MessageStats {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
-pub struct DelayStats {
-    pub delay: f64,
-    pub jitter: f64,
-}
-
 impl DelayStats {
     pub fn from_accumulated(
         current_delay: u64,
@@ -134,72 +200,6 @@ impl DelayStats {
         let jitter = (delay - last_delay).abs();
 
         Self { delay, jitter }
-    }
-}
-
-#[derive(Clone)]
-pub struct Stats {
-    sender: mpsc::Sender<StatsCommand>,
-    task: Arc<Mutex<tokio::task::JoinHandle<()>>>,
-}
-
-impl Stats {
-    pub async fn new(update_period: tokio::time::Duration) -> Self {
-        let (sender, receiver) = mpsc::channel(32);
-        let actor = StatsActor::new(update_period).await;
-        let task = Arc::new(Mutex::new(tokio::spawn(actor.start(receiver))));
-        Self { sender, task }
-    }
-
-    pub async fn driver_stats(&mut self) -> Result<DriversStats> {
-        let (response_tx, response_rx) = oneshot::channel();
-        self.sender
-            .send(StatsCommand::GetDriversStats {
-                response: response_tx,
-            })
-            .await?;
-        response_rx.await?
-    }
-
-    pub async fn hub_stats(&mut self) -> Result<StatsInner> {
-        let (response_tx, response_rx) = oneshot::channel();
-        self.sender
-            .send(StatsCommand::GetHubStats {
-                response: response_tx,
-            })
-            .await?;
-        response_rx.await?
-    }
-
-    pub async fn hub_messages_stats(&mut self) -> Result<HubMessagesStats> {
-        let (response_tx, response_rx) = oneshot::channel();
-        self.sender
-            .send(StatsCommand::GetHubMessagesStats {
-                response: response_tx,
-            })
-            .await?;
-        response_rx.await?
-    }
-
-    pub async fn set_period(&mut self, period: tokio::time::Duration) -> Result<()> {
-        let (response_tx, response_rx) = oneshot::channel();
-        self.sender
-            .send(StatsCommand::SetPeriod {
-                period,
-                response: response_tx,
-            })
-            .await?;
-        response_rx.await?
-    }
-
-    pub async fn reset(&mut self) -> Result<()> {
-        let (response_tx, response_rx) = oneshot::channel();
-        self.sender
-            .send(StatsCommand::Reset {
-                response: response_tx,
-            })
-            .await?;
-        response_rx.await?
     }
 }
 
