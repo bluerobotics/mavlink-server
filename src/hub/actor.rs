@@ -69,7 +69,7 @@ impl HubActor {
     }
 
     #[instrument(level = "debug")]
-    pub async fn new(
+    pub fn new(
         buffer_size: usize,
         component_id: Arc<RwLock<u8>>,
         system_id: Arc<RwLock<u8>>,
