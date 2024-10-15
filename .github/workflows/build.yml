@@ -10,13 +10,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
+
+    - name: Install build dependencies - Rustup
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target x86_64-unknown-linux-musl wasm32-unknown-unknown -y
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
     - name: Check code style
       run: cargo fmt -- --check
-    - name: Build
-      run: cargo build --verbose
-    - name: Test
-      run: cargo test --verbose -- --nocapture
+
+    - name: Install build dependencies - Cargo-Binstall
+      uses: cargo-bins/cargo-binstall@main
+
+    - name: Install build dependencies - Trunk
+      run: cargo binstall -y trunk
+
+    - name: Building frontend (wasm32)
+      working-directory: src/webpage
+      run: trunk build --release --locked --verbose
+
+    - name: Building tests
+      run: SKIP_FRONTEND=1 cargo test --no-run --locked --verbose
+
+    - name: Run Tests
+      run: SKIP_FRONTEND=1 cargo test --verbose -- --nocapture
 
   build:
     runs-on: ${{ matrix.os }}
