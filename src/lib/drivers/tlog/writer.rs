@@ -17,6 +17,7 @@ use crate::{
     },
 };
 
+#[derive(Debug)]
 pub struct TlogWriter {
     pub path: PathBuf,
     name: arc_swap::ArcSwap<String>,
@@ -83,7 +84,7 @@ impl TlogWriter {
                         }
                     }
 
-                    let raw_bytes = message.raw_bytes();
+                    let raw_bytes = message.bytes();
                     writer.write_all(&timestamp.to_be_bytes()).await?;
                     writer.write_all(raw_bytes).await?;
                     writer.flush().await?;
