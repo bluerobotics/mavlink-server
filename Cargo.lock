@@ -271,6 +271,9 @@ name = "bytes"
 version = "1.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "428d9aa8fbc0670b7b8d6030a7fadd0f86151cae55e4dbbece15f3780a3dfaf3"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "camino"
@@ -1689,7 +1692,7 @@ checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
 [[package]]
 name = "mavlink"
 version = "0.13.2"
-source = "git+https://github.com/joaoantoniocardoso/rust-mavlink?branch=add-tokio#eb988ac7edf2782be25c4e835933359b9e4c2b07"
+source = "git+https://github.com/mavlink/rust-mavlink#5f2ecbe856a02e7bd17f43de63c8136db7947715"
 dependencies = [
  "bitflags 1.3.2",
  "mavlink-bindgen",
@@ -1703,7 +1706,7 @@ dependencies = [
 [[package]]
 name = "mavlink-bindgen"
 version = "0.13.2"
-source = "git+https://github.com/joaoantoniocardoso/rust-mavlink?branch=add-tokio#eb988ac7edf2782be25c4e835933359b9e4c2b07"
+source = "git+https://github.com/mavlink/rust-mavlink#5f2ecbe856a02e7bd17f43de63c8136db7947715"
 dependencies = [
  "crc-any",
  "lazy_static",
@@ -1714,10 +1717,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "mavlink-codec"
+version = "0.1.0"
+source = "git+https://github.com/bluerobotics/rust-mavlink-codec?branch=master#5821ba90b3747525e9785ff2d6bda2e949388293"
+dependencies = [
+ "bytes",
+ "log",
+ "mavlink",
+ "thiserror",
+ "tokio-util",
+]
+
+[[package]]
 name = "mavlink-core"
 version = "0.13.2"
-source = "git+https://github.com/joaoantoniocardoso/rust-mavlink?branch=add-tokio#eb988ac7edf2782be25c4e835933359b9e4c2b07"
+source = "git+https://github.com/mavlink/rust-mavlink#5f2ecbe856a02e7bd17f43de63c8136db7947715"
 dependencies = [
+ "async-trait",
  "byteorder",
  "crc-any",
  "serde",
@@ -1734,6 +1750,7 @@ dependencies = [
  "async-trait",
  "axum",
  "byteorder",
+ "bytes",
  "chrono",
  "clap",
  "criterion",
@@ -1743,6 +1760,7 @@ dependencies = [
  "json5",
  "lazy_static",
  "mavlink",
+ "mavlink-codec",
  "mime_guess",
  "regex",
  "serde",
@@ -1751,6 +1769,7 @@ dependencies = [
  "shellexpand",
  "tokio",
  "tokio-serial",
+ "tokio-util",
  "tracing",
  "tracing-appender",
  "tracing-log",
@@ -2646,6 +2665,19 @@ dependencies = [
  "log",
  "tokio",
  "tungstenite",
+]
+
+[[package]]
+name = "tokio-util"
+version = "0.7.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61e7c3654c13bcd040d4a03abee2c75b1d14a37b423cf5a813ceae1cc903ec6a"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "futures-sink",
+ "pin-project-lite",
+ "tokio",
 ]
 
 [[package]]

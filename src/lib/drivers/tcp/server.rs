@@ -1,18 +1,18 @@
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
+use futures::StreamExt;
+use mavlink_codec::codec::MavlinkCodec;
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{broadcast, RwLock},
 };
+use tokio_util::codec::Framed;
 use tracing::*;
 
 use crate::{
     callbacks::{Callbacks, MessageCallback},
-    drivers::{
-        tcp::{tcp_receive_task, tcp_send_task},
-        Driver, DriverInfo,
-    },
+    drivers::{generic_tasks::default_send_receive_run, Driver, DriverInfo},
     protocol::Protocol,
     stats::{
         accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
@@ -20,6 +20,7 @@ use crate::{
     },
 };
 
+#[derive(Debug)]
 pub struct TcpServer {
     pub local_addr: String,
     name: arc_swap::ArcSwap<String>,
@@ -74,34 +75,40 @@ impl TcpServer {
     /// Handles communication with a single client
     #[instrument(
         level = "debug",
-        skip(socket, hub_sender, on_message_input, on_message_output)
+        skip(stream, hub_sender, on_message_input, on_message_output)
     )]
     async fn handle_client(
-        socket: TcpStream,
+        stream: TcpStream,
         remote_addr: String,
-        hub_sender: Arc<broadcast::Sender<Arc<Protocol>>>,
+        hub_sender: broadcast::Sender<Arc<Protocol>>,
         on_message_input: Callbacks<Arc<Protocol>>,
         on_message_output: Callbacks<Arc<Protocol>>,
         stats: Arc<RwLock<AccumulatedDriverStats>>,
     ) -> Result<()> {
-        let hub_receiver = hub_sender.subscribe();
+        debug!("New TCP client");
 
-        let (read, write) = socket.into_split();
+        let mut hub_receiver = hub_sender.subscribe();
 
-        tokio::select! {
-            result = tcp_receive_task(read, &remote_addr, hub_sender, &on_message_input, &stats) => {
-                if let Err(e) = result {
-                    error!("Error in TCP receive task for {remote_addr}: {e:?}");
-                }
-            }
-            result = tcp_send_task(write, &remote_addr, hub_receiver, &on_message_output, &stats) => {
-                if let Err(e) = result {
-                    error!("Error in TCP send task for {remote_addr}: {e:?}");
-                }
-            }
+        let codec = MavlinkCodec::<true, true, false, false, false, false>::default();
+        let (writer, reader) = Framed::new(stream, codec).split();
+
+        if let Err(reason) = default_send_receive_run(
+            writer,
+            reader,
+            &remote_addr,
+            &hub_sender,
+            &mut hub_receiver,
+            &on_message_output,
+            &on_message_input,
+            stats,
+        )
+        .await
+        {
+            warn!("Driver send/receive tasks closed: {reason:?}");
         }
 
-        debug!("Finished handling connection with {remote_addr}");
+        debug!("TCP Client connection terminated");
+
         Ok(())
     }
 }
@@ -110,21 +117,42 @@ impl TcpServer {
 impl Driver for TcpServer {
     #[instrument(level = "debug", skip(self, hub_sender))]
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
-        let listener = TcpListener::bind(&self.local_addr).await?;
-        let hub_sender = Arc::new(hub_sender);
+        debug!("Trying to bind to local address {:?}...", self.local_addr);
 
+        let listener = match TcpListener::bind(&self.local_addr).await {
+            Ok(listener) => listener,
+            Err(error) => {
+                error!(
+                    "Failed to bind TCP Server to {:?}: {error:?}",
+                    self.local_addr
+                );
+
+                return Err(anyhow!("Failed to bind TCP Server"));
+            }
+        };
+
+        let mut first = true;
         loop {
+            if !first {
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                first = false;
+            }
+
+            debug!("Waiting for clients...");
+
             match listener.accept().await {
                 Ok((socket, remote_addr)) => {
                     let remote_addr = remote_addr.to_string();
                     let hub_sender = hub_sender.clone();
+                    let on_message_input = self.on_message_input.clone();
+                    let on_message_output = self.on_message_output.clone();
 
                     tokio::spawn(TcpServer::handle_client(
                         socket,
                         remote_addr,
                         hub_sender,
-                        self.on_message_input.clone(),
-                        self.on_message_output.clone(),
+                        on_message_input,
+                        on_message_output,
                         self.stats.clone(),
                     ));
                 }
