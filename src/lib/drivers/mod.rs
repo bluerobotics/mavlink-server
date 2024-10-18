@@ -1,4 +1,5 @@
 pub mod fake;
+pub mod generic_tasks;
 pub mod rest;
 pub mod serial;
 pub mod tcp;
@@ -17,7 +18,7 @@ use crate::{protocol::Protocol, stats::accumulated::driver::AccumulatedDriverSta
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Type {
-    FakeClient,
+    FakeSink,
     FakeSource,
     Serial,
     TlogWriter,
@@ -37,7 +38,7 @@ pub struct DriverDescriptionLegacy {
 }
 
 #[async_trait::async_trait]
-pub trait Driver: Send + Sync + AccumulatedDriverStatsProvider {
+pub trait Driver: Send + Sync + AccumulatedDriverStatsProvider + std::fmt::Debug {
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()>;
 
     fn info(&self) -> Box<dyn DriverInfo>;
@@ -215,11 +216,11 @@ pub fn endpoints() -> Vec<ExtInfo> {
             typ: Type::UdpServer,
         },
         ExtInfo {
-            driver_ext: Box::new(fake::FakeSourceInfo),
-            typ: Type::FakeClient,
+            driver_ext: Box::new(fake::FakeSinkInfo),
+            typ: Type::FakeSink,
         },
         ExtInfo {
-            driver_ext: Box::new(fake::FakeSinkInfo),
+            driver_ext: Box::new(fake::FakeSourceInfo),
             typ: Type::FakeSource,
         },
     ]
@@ -230,7 +231,7 @@ mod tests {
     use std::{collections::HashSet, sync::Arc};
 
     use anyhow::{anyhow, Result};
-    use mavlink::MAVLinkV2MessageRaw;
+    use mavlink_codec::{v2::V2Packet, Packet};
     use tokio::sync::RwLock;
     use tracing::*;
 
@@ -254,6 +255,7 @@ mod tests {
     }
 
     // Example struct implementing Driver
+    #[derive(Debug)]
     pub struct ExampleDriver {
         name: arc_swap::ArcSwap<String>,
         uuid: DriverUuid,
@@ -299,7 +301,7 @@ mod tests {
             let mut hub_receiver = hub_sender.subscribe();
 
             while let Ok(message) = hub_receiver.recv().await {
-                self.stats.write().await.stats.update_input(&message);
+                self.stats.write().await.stats.update_output(&message);
 
                 for future in self.on_message_input.call_all(message.clone()) {
                     if let Err(error) = future.await {
@@ -310,7 +312,7 @@ mod tests {
                     }
                 }
 
-                trace!("Message received: {message:?}");
+                trace!("Message sent: {message:?}");
             }
 
             Ok(())
@@ -395,7 +397,10 @@ mod tests {
 
             async move {
                 sender
-                    .send(Arc::new(Protocol::new("test", MAVLinkV2MessageRaw::new())))
+                    .send(Arc::new(Protocol::new(
+                        "test",
+                        Packet::V2(V2Packet::default()),
+                    )))
                     .unwrap();
             }
         });

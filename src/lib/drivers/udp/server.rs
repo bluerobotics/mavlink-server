@@ -1,31 +1,44 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
+use futures::{Sink, SinkExt, Stream, StreamExt};
+use mavlink_codec::{codec::MavlinkCodec, error::DecoderError, Packet};
 use tokio::{
     net::UdpSocket,
     sync::{broadcast, RwLock},
+    task::JoinHandle,
 };
+use tokio_util::udp::UdpFramed;
 use tracing::*;
 
 use crate::{
     callbacks::{Callbacks, MessageCallback},
-    drivers::{Driver, DriverInfo},
-    protocol::{read_all_messages, Protocol},
+    drivers::{generic_tasks::SendReceiveContext, Driver, DriverInfo},
+    protocol::Protocol,
     stats::{
         accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
         driver::DriverUuid,
     },
 };
 
+#[derive(Debug)]
 pub struct UdpServer {
     pub local_addr: String,
     name: arc_swap::ArcSwap<String>,
     uuid: DriverUuid,
-    clients: Arc<RwLock<HashMap<(u8, u8), String>>>,
+    clients: Arc<RwLock<Clients>>,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
+
+type Clients = HashMap<
+    (u8, u8),
+    (
+        SocketAddr,
+        JoinHandle<std::result::Result<(), anyhow::Error>>,
+    ),
+>;
 
 pub struct UdpServerBuilder(UdpServer);
 
@@ -69,128 +82,31 @@ impl UdpServer {
             ))),
         })
     }
-
-    #[instrument(level = "debug", skip(self, socket, hub_sender, clients))]
-    async fn udp_receive_task(
-        &self,
-        socket: Arc<UdpSocket>,
-        hub_sender: Arc<broadcast::Sender<Arc<Protocol>>>,
-        clients: Arc<RwLock<HashMap<(u8, u8), String>>>,
-    ) -> Result<()> {
-        let mut buf = Vec::with_capacity(1024);
-
-        loop {
-            match socket.recv_buf_from(&mut buf).await {
-                Ok((bytes_received, client_addr)) if bytes_received > 0 => {
-                    let client_addr = &client_addr.to_string();
-
-                    read_all_messages(client_addr, &mut buf, |message| async {
-                        let message = Arc::new(message);
-
-                        self.stats
-                            .write()
-                            .await
-                            .stats
-                            .update_input(&message);
-
-                        for future in self.on_message_input.call_all(message.clone()) {
-                            if let Err(error) = future.await {
-                                debug!("Dropping message: on_message_input callback returned error: {error:?}");
-                                continue;
-                            }
-                        }
-
-                        // Update clients
-                        let sysid = message.system_id();
-                        let compid = message.component_id();
-                        if let Some(old_client_addr) = clients
-                            .write()
-                            .await
-                            .insert((sysid, compid), client_addr.clone())
-                        {
-                            debug!("Client ({sysid},{compid}) updated from {old_client_addr:?} (OLD) to {client_addr:?} (NEW)");
-                        } else {
-                            debug!("Client added: ({sysid},{compid}) -> {client_addr:?}");
-                        }
-
-
-                        if let Err(error) = hub_sender.send(message) {
-                            error!("Failed to send message to hub: {error:?}");
-                        }
-                    })
-                    .await;
-                }
-                Ok((_, client_addr)) => {
-                    warn!("UDP connection closed by {client_addr}.");
-                    break;
-                }
-                Err(error) => {
-                    error!("Failed to receive UDP message: {error:?}");
-                    break;
-                }
-            }
-        }
-
-        debug!("UdpServer Receiver task finished");
-        Ok(())
-    }
-
-    #[instrument(level = "debug", skip(self, socket, hub_receiver, clients))]
-    async fn udp_send_task(
-        &self,
-        socket: Arc<UdpSocket>,
-        mut hub_receiver: broadcast::Receiver<Arc<Protocol>>,
-        clients: Arc<RwLock<HashMap<(u8, u8), String>>>,
-    ) -> Result<()> {
-        loop {
-            match hub_receiver.recv().await {
-                Ok(message) => {
-                    for ((_, _), client_addr) in clients.read().await.iter() {
-                        if message.origin.eq(client_addr) {
-                            continue; // Don't do loopback
-                        }
-
-                        self.stats.write().await.stats.update_output(&message);
-
-                        for future in self.on_message_output.call_all(message.clone()) {
-                            if let Err(error) = future.await {
-                                debug!("Dropping message: on_message_output callback returned error: {error:?}");
-                                continue;
-                            }
-                        }
-
-                        match socket.send_to(message.raw_bytes(), client_addr).await {
-                            Ok(_) => {
-                                // Message sent successfully
-                            }
-                            Err(ref error)
-                                if error.kind() == std::io::ErrorKind::ConnectionRefused =>
-                            {
-                                // error!("UDP connection refused: {error:?}");
-                                continue;
-                            }
-                            Err(error) => {
-                                error!("Failed to send UDP message: {error:?}");
-                                break;
-                            }
-                        }
-                    }
-                }
-                Err(error) => {
-                    error!("Failed to receive message from hub: {error:?}");
-                }
-            }
-        }
-    }
 }
 
 #[async_trait::async_trait]
 impl Driver for UdpServer {
     #[instrument(level = "debug", skip(self, hub_sender))]
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
-        let local_addr = &self.local_addr;
+        let local_addr = self.local_addr.parse::<SocketAddr>()?;
         let clients = self.clients.clone();
+
+        let context = SendReceiveContext {
+            hub_sender,
+            on_message_output: self.on_message_output.clone(),
+            on_message_input: self.on_message_input.clone(),
+            stats: self.stats.clone(),
+        };
+
+        let mut first = true;
         loop {
+            if !first {
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                first = false;
+            }
+
+            debug!("Trying to bind to address {local_addr:?}...");
+
             let socket = match UdpSocket::bind(&local_addr).await {
                 Ok(socket) => Arc::new(socket),
                 Err(error) => {
@@ -200,20 +116,15 @@ impl Driver for UdpServer {
                 }
             };
 
-            let hub_sender = Arc::new(hub_sender.clone());
-            let hub_receiver = hub_sender.subscribe();
+            debug!("Waiting for clients...");
 
-            tokio::select! {
-                result = self.udp_receive_task(socket.clone(), hub_sender, clients.clone()) => {
-                    if let Err(error) = result {
-                        error!("Error in receiving UDP messages: {error:?}");
-                    }
-                }
-                result = self.udp_send_task(socket, hub_receiver, clients.clone()) => {
-                    if let Err(error) = result {
-                        error!("Error in sending UDP messages: {error:?}");
-                    }
-                }
+            let codec = MavlinkCodec::<true, true, false, false, false, false>::default();
+            let (_writer, mut reader) = UdpFramed::new(socket.clone(), codec).split();
+
+            if let Err(error) =
+                udp_receive_task(&mut reader, socket, clients.clone(), local_addr, &context).await
+            {
+                error!("Error in receive task for {local_addr}: {error:?}");
             }
         }
     }
@@ -230,6 +141,146 @@ impl Driver for UdpServer {
     fn uuid(&self) -> &DriverUuid {
         &self.uuid
     }
+}
+
+/// Receives messages from a Stream and sends them to the HUB Channel
+#[instrument(level = "debug", skip(reader, context))]
+async fn udp_receive_task<T>(
+    reader: &mut T,
+    socket: Arc<UdpSocket>,
+    clients: Arc<RwLock<Clients>>,
+    local_addr: SocketAddr,
+    context: &SendReceiveContext,
+) -> Result<()>
+where
+    T: Stream<Item = std::io::Result<(std::result::Result<Packet, DecoderError>, SocketAddr)>>
+        + std::marker::Unpin,
+{
+    loop {
+        let (packet, client_addr) = match reader.next().await {
+            Some(Ok((Ok(packet), client_addr))) => (packet, client_addr),
+            Some(Ok((Err(decode_error), client_addr))) => {
+                error!(origin = ?client_addr, "Failed to decode packet: {decode_error:?}");
+                continue;
+            }
+            Some(Err(io_error)) => {
+                error!("Critical error trying to decode data from: {io_error:?}");
+                break;
+            }
+            None => break,
+        };
+
+        let message = Arc::new(Protocol::new(&client_addr.to_string(), packet));
+
+        trace!(origin = ?client_addr, "Received message: {message:?}");
+
+        context.stats.write().await.stats.update_input(&message);
+
+        for future in context.on_message_input.call_all(message.clone()) {
+            if let Err(error) = future.await {
+                debug!(origin = ?client_addr, "Dropping message: on_message_input callback returned error: {error:?}");
+                continue;
+            }
+        }
+
+        // Update clients
+        let sysid = *message.system_id();
+        let compid = *message.component_id();
+
+        {
+            let mut clients_guard = clients.write().await;
+
+            let mut should_spawn = false;
+            if let Some((old_client_addr, task)) = clients_guard.get(&(sysid, compid)) {
+                if old_client_addr != &client_addr {
+                    should_spawn = true;
+                    task.abort();
+                }
+            } else {
+                should_spawn = true;
+            }
+
+            if should_spawn {
+                let codec = MavlinkCodec::<true, true, false, false, false, false>::default();
+                let (mut writer, _reader) = UdpFramed::new(socket.clone(), codec).split();
+                let context = context.clone();
+
+                let task = tokio::spawn(async move {
+                    udp_send_task(&mut writer, local_addr, client_addr, context).await
+                });
+
+                if let Some(old_client_addr) =
+                    clients_guard.insert((sysid, compid), (client_addr, task))
+                {
+                    debug!("Client ({sysid},{compid}) updated from {old_client_addr:?} (OLD) to {client_addr:?} (NEW)");
+                } else {
+                    debug!("New client added: ({sysid},{compid}) -> {client_addr:?}");
+                }
+            }
+        }
+
+        if let Err(send_error) = context.hub_sender.send(message) {
+            error!(origin = ?client_addr, "Failed to send message to hub: {send_error:?}");
+            continue;
+        }
+
+        trace!(origin = ?client_addr, "Message sent to hub");
+    }
+
+    debug!("Driver receiver task stopped!");
+
+    Ok(())
+}
+
+/// Receives messages from the HUB Channel and sends them to a Sink
+#[instrument(level = "debug", skip(writer, context))]
+async fn udp_send_task<S>(
+    writer: &mut S,
+    local_addr: SocketAddr,
+    client_addr: SocketAddr,
+    context: SendReceiveContext,
+) -> Result<()>
+where
+    S: Sink<(Packet, SocketAddr), Error = std::io::Error> + std::marker::Unpin,
+{
+    let mut hub_receiver = context.hub_sender.subscribe();
+
+    loop {
+        let message = match hub_receiver.recv().await {
+            Ok(message) => message,
+            Err(broadcast::error::RecvError::Closed) => {
+                error!("Hub channel closed!");
+                break;
+            }
+            Err(broadcast::error::RecvError::Lagged(count)) => {
+                warn!("Channel lagged by {count} messages.");
+                continue;
+            }
+        };
+
+        if message.origin.eq(&client_addr.to_string()) {
+            continue; // Don't do loopback
+        }
+
+        context.stats.write().await.stats.update_output(&message);
+
+        for future in context.on_message_output.call_all(message.clone()) {
+            if let Err(error) = future.await {
+                debug!(
+                    client = ?client_addr, "Dropping message: on_message_output callback returned error: {error:?}"
+                );
+                continue;
+            }
+        }
+
+        if let Err(error) = writer.send(((**message).clone(), client_addr)).await {
+            error!(client = ?client_addr, "Failed to send message: {error:?}");
+            break;
+        }
+
+        trace!("Message sent to {client_addr}: {:?}", message.as_slice());
+    }
+    Ok(())
 }
 
 #[async_trait::async_trait]

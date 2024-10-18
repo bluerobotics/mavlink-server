@@ -6,7 +6,7 @@ use tracing::*;
 
 use crate::drivers;
 
-#[derive(Parser)]
+#[derive(Debug, Parser)]
 #[command(
     version = env!("CARGO_PKG_VERSION"),
     author = env!("CARGO_PKG_AUTHORS"),
@@ -83,7 +83,7 @@ fn build_endpoints_help() -> String {
                 .collect::<Vec<String>>()
                 .join("\n\t\t ");
 
-            vec![
+            [
                 format!("{name}\t {help_schemas}").to_string(),
                 format!("\t legacy: {help_legacy}").to_string(),
                 format!("\t    url: {help_url}\n").to_string(),
@@ -154,12 +154,18 @@ pub fn endpoints() -> Vec<Arc<dyn drivers::Driver>> {
     let default_endpoints = Arc::new(crate::drivers::rest::Rest::builder("Default").build());
     let mut endpoints = MANAGER.clap_matches.endpoints.clone();
     endpoints.push(default_endpoints);
-    return endpoints;
+    endpoints
 }
 
 #[instrument(level = "debug")]
 pub fn command_line_string() -> String {
     std::env::args().collect::<Vec<String>>().join(" ")
+}
+
+// Return a clone of current Args struct
+#[instrument(level = "debug")]
+pub fn command_line() -> String {
+    format!("{:#?}", MANAGER.clap_matches)
 }
 
 #[cfg(test)]
