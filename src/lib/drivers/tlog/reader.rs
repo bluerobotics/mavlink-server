@@ -3,6 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 use anyhow::{Context, Result};
 use chrono::DateTime;
 use mavlink::ardupilotmega::MavMessage;
+use mavlink_codec::Packet;
 use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 
@@ -97,24 +98,27 @@ impl TlogReader {
             reader.consume(8);
             assert_eq!(reader.peek_exact(1).await?[0], mavlink::MAV_STX_V2);
 
-            let message = match mavlink::read_v2_raw_message_async::<MavMessage, _>(&mut reader)
-                .await
-            {
-                Ok(message) => Protocol::new_with_timestamp(us_since_epoch, &source_name, message),
-                Err(error) => {
-                    match error {
-                        mavlink::error::MessageReadError::Io(_) => (),
-                        mavlink::error::MessageReadError::Parse(_) => {
-                            error!("Failed to parse MAVLink message: {error:?}")
+            let message =
+                match mavlink::read_v2_raw_message_async::<MavMessage, _>(&mut reader).await {
+                    Ok(message) => Protocol::new_with_timestamp(
+                        us_since_epoch,
+                        &source_name,
+                        Packet::from(message),
+                    ),
+                    Err(error) => {
+                        match error {
+                            mavlink::error::MessageReadError::Io(_) => (),
+                            mavlink::error::MessageReadError::Parse(_) => {
+                                error!("Failed to parse MAVLink message: {error:?}")
+                            }
                         }
+
+                        continue;
                     }
+                };
+            reader.consume(message.bytes().len() - 1);
 
-                    continue;
-                }
-            };
-            reader.consume(message.raw_bytes().len() - 1);
-
-            trace!("Parsed message: {:?}", message.raw_bytes());
+            trace!("Parsed message: {:?}", message.bytes());
 
             let message = Arc::new(message);
 
@@ -317,7 +321,7 @@ mod tests {
             .map(|message| {
                 let parsed_message = mavlink::MavFrame::<MavMessage>::deser(
                     mavlink::MavlinkVersion::V2,
-                    &message.raw_bytes()[4..],
+                    &message.bytes()[4..],
                 );
 
                 (message.timestamp, parsed_message)
