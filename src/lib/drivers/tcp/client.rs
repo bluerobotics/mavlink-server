@@ -1,16 +1,19 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use futures::StreamExt;
+use mavlink_codec::codec::MavlinkCodec;
 use tokio::{
     net::TcpStream,
     sync::{broadcast, RwLock},
 };
+use tokio_util::codec::Framed;
 use tracing::*;
 
 use crate::{
     callbacks::{Callbacks, MessageCallback},
     drivers::{
-        tcp::{tcp_receive_task, tcp_send_task},
+        generic_tasks::{default_send_receive_run, SendReceiveContext},
         Driver, DriverInfo,
     },
     protocol::Protocol,
@@ -78,36 +81,44 @@ impl Driver for TcpClient {
     #[instrument(level = "debug", skip(self, hub_sender))]
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let server_addr = &self.remote_addr;
-        let hub_sender = Arc::new(hub_sender);
 
+        let context = SendReceiveContext {
+            hub_sender,
+            on_message_output: self.on_message_output.clone(),
+            on_message_input: self.on_message_input.clone(),
+            stats: self.stats.clone(),
+        };
+
+        let mut first = true;
         loop {
-            debug!("Trying to connect to {server_addr:?}...");
-            let (read, write) = match TcpStream::connect(server_addr).await {
-                Ok(socket) => socket.into_split(),
+            if !first {
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                first = false;
+            }
+
+            debug!("Trying to connect...");
+
+            let stream = match TcpStream::connect(server_addr).await {
+                Ok(stream) => stream,
                 Err(error) => {
-                    error!("Failed connecting to {server_addr:?}: {error:?}");
+                    error!("Failed connecting: {error:?}");
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     continue;
                 }
             };
-            debug!("TcpClient successfully connected to {server_addr:?}");
 
-            let hub_receiver = hub_sender.subscribe();
+            debug!("Successfully connected");
 
-            tokio::select! {
-                result = tcp_receive_task(read, server_addr,  hub_sender.clone(), &self.on_message_input, &self.stats) => {
-                    if let Err(e) = result {
-                        error!("Error in TCP receive task: {e:?}");
-                    }
-                }
-                result = tcp_send_task(write, server_addr, hub_receiver, &self.on_message_output, &self.stats) => {
-                    if let Err(e) = result {
-                        error!("Error in TCP send task: {e:?}");
-                    }
-                }
+            let codec = MavlinkCodec::<true, true, false, false, false, false>::default();
+            let (writer, reader) = Framed::new(stream, codec).split();
+
+            if let Err(reason) =
+                default_send_receive_run(writer, reader, server_addr, &context).await
+            {
+                warn!("Driver send/receive tasks closed: {reason:?}");
             }
 
-            debug!("Restarting TCP Client connection loop...");
+            debug!("Restarting connection loop...");
         }
     }
 
