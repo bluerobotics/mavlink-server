@@ -52,6 +52,10 @@ struct Args {
 
     #[arg(long, default_value = "true")]
     streamreq_disable: bool,
+
+    /// The timeout duration (in seconds) after which inactive UDP clients will be discarded.
+    #[arg(long, default_value = "10")]
+    udp_server_timeout: i16,
 }
 
 #[instrument(level = "trace")]
@@ -166,6 +170,17 @@ pub fn command_line_string() -> String {
 #[instrument(level = "debug")]
 pub fn command_line() -> String {
     format!("{:#?}", MANAGER.clap_matches)
+}
+
+#[instrument(level = "debug")]
+pub fn udp_server_timeout() -> Option<tokio::time::Duration> {
+    let seconds = MANAGER.clap_matches.udp_server_timeout;
+
+    if seconds < 0 {
+        return None;
+    }
+
+    Some(tokio::time::Duration::from_secs(seconds as u64))
 }
 
 #[cfg(test)]
