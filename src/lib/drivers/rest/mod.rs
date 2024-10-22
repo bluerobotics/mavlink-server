@@ -3,6 +3,8 @@ pub mod data;
 use std::sync::Arc;
 
 use anyhow::Result;
+use mavlink::ardupilotmega::MavMessage;
+use mavlink_codec::Packet;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, RwLock};
 use tracing::*;
@@ -84,26 +86,7 @@ impl Rest {
                 {
                     let mut message_raw = mavlink::MAVLinkV2MessageRaw::new();
                     message_raw.serialize_message(content.header, &content.message);
-                    let bus_message = Arc::new(Protocol::new("Ws", message_raw));
-                    stats.write().await.stats.update_input(&bus_message);
-
-                    for future in on_message_input.call_all(bus_message.clone()) {
-                        if let Err(error) = future.await {
-                            debug!("Dropping message: on_message_input callback returned error: {error:?}");
-                            continue;
-                        }
-                    }
-
-                    if let Err(error) = hub_sender.send(bus_message) {
-                        error!("Failed to send message to hub: {error:?}");
-                    }
-                    return Ok(());
-                } else if let Ok(content) =
-                    json5::from_str::<MAVLinkMessage<mavlink::common::MavMessage>>(&message)
-                {
-                    let mut message_raw = mavlink::MAVLinkV2MessageRaw::new();
-                    message_raw.serialize_message(content.header, &content.message);
-                    let bus_message = Arc::new(Protocol::new("Ws", message_raw));
+                    let bus_message = Arc::new(Protocol::new("Ws", Packet::from(message_raw)));
                     stats.write().await.stats.update_input(&bus_message);
 
                     for future in on_message_input.call_all(bus_message.clone()) {
@@ -149,16 +132,14 @@ impl Rest {
                     }
 
                     let mut bytes =
-                        mavlink::async_peek_reader::AsyncPeekReader::new(message.raw_bytes());
-                    let (header, message): (
-                        mavlink::MavHeader,
-                        mavlink::ardupilotmega::MavMessage,
-                    ) = mavlink::read_v2_msg_async(&mut bytes).await.unwrap();
-
-                    let mavlink_message = MAVLinkMessage {
-                        header: header,
-                        message: message,
+                        mavlink::async_peek_reader::AsyncPeekReader::new(message.as_slice());
+                    let Ok((header, message)) =
+                        mavlink::read_v2_msg_async::<MavMessage, _>(&mut bytes).await
+                    else {
+                        continue;
                     };
+
+                    let mavlink_message = MAVLinkMessage { header, message };
                     let json_string = parse_query(&mavlink_message);
                     data::update((header, mavlink_message.message));
                     crate::web::send_message(json_string).await;
@@ -181,7 +162,13 @@ pub fn parse_query<T: serde::ser::Serialize>(message: &T) -> String {
 impl Driver for Rest {
     #[instrument(level = "debug", skip(self, hub_sender))]
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
+        let mut first = true;
         loop {
+            if !first {
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                first = false;
+            }
+
             let hub_sender = hub_sender.clone();
             let hub_receiver = hub_sender.subscribe();
             let mut ws_receiver = crate::web::create_message_receiver();
