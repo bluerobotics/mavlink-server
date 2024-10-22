@@ -6,7 +6,7 @@ use tracing::*;
 
 use crate::drivers;
 
-#[derive(Parser)]
+#[derive(Debug, Parser)]
 #[command(
     version = env!("CARGO_PKG_VERSION"),
     author = env!("CARGO_PKG_AUTHORS"),
