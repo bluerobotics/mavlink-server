@@ -32,9 +32,7 @@ include_dir = "0.7.4"
 indexmap = { version = "2.5.0", features = ["serde"] }
 json5 = "0.4.1"
 lazy_static = "1.5.0"
-# mavlink = { default-features = false, features = ["ardupilotmega", "std", "tokio-1"], path = "../rust-mavlink/mavlink" }
-# mavlink = { version = "0.13.1", default-features = false, features = ["ardupilotmega", "std"] }
-mavlink = { default-features = false, features = ["ardupilotmega", "serde", "std", "tokio-1"], git = "https://github.com/joaoantoniocardoso/rust-mavlink", branch = "add-tokio" }
+mavlink = { default-features = false, features = ["std", "ardupilotmega", "serde", "tokio-1"], git = "https://github.com/mavlink/rust-mavlink", hash = "5f2ecbe8" }
 regex = "1.10.6"
 serde = { version = "1", features = ["rc"] }
 serde_derive = "1.0.210"
