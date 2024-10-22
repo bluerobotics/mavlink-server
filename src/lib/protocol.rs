@@ -4,7 +4,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use mavlink::{ardupilotmega::MavMessage, MAVLinkV2MessageRaw};
+use mavlink_codec::Packet;
 use serde::Serialize;
 
 use tracing::*;
@@ -14,23 +14,23 @@ pub struct Protocol {
     pub origin: String,
     pub timestamp: u64,
     #[serde(skip)]
-    message: MAVLinkV2MessageRaw,
+    packet: Packet,
 }
 
 impl Protocol {
-    pub fn new(origin: &str, message: MAVLinkV2MessageRaw) -> Self {
+    pub fn new(origin: &str, packet: Packet) -> Self {
         Self {
             origin: origin.to_string(),
             timestamp: chrono::Utc::now().timestamp_micros() as u64,
-            message,
+            packet,
         }
     }
 
-    pub fn new_with_timestamp(timestamp: u64, origin: &str, message: MAVLinkV2MessageRaw) -> Self {
+    pub fn new_with_timestamp(timestamp: u64, origin: &str, packet: Packet) -> Self {
         Self {
             origin: origin.to_string(),
             timestamp,
-            message,
+            packet,
         }
     }
 }
@@ -69,15 +69,15 @@ where
 }
 
 impl Deref for Protocol {
-    type Target = MAVLinkV2MessageRaw;
+    type Target = Packet;
 
     fn deref(&self) -> &Self::Target {
-        &self.message
+        &self.packet
     }
 }
 
 impl DerefMut for Protocol {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.message
+        &mut self.packet
     }
 }
