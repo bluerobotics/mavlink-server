@@ -1,13 +1,15 @@
+use bytes::{BufMut, BytesMut};
 use std::sync::Arc;
 
 use anyhow::Result;
+use mavlink_codec::{v2::V2Packet, Packet};
 use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 
 use crate::{
     callbacks::{Callbacks, MessageCallback},
     drivers::{Driver, DriverInfo},
-    protocol::{read_all_messages, Protocol},
+    protocol::Protocol,
     stats::{
         accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
         driver::DriverUuid,
@@ -76,9 +78,28 @@ impl Driver for FakeSink {
                 }
             }
 
-            let mut bytes = mavlink::async_peek_reader::AsyncPeekReader::new(message.raw_bytes());
-            let (header, message): (mavlink::MavHeader, mavlink::ardupilotmega::MavMessage) =
-                mavlink::read_v2_msg_async(&mut bytes).await.unwrap();
+            let version = match &**message {
+                Packet::V1(_) => mavlink::MavlinkVersion::V1,
+                Packet::V2(_) => mavlink::MavlinkVersion::V2,
+            };
+
+            let frame = match mavlink::MavFrame::<mavlink::ardupilotmega::MavMessage>::deser(
+                version,
+                message.as_slice(),
+            ) {
+                Ok(frame) => frame,
+                Err(error) => {
+                    warn!("Failed to deserialize Mavlink Message: {error:?}");
+                    continue;
+                }
+            };
+
+            let mavlink::MavFrame {
+                header,
+                msg: message,
+                protocol_version: _,
+            } = frame;
+
             if self.print {
                 println!("Message received: {header:?} {message:?}");
             } else {
@@ -195,64 +216,54 @@ impl Driver for FakeSource {
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let mut sequence = 0;
 
-        let mut buf: Vec<u8> = Vec::with_capacity(280);
-
         use mavlink::ardupilotmega::{
             MavAutopilot, MavMessage, MavModeFlag, MavState, MavType, HEARTBEAT_DATA,
         };
 
+        let mut header = mavlink::MavHeader {
+            sequence,
+            system_id: 1,
+            component_id: 2,
+        };
+        let data = MavMessage::HEARTBEAT(HEARTBEAT_DATA {
+            custom_mode: 5,
+            mavtype: MavType::MAV_TYPE_QUADROTOR,
+            autopilot: MavAutopilot::MAV_AUTOPILOT_ARDUPILOTMEGA,
+            base_mode: MavModeFlag::MAV_MODE_FLAG_MANUAL_INPUT_ENABLED
+                | MavModeFlag::MAV_MODE_FLAG_STABILIZE_ENABLED
+                | MavModeFlag::MAV_MODE_FLAG_GUIDED_ENABLED
+                | MavModeFlag::MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+            system_status: MavState::MAV_STATE_STANDBY,
+            mavlink_version: 3,
+        });
+
         loop {
-            let header = mavlink::MavHeader {
-                sequence,
-                system_id: 1,
-                component_id: 2,
-            };
-            let data = MavMessage::HEARTBEAT(HEARTBEAT_DATA {
-                custom_mode: 5,
-                mavtype: MavType::MAV_TYPE_QUADROTOR,
-                autopilot: MavAutopilot::MAV_AUTOPILOT_ARDUPILOTMEGA,
-                base_mode: MavModeFlag::MAV_MODE_FLAG_MANUAL_INPUT_ENABLED
-                    | MavModeFlag::MAV_MODE_FLAG_STABILIZE_ENABLED
-                    | MavModeFlag::MAV_MODE_FLAG_GUIDED_ENABLED
-                    | MavModeFlag::MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-                system_status: MavState::MAV_STATE_STANDBY,
-                mavlink_version: 3,
-            });
+            header.sequence = sequence;
             sequence = sequence.overflowing_add(1).0;
 
-            buf.clear();
-            mavlink::write_v2_msg(&mut buf, header, &data).expect("Failed to write message");
+            let buf = BytesMut::with_capacity(V2Packet::MAX_PACKET_SIZE);
+            let mut writer = buf.writer();
+            if let Err(error) = mavlink::write_v2_msg(&mut writer, header, &data) {
+                warn!("Failed to serialize message: {error:?}");
+                continue;
+            }
 
-            read_all_messages("FakeSource", &mut buf, {
-                let hub_sender = hub_sender.clone();
-                move |message| {
-                    let message = Arc::new(message);
-                    let hub_sender = hub_sender.clone();
+            let packet = Packet::V2(V2Packet::new(writer.into_inner().freeze()));
 
-                    async move {
-                        trace!("Fake message created: {message:?}");
+            let message = Arc::new(Protocol::new("fake_source", packet));
 
-                        self.stats
-                            .write()
-                            .await
-                            .stats
-                            .update_output(&message);
+            self.stats.write().await.stats.update_output(&message);
 
-                        for future in self.on_message_output.call_all(message.clone()) {
-                            if let Err(error) = future.await {
-                                debug!(
-                                    "Dropping message: on_message_input callback returned error: {error:?}"
-                                );
-                                continue;
-                            }
-                        }
+            for future in self.on_message_output.call_all(message.clone()) {
+                if let Err(error) = future.await {
+                    debug!("Dropping message: on_message_input callback returned error: {error:?}");
+                    continue;
+                }
+            }
 
-                        if let Err(error) = hub_sender.send(message) {
-                            error!("Failed to send message to hub: {error:?}");
-                        }
-                    }
-            }})
-            .await;
+            if let Err(error) = hub_sender.send(message) {
+                error!("Failed to send message to hub: {error:?}");
+            }
 
             tokio::time::sleep(self.period).await;
         }
