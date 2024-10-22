@@ -1,4 +1,5 @@
 pub mod fake;
+pub mod generic_tasks;
 pub mod rest;
 pub mod serial;
 pub mod tcp;
@@ -230,7 +231,7 @@ mod tests {
     use std::{collections::HashSet, sync::Arc};
 
     use anyhow::{anyhow, Result};
-    use mavlink::MAVLinkV2MessageRaw;
+    use mavlink_codec::{v2::V2Packet, Packet};
     use tokio::sync::RwLock;
     use tracing::*;
 
@@ -396,7 +397,10 @@ mod tests {
 
             async move {
                 sender
-                    .send(Arc::new(Protocol::new("test", MAVLinkV2MessageRaw::new())))
+                    .send(Arc::new(Protocol::new(
+                        "test",
+                        Packet::V2(V2Packet::default()),
+                    )))
                     .unwrap();
             }
         });
