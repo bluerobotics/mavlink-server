@@ -16,6 +16,7 @@ use crate::{
     },
 };
 
+#[derive(Debug)]
 pub struct TlogReader {
     pub path: PathBuf,
     name: arc_swap::ArcSwap<String>,

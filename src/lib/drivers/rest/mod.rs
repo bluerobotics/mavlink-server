@@ -23,6 +23,7 @@ pub struct MAVLinkMessage<T> {
     pub message: T,
 }
 
+#[derive(Debug)]
 pub struct Rest {
     name: arc_swap::ArcSwap<String>,
     uuid: DriverUuid,

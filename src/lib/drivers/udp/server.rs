@@ -17,6 +17,7 @@ use crate::{
     },
 };
 
+#[derive(Debug)]
 pub struct UdpServer {
     pub local_addr: String,
     name: arc_swap::ArcSwap<String>,

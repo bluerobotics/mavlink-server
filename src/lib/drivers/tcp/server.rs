@@ -20,6 +20,7 @@ use crate::{
     },
 };
 
+#[derive(Debug)]
 pub struct TcpServer {
     pub local_addr: String,
     name: arc_swap::ArcSwap<String>,
