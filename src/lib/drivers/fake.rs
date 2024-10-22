@@ -14,6 +14,7 @@ use crate::{
     },
 };
 
+#[derive(Debug)]
 pub struct FakeSink {
     name: arc_swap::ArcSwap<String>,
     uuid: DriverUuid,
@@ -148,6 +149,7 @@ impl DriverInfo for FakeSinkInfo {
     }
 }
 
+#[derive(Debug)]
 pub struct FakeSource {
     name: arc_swap::ArcSwap<String>,
     uuid: DriverUuid,

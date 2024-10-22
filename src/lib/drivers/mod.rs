@@ -37,7 +37,7 @@ pub struct DriverDescriptionLegacy {
 }
 
 #[async_trait::async_trait]
-pub trait Driver: Send + Sync + AccumulatedDriverStatsProvider {
+pub trait Driver: Send + Sync + AccumulatedDriverStatsProvider + std::fmt::Debug {
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()>;
 
     fn info(&self) -> Box<dyn DriverInfo>;
@@ -254,6 +254,7 @@ mod tests {
     }
 
     // Example struct implementing Driver
+    #[derive(Debug)]
     pub struct ExampleDriver {
         name: arc_swap::ArcSwap<String>,
         uuid: DriverUuid,

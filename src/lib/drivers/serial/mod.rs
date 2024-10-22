@@ -18,6 +18,7 @@ use crate::{
     },
 };
 
+#[derive(Debug)]
 pub struct Serial {
     name: arc_swap::ArcSwap<String>,
     uuid: DriverUuid,
