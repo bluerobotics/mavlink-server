@@ -12,6 +12,12 @@ pub struct Callbacks<T> {
     callbacks: Arc<Mutex<IndexMap<usize, Callback<T>>>>,
 }
 
+impl<T> std::fmt::Debug for Callbacks<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Callback").finish()
+    }
+}
+
 impl<T> Callbacks<T> {
     pub fn new() -> Self {
         Self {
