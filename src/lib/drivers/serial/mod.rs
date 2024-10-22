@@ -1,17 +1,20 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    sync::{broadcast, Mutex, RwLock},
-};
+use futures::StreamExt;
+use mavlink_codec::codec::MavlinkCodec;
+use tokio::sync::{broadcast, RwLock};
 use tokio_serial::{self, SerialPortBuilderExt};
+use tokio_util::codec::Framed;
 use tracing::*;
 
 use crate::{
     callbacks::{Callbacks, MessageCallback},
-    drivers::{Driver, DriverInfo},
-    protocol::{read_all_messages, Protocol},
+    drivers::{
+        generic_tasks::{default_send_receive_run, SendReceiveContext},
+        Driver, DriverInfo,
+    },
+    protocol::Protocol,
     stats::{
         accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
         driver::DriverUuid,
@@ -68,81 +71,6 @@ impl Serial {
             stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(name, &SerialInfo))),
         })
     }
-
-    #[instrument(level = "debug", skip(port, on_message_input))]
-    async fn serial_receive_task(
-        port_name: &str,
-        port: Arc<Mutex<tokio::io::ReadHalf<tokio_serial::SerialStream>>>,
-        hub_sender: broadcast::Sender<Arc<Protocol>>,
-
-        on_message_input: &Callbacks<Arc<Protocol>>,
-    ) -> Result<()> {
-        let mut buf = vec![0; 1024];
-
-        loop {
-            match port.lock().await.read(&mut buf).await {
-                // We got something
-                Ok(bytes_received) if bytes_received > 0 => {
-                    read_all_messages("serial", &mut buf, |message| async {
-                        let message = Arc::new(message);
-
-                        for future in on_message_input.call_all(message.clone()) {
-                            if let Err(error) = future.await {
-                                debug!("Dropping message: on_message_input callback returned error: {error:?}");
-                                continue;
-                            }
-                        }
-
-                        if let Err(error) = hub_sender.send(message) {
-                            error!("Failed to send message to hub: {error:?}, from {port_name:?}");
-                        }
-                    })
-                    .await;
-                }
-                // We got nothing
-                Ok(_) => {
-                    break;
-                }
-                // We got problems
-                Err(error) => {
-                    error!("Failed to receive serial message: {error:?}, from {port_name:?}");
-                    break;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    #[instrument(level = "debug", skip(port, on_message_output))]
-    async fn serial_send_task(
-        port_name: &str,
-        port: Arc<Mutex<tokio::io::WriteHalf<tokio_serial::SerialStream>>>,
-        mut hub_receiver: broadcast::Receiver<Arc<Protocol>>,
-        on_message_output: &Callbacks<Arc<Protocol>>,
-    ) -> Result<()> {
-        loop {
-            match hub_receiver.recv().await {
-                Ok(message) => {
-                    for future in on_message_output.call_all(message.clone()) {
-                        if let Err(error) = future.await {
-                            debug!("Dropping message: on_message_output callback returned error: {error:?}");
-                            continue;
-                        }
-                    }
-
-                    if let Err(error) = port.lock().await.write_all(&message.raw_bytes()).await {
-                        error!("Failed to send serial message: {error:?}");
-                        break;
-                    }
-                }
-                Err(error) => {
-                    error!("Failed to receive message from hub: {error:?}");
-                }
-            }
-        }
-        Ok(())
-    }
 }
 
 #[async_trait::async_trait]
@@ -150,35 +78,46 @@ impl Driver for Serial {
     #[instrument(level = "debug", skip(self, hub_sender))]
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let port_name = self.port_name.clone();
-        let (read, write) = match tokio_serial::new(&port_name, self.baud_rate)
-            .timeout(tokio::time::Duration::from_secs(1))
-            .open_native_async()
-        {
-            Ok(port) => {
-                let (read, write) = tokio::io::split(port);
-                (Arc::new(Mutex::new(read)), Arc::new(Mutex::new(write)))
-            }
-            Err(error) => {
-                error!("Failed to open serial port {port_name:?}: {error:?}");
-                return Err(error.into());
-            }
-        };
-        loop {
-            let hub_sender = hub_sender.clone();
-            let hub_receiver = hub_sender.subscribe();
 
-            tokio::select! {
-                result = Serial::serial_send_task(&port_name, write.clone(), hub_receiver, &self.on_message_output) => {
-                    if let Err(e) = result {
-                        error!("Error in serial receive task for {port_name}: {e:?}");
-                    }
-                }
-                result = Serial::serial_receive_task(&port_name, read.clone(), hub_sender, &self.on_message_input) => {
-                    if let Err(e) = result {
-                        error!("Error in serial send task for {port_name}: {e:?}");
-                    }
-                }
+        let context = SendReceiveContext {
+            hub_sender,
+            on_message_output: self.on_message_output.clone(),
+            on_message_input: self.on_message_input.clone(),
+            stats: self.stats.clone(),
+        };
+
+        let mut first = true;
+        loop {
+            if !first {
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                first = false;
             }
+
+            debug!("Trying to connect...");
+
+            let stream = match tokio_serial::new(&port_name, self.baud_rate)
+                .timeout(tokio::time::Duration::from_secs(1))
+                .open_native_async()
+            {
+                Ok(stream) => stream,
+                Err(error) => {
+                    error!("Failed to open serial port {port_name:?}: {error:?}");
+                    continue;
+                }
+            };
+
+            debug!("Successfully connected");
+
+            let codec = MavlinkCodec::<true, true, false, false, false, false>::default();
+            let (writer, reader) = Framed::new(stream, codec).split();
+
+            if let Err(reason) =
+                default_send_receive_run(writer, reader, &port_name, &context).await
+            {
+                warn!("Driver send/receive tasks closed: {reason}");
+            }
+
+            debug!("Restarting connection loop...");
         }
     }
 
