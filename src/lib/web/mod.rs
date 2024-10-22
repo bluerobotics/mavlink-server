@@ -77,7 +77,7 @@ async fn websocket_connection(socket: WebSocket, state: AppState) {
                 broadcast_message_websockets(&state, identifier, Message::Text(text)).await;
             }
             Message::Close(frame) => {
-                debug!("WS client {identifier} disconnected: {frame:#?}");
+                debug!("WS client {identifier} disconnected: {frame:?}");
                 break;
             }
             _ => {}
