@@ -18,7 +18,7 @@ use crate::{protocol::Protocol, stats::accumulated::driver::AccumulatedDriverSta
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Type {
-    FakeClient,
+    FakeSink,
     FakeSource,
     Serial,
     TlogWriter,
@@ -216,11 +216,11 @@ pub fn endpoints() -> Vec<ExtInfo> {
             typ: Type::UdpServer,
         },
         ExtInfo {
-            driver_ext: Box::new(fake::FakeSourceInfo),
-            typ: Type::FakeClient,
+            driver_ext: Box::new(fake::FakeSinkInfo),
+            typ: Type::FakeSink,
         },
         ExtInfo {
-            driver_ext: Box::new(fake::FakeSinkInfo),
+            driver_ext: Box::new(fake::FakeSourceInfo),
             typ: Type::FakeSource,
         },
     ]
