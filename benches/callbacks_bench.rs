@@ -14,7 +14,7 @@ fn bench_call_all(c: &mut Criterion) {
             number_of_callbacks,
             |b, &number_of_callbacks| {
                 let rt = Runtime::new().unwrap();
-                let callbacks = Callbacks::<String>::new();
+                let callbacks = Callbacks::<String>::default();
 
                 for _ in 0..number_of_callbacks {
                     callbacks.add_callback({

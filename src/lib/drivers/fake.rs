@@ -30,7 +30,7 @@ impl FakeSink {
         FakeSinkBuilder(Self {
             name: arc_swap::ArcSwap::new(name.clone()),
             uuid: Self::generate_uuid(&name),
-            on_message_input: Callbacks::new(),
+            on_message_input: Callbacks::default(),
             print: false,
             stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
                 name,
@@ -166,7 +166,7 @@ impl FakeSource {
             name: arc_swap::ArcSwap::new(name.clone()),
             uuid: Self::generate_uuid(&name),
             period,
-            on_message_output: Callbacks::new(),
+            on_message_output: Callbacks::default(),
             stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
                 name,
                 &FakeSourceInfo,

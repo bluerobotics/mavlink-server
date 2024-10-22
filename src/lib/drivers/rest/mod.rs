@@ -64,8 +64,8 @@ impl Rest {
         RestBuilder(Self {
             name: arc_swap::ArcSwap::new(name.clone()),
             uuid: Self::generate_uuid(&name),
-            on_message_input: Callbacks::new(),
-            on_message_output: Callbacks::new(),
+            on_message_input: Callbacks::default(),
+            on_message_output: Callbacks::default(),
             stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(name, &RestInfo))),
         })
     }
