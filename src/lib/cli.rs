@@ -162,6 +162,12 @@ pub fn command_line_string() -> String {
     std::env::args().collect::<Vec<String>>().join(" ")
 }
 
+// Return a clone of current Args struct
+#[instrument(level = "debug")]
+pub fn command_line() -> String {
+    format!("{:#?}", MANAGER.clap_matches)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
