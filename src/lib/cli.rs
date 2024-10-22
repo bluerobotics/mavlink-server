@@ -83,7 +83,7 @@ fn build_endpoints_help() -> String {
                 .collect::<Vec<String>>()
                 .join("\n\t\t ");
 
-            vec![
+            [
                 format!("{name}\t {help_schemas}").to_string(),
                 format!("\t legacy: {help_legacy}").to_string(),
                 format!("\t    url: {help_url}\n").to_string(),
