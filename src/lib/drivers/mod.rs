@@ -301,7 +301,7 @@ mod tests {
             let mut hub_receiver = hub_sender.subscribe();
 
             while let Ok(message) = hub_receiver.recv().await {
-                self.stats.write().await.stats.update_input(&message);
+                self.stats.write().await.stats.update_output(&message);
 
                 for future in self.on_message_input.call_all(message.clone()) {
                     if let Err(error) = future.await {
@@ -312,7 +312,7 @@ mod tests {
                     }
                 }
 
-                trace!("Message received: {message:?}");
+                trace!("Message sent: {message:?}");
             }
 
             Ok(())
