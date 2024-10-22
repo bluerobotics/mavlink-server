@@ -28,10 +28,10 @@ pub struct AccumulatedComponentMessageStats {
 impl AccumulatedHubMessagesStats {
     pub fn update(&mut self, message: &Arc<Protocol>) {
         self.systems_messages_stats
-            .entry(message.system_id())
+            .entry(*message.system_id())
             .or_default()
             .components_messages_stats
-            .entry(message.component_id())
+            .entry(*message.component_id())
             .or_default()
             .messages_stats
             .entry(message.message_id())
