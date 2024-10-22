@@ -12,6 +12,14 @@ pub struct Callbacks<T> {
     callbacks: Arc<Mutex<IndexMap<usize, Callback<T>>>>,
 }
 
+impl<T> Default for Callbacks<T> {
+    fn default() -> Self {
+        Self {
+            callbacks: Arc::new(Mutex::new(IndexMap::new())),
+        }
+    }
+}
+
 impl<T> std::fmt::Debug for Callbacks<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Callback").finish()
@@ -19,12 +27,6 @@ impl<T> std::fmt::Debug for Callbacks<T> {
 }
 
 impl<T> Callbacks<T> {
-    pub fn new() -> Self {
-        Self {
-            callbacks: Arc::new(Mutex::new(IndexMap::new())),
-        }
-    }
-
     pub fn add_callback<F, Fut>(&self, callback: F) -> usize
     where
         F: Fn(T) -> Fut + Send + Sync + 'static,
@@ -99,7 +101,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_callbacks() {
-        let callbacks = Callbacks::<String>::new();
+        let callbacks = Callbacks::<String>::default();
 
         let (tx1, rx1) = oneshot::channel();
         let tx1 = Arc::new(Mutex::new(Some(tx1)));

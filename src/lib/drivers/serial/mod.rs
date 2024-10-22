@@ -63,8 +63,8 @@ impl Serial {
             uuid: Self::generate_uuid(&format!("{port_name}:{baud_rate}")),
             port_name: port_name.to_string(),
             baud_rate,
-            on_message_input: Callbacks::new(),
-            on_message_output: Callbacks::new(),
+            on_message_input: Callbacks::default(),
+            on_message_output: Callbacks::default(),
             stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(name, &SerialInfo))),
         })
     }

@@ -51,7 +51,7 @@ impl TlogReader {
             path,
             name: arc_swap::ArcSwap::new(name.clone()),
             uuid: Self::generate_uuid(&path_str),
-            on_message_input: Callbacks::new(),
+            on_message_input: Callbacks::default(),
             stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
                 name,
                 &TlogReaderInfo,
