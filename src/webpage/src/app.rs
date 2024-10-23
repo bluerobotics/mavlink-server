@@ -478,7 +478,7 @@ impl App {
                                             format_duration(
                                                 (self.now - message_stats.last_update_us)
                                                     .to_std()
-                                                    .unwrap(),
+                                                    .unwrap_or(std::time::Duration::from_secs(0)),
                                             )
                                             .to_string()
                                                 + " Ago",
