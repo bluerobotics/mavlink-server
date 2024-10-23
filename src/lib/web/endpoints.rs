@@ -81,7 +81,7 @@ pub async fn mavlink(path: Option<Path<String>>) -> impl IntoResponse {
     crate::drivers::rest::data::messages(&path)
 }
 
-pub async fn driver_stats() -> impl IntoResponse {
+pub async fn drivers_stats() -> impl IntoResponse {
     Json(stats::drivers_stats().await.unwrap())
 }
 

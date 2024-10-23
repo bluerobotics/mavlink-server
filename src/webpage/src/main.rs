@@ -22,7 +22,7 @@ fn main() {
             .start(
                 canvas,
                 web_options,
-                Box::new(|_cc| Ok(Box::new(mavlink_server_frontend::App::new()))),
+                Box::new(|_cc| Ok(Box::new(mavlink_server_frontend::App::default()))),
             )
             .await
             .expect("failed to start eframe");

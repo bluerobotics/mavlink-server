@@ -26,17 +26,22 @@ use uuid::Uuid;
 
 use lazy_static::lazy_static;
 
-use crate::{hub, stats};
+use crate::stats;
 
 fn default_router(state: AppState) -> Router {
     Router::new()
         .route("/", get(endpoints::root))
         .route("/:path", get(endpoints::root))
         .route("/info", get(endpoints::info))
-        .route("/stats/driver", get(endpoints::driver_stats))
+        .route("/stats/drivers", get(endpoints::drivers_stats))
         .route("/stats/hub", get(endpoints::hub_stats))
         .route("/stats/messages", get(endpoints::hub_messages_stats))
-        .route("/stats/ws", get(stats_websocket_handler))
+        .route("/stats/drivers/ws", get(drivers_stats_websocket_handler))
+        .route("/stats/hub/ws", get(hub_stats_websocket_handler))
+        .route(
+            "/stats/messages/ws",
+            get(hub_messages_stats_websocket_handler),
+        )
         .route("/rest/ws", get(websocket_handler))
         // We are matching all possible keys for the user
         .route("/rest/mavlink", get(endpoints::mavlink))
@@ -49,6 +54,8 @@ fn default_router(state: AppState) -> Router {
 async fn websocket_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
     ws.on_upgrade(|socket| async { websocket_connection(socket, state).await })
 }
+
+#[instrument(level = "debug", skip(socket, state))]
 async fn websocket_connection(socket: WebSocket, state: AppState) {
     let identifier = Uuid::new_v4();
     debug!("WS client connected with ID: {identifier}");
@@ -90,20 +97,21 @@ async fn websocket_connection(socket: WebSocket, state: AppState) {
     send_task.await.unwrap();
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct FrequencyQuery {
     frequency: Option<u8>,
 }
 
-async fn stats_websocket_handler(
+async fn hub_messages_stats_websocket_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
     Query(freq_query): Query<FrequencyQuery>,
 ) -> Response {
-    ws.on_upgrade(|socket| stats_websocket_connection(socket, state, freq_query))
+    ws.on_upgrade(|socket| hub_messages_stats_websocket_connection(socket, state, freq_query))
 }
 
-async fn stats_websocket_connection(
+#[instrument(level = "debug", skip(socket, state))]
+async fn hub_messages_stats_websocket_connection(
     socket: WebSocket,
     state: AppState,
     freq_query: FrequencyQuery,
@@ -117,29 +125,162 @@ async fn stats_websocket_connection(
     let interval_duration = tokio::time::Duration::from_secs_f32(1.0 / frequency as f32);
     let periodic_task = tokio::spawn(async move {
         let mut interval = tokio::time::interval(interval_duration);
+        let mut first = true;
         loop {
-            interval.tick().await;
-            let hub_message_stats = match hub::hub_messages_stats().await {
+            if first {
+                first = false;
+            } else {
+                interval.tick().await;
+            }
+
+            let hub_message_stats = match stats::hub_messages_stats().await {
                 Ok(hub_message_stats) => hub_message_stats,
                 Err(error) => {
-                    warn!("Failed getting hub message stats: {error:?}");
+                    warn!("Failed getting Hub Messages Stats: {error:?}");
                     continue;
                 }
             };
+
             let json = match serde_json::to_string(&hub_message_stats) {
                 Ok(json) => json,
                 Err(error) => {
-                    warn!("Failed to create json from Hub Message Stats: {error:?}");
+                    warn!("Failed to create json from Hub Messages Stats: {error:?}");
                     continue;
                 }
             };
-            if sender.send(Message::Text(json)).await.is_err() {
+
+            if let Err(error) = sender.send(Message::Text(json)).await {
+                warn!("Failed to send message to WebSocket: {error:?}");
                 break;
             }
         }
     });
     if let Err(error) = periodic_task.await {
-        error!("Failed finishing task Stats WebSocket task: {error:?}");
+        error!("Failed finishing task Hub Messages Stats WebSocket task: {error:?}");
+    }
+
+    // Clean up when the connection is closed
+    state.clients.write().await.remove(&identifier);
+    debug!("WS client {identifier} removed");
+}
+
+async fn hub_stats_websocket_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+    Query(freq_query): Query<FrequencyQuery>,
+) -> Response {
+    ws.on_upgrade(|socket| hub_stats_websocket_connection(socket, state, freq_query))
+}
+
+#[instrument(level = "debug", skip(socket, state))]
+async fn hub_stats_websocket_connection(
+    socket: WebSocket,
+    state: AppState,
+    freq_query: FrequencyQuery,
+) {
+    let frequency = freq_query.frequency.unwrap_or(1);
+    let identifier = Uuid::new_v4();
+    debug!("WS client connected with ID: {identifier}");
+
+    let (mut sender, _receiver) = socket.split();
+
+    let interval_duration = tokio::time::Duration::from_secs_f32(1.0 / frequency as f32);
+    let periodic_task = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(interval_duration);
+        let mut first = true;
+        loop {
+            if first {
+                first = false;
+            } else {
+                interval.tick().await;
+            }
+
+            let hub_message_stats = match stats::hub_stats().await {
+                Ok(hub_message_stats) => hub_message_stats,
+                Err(error) => {
+                    warn!("Failed getting Hub Stats: {error:?}");
+                    continue;
+                }
+            };
+
+            let json = match serde_json::to_string(&hub_message_stats) {
+                Ok(json) => json,
+                Err(error) => {
+                    warn!("Failed to create json from Hub Stats: {error:?}");
+                    continue;
+                }
+            };
+
+            if let Err(error) = sender.send(Message::Text(json)).await {
+                warn!("Failed to send message to WebSocket: {error:?}");
+                break;
+            }
+        }
+    });
+    if let Err(error) = periodic_task.await {
+        error!("Failed finishing task Hub Stats WebSocket task: {error:?}");
+    }
+
+    // Clean up when the connection is closed
+    state.clients.write().await.remove(&identifier);
+    debug!("WS client {identifier} removed");
+}
+
+async fn drivers_stats_websocket_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+    Query(freq_query): Query<FrequencyQuery>,
+) -> Response {
+    ws.on_upgrade(|socket| drivers_stats_websocket_connection(socket, state, freq_query))
+}
+
+#[instrument(level = "debug", skip(socket, state))]
+async fn drivers_stats_websocket_connection(
+    socket: WebSocket,
+    state: AppState,
+    freq_query: FrequencyQuery,
+) {
+    let frequency = freq_query.frequency.unwrap_or(1);
+    let identifier = Uuid::new_v4();
+    debug!("WS client connected with ID: {identifier}");
+
+    let (mut sender, _receiver) = socket.split();
+
+    let interval_duration = tokio::time::Duration::from_secs_f32(1.0 / frequency as f32);
+    let periodic_task = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(interval_duration);
+        let mut first = true;
+        loop {
+            if first {
+                first = false;
+            } else {
+                interval.tick().await;
+            }
+
+            let drivers_stats = match stats::drivers_stats().await {
+                Ok(drivers_stats) => drivers_stats,
+                Err(error) => {
+                    warn!("Failed getting Drivers Stats: {error:?}");
+                    continue;
+                }
+            };
+
+            let json = match serde_json::to_string(&drivers_stats) {
+                Ok(json) => json,
+                Err(error) => {
+                    warn!("Failed to create json from Drivers Stats: {error:?}");
+                    continue;
+                }
+            };
+
+            if let Err(error) = sender.send(Message::Text(json)).await {
+                warn!("Failed to send message to WebSocket: {error:?}");
+                break;
+            }
+        }
+    });
+    if let Err(error) = periodic_task.await {
+        error!("Failed finishing task Drivers Stats WebSocket task: {error:?}");
     }
 
     // Clean up when the connection is closed
