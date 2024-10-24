@@ -51,8 +51,16 @@ where
             }
         }
 
-        if let Err(error) = writer.send(((**message).clone(), *remote_addr)).await {
-            error!(client = ?remote_addr, "Failed to send message: {error:?}");
+        if let Err(io_error) = writer.send(((**message).clone(), *remote_addr)).await {
+            match io_error.kind() {
+                std::io::ErrorKind::ConnectionRefused => {
+                    trace!(client = ?remote_addr, "Failed send message: {io_error}");
+                    continue;
+                }
+                _ => {
+                    error!(client = ?remote_addr, "Failed to send message: {io_error:?}");
+                }
+            }
             break;
         }
 
