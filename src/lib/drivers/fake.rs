@@ -323,8 +323,21 @@ impl DriverInfo for FakeSourceInfo {
         ]
     }
 
-    fn create_endpoint_from_url(&self, _url: &url::Url) -> Option<Arc<dyn Driver>> {
-        Some(Arc::new(FakeSink::builder("Unnamed").print().build()))
+    fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
+        let period: u64 = url
+            .query_pairs()
+            .find_map(|(key, value)| {
+                if key == "period" {
+                    value.parse().ok()
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(10);
+
+        Some(Arc::new(
+            FakeSource::builder("Unnamed", std::time::Duration::from_millis(period)).build(),
+        ))
     }
 }
 
