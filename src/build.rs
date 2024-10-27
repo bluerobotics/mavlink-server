@@ -90,6 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
+    info!("Building frontend...");
     let mut trunk_command = Command::new("trunk");
     trunk_command.args(["build", "./src/webpage/index.html"]);
 
