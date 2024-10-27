@@ -1,4 +1,8 @@
-use std::process::{exit, Command};
+use std::{
+    env,
+    path::Path,
+    process::{exit, Command},
+};
 
 use vergen_gix::{BuildBuilder, CargoBuilder, DependencyKind, GixBuilder};
 
@@ -64,7 +68,11 @@ fn install_trunk() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("cargo:rerun-if-changed=./src/webpage/");
+    let out_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    for path in ["src", "assets", "index.html"].iter() {
+        let p = Path::new(&out_dir).join(format!("src/webpage/{}", path));
+        println!("cargo:rerun-if-changed={}", p.display());
+    }
 
     vergen_gix::Emitter::default()
         .add_instructions(&BuildBuilder::all_build()?)?
