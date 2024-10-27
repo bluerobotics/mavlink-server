@@ -81,6 +81,13 @@ pub async fn mavlink(path: Option<Path<String>>) -> impl IntoResponse {
     crate::drivers::rest::data::messages(&path)
 }
 
+pub async fn message_id_from_name(name: Path<String>) -> impl IntoResponse {
+    use mavlink::{self, Message};
+    mavlink::ardupilotmega::MavMessage::message_id_from_name(&name.0.to_ascii_uppercase())
+        .map(|id| (StatusCode::OK, Json(id)).into_response())
+        .unwrap_or_else(|_| (StatusCode::NOT_FOUND, "404 Not Found").into_response())
+}
+
 pub async fn driver_stats() -> impl IntoResponse {
     Json(stats::drivers_stats().await.unwrap())
 }

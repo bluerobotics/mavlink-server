@@ -42,6 +42,10 @@ fn default_router(state: AppState) -> Router {
         .route("/rest/mavlink", get(endpoints::mavlink))
         .route("/rest/mavlink/", get(endpoints::mavlink))
         .route("/rest/mavlink/*path", get(endpoints::mavlink))
+        .route(
+            "/rest/mavlink/message_id_from_name/*name",
+            get(endpoints::message_id_from_name),
+        )
         .fallback(get(|| async { (StatusCode::NOT_FOUND, "Not found :(") }))
         .with_state(state)
 }
