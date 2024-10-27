@@ -26,7 +26,10 @@ fn install_wasm_target() {
         .expect("Failed to execute rustup");
 
     if !output.status.success() {
-        eprintln!("T{}", String::from_utf8_lossy(&output.stderr));
+        eprintln!(
+            "Failed to install webasm: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         exit(1);
     }
 }
@@ -50,7 +53,10 @@ fn install_trunk() -> Result<(), Box<dyn std::error::Error>> {
         .output()?;
 
     if !output.status.success() {
-        eprintln!("TT{}", String::from_utf8_lossy(&output.stderr));
+        eprintln!(
+            "Failed to install trunk: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         exit(1);
     }
 
