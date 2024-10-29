@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use axum::{
     extract::Path,
     http::{header, StatusCode},
@@ -71,6 +73,12 @@ pub async fn info() -> Json<Info> {
     };
 
     Json(info)
+}
+
+pub async fn info_full() -> impl IntoResponse {
+    let toml = std::str::from_utf8(include_bytes!("../../../Cargo.toml")).unwrap();
+    let content: serde_json::Value = toml::from_str(toml).unwrap();
+    serde_json::to_string(&content).unwrap()
 }
 
 pub async fn mavlink(path: Option<Path<String>>) -> impl IntoResponse {
