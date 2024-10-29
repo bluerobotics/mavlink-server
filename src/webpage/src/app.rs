@@ -114,6 +114,33 @@ impl App {
         }
     }
 
+    fn reconnect(&mut self) {
+        let location = window().unwrap().location();
+        let host = location.host().unwrap();
+        let protocol = if location.protocol().unwrap() == "https:" {
+            "wss:"
+        } else {
+            "ws:"
+        };
+
+        let url = format!("{protocol}//{host}/rest/ws");
+        let (mavlink_sender, mavlink_receiver) = {
+            let url = Url::parse(&url).unwrap().to_string();
+            connect(url, ewebsock::Options::default()).expect("Can't connect")
+        };
+
+        let url = format!("{protocol}//{host}/stats/ws?frequency=20");
+        let (stats_sender, stats_receiver) = {
+            let url = Url::parse(&url).unwrap().to_string();
+            connect(url, ewebsock::Options::default()).expect("Can't connect")
+        };
+
+        self.mavlink_sender = mavlink_sender;
+        self.mavlink_receiver = mavlink_receiver;
+        self.stats_sender = stats_sender;
+        self.stats_receiver = stats_receiver;
+    }
+
     fn top_bar(&mut self, ctx: &Context) {
         eframe::egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             eframe::egui::menu::bar(ui, |ui| {
@@ -131,69 +158,89 @@ impl App {
         });
     }
 
+    fn deal_with_mavlink_message(&mut self, message: String) {
+        let Ok(message_json) = serde_json::from_str::<serde_json::Value>(&message) else {
+            return;
+        };
+        let Some(system_id) = message_json["header"]["system_id"]
+            .as_u64()
+            .map(|n| n as u8)
+        else {
+            return;
+        };
+        let Some(component_id) = message_json["header"]["component_id"]
+            .as_u64()
+            .map(|n| n as u8)
+        else {
+            return;
+        };
+        let Some(message_name) = message_json["message"]["type"]
+            .as_str()
+            .map(|s| s.to_string())
+        else {
+            return;
+        };
+        self.vehicles_mavlink
+            .entry(system_id)
+            .or_default()
+            .entry(component_id)
+            .or_default();
+        let Some(vehicle) = self.vehicles_mavlink.get_mut(&system_id) else {
+            return;
+        };
+        let Some(messages) = vehicle.get_mut(&component_id) else {
+            return;
+        };
+        let message_info = messages.entry(message_name).or_insert_with(|| MessageInfo {
+            last_sample_time: self.now,
+            fields: Default::default(),
+        });
+        message_info.last_sample_time = self.now;
+        let Some(fields) = message_json["message"].as_object() else {
+            return;
+        };
+        for (field_name, value) in fields {
+            if field_name == "type" {
+                continue;
+            }
+            let Some(num) = extract_number(value) else {
+                continue;
+            };
+            let field_info = message_info
+                .fields
+                .entry(field_name.clone())
+                .or_insert_with(|| FieldInfo {
+                    history: Vec::new(),
+                    latest_value: num,
+                });
+            field_info.latest_value = num;
+            field_info.history.push((self.now, num));
+            if field_info.history.len() > 1000 {
+                field_info.history.remove(0);
+            }
+        }
+    }
+
     fn process_mavlink_websocket(&mut self) {
-        while let Some(ewebsock::WsEvent::Message(ewebsock::WsMessage::Text(message))) =
-            self.mavlink_receiver.try_recv()
-        {
-            let Ok(message_json) = serde_json::from_str::<serde_json::Value>(&message) else {
-                continue;
-            };
-            let Some(system_id) = message_json["header"]["system_id"]
-                .as_u64()
-                .map(|n| n as u8)
-            else {
-                continue;
-            };
-            let Some(component_id) = message_json["header"]["component_id"]
-                .as_u64()
-                .map(|n| n as u8)
-            else {
-                continue;
-            };
-            let Some(message_name) = message_json["message"]["type"]
-                .as_str()
-                .map(|s| s.to_string())
-            else {
-                continue;
-            };
-            self.vehicles_mavlink
-                .entry(system_id)
-                .or_default()
-                .entry(component_id)
-                .or_default();
-            let Some(vehicle) = self.vehicles_mavlink.get_mut(&system_id) else {
-                continue;
-            };
-            let Some(messages) = vehicle.get_mut(&component_id) else {
-                continue;
-            };
-            let message_info = messages.entry(message_name).or_insert_with(|| MessageInfo {
-                last_sample_time: self.now,
-                fields: Default::default(),
-            });
-            message_info.last_sample_time = self.now;
-            let Some(fields) = message_json["message"].as_object() else {
-                continue;
-            };
-            for (field_name, value) in fields {
-                if field_name == "type" {
-                    continue;
+        loop {
+            match self.mavlink_receiver.try_recv() {
+                Some(ewebsock::WsEvent::Message(ewebsock::WsMessage::Text(message))) => self.deal_with_mavlink_message(message),
+                Some(ewebsock::WsEvent::Closed) => {
+                    log::error!("MAVLink WebSocket closed");
+                    self.reconnect();
+                    break;
                 }
-                let Some(num) = extract_number(value) else {
-                    continue;
-                };
-                let field_info = message_info
-                    .fields
-                    .entry(field_name.clone())
-                    .or_insert_with(|| FieldInfo {
-                        history: Vec::new(),
-                        latest_value: num,
-                    });
-                field_info.latest_value = num;
-                field_info.history.push((self.now, num));
-                if field_info.history.len() > 1000 {
-                    field_info.history.remove(0);
+                Some(ewebsock::WsEvent::Error(message)) => {
+                    log::error!("MAVLink WebSocket error: {}", message);
+                    break;
                 }
+                Some(ewebsock::WsEvent::Opened) => {
+                    log::info!("MAVLink WebSocket opened");
+                }
+                something @ Some(_) => {
+                    log::warn!("Unexpected event: {:#?}", something);
+                }
+                None => break,
             }
         }
     }
