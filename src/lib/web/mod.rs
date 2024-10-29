@@ -2,6 +2,7 @@ mod endpoints;
 
 use std::{
     collections::HashMap,
+    net::SocketAddr,
     sync::{Arc, Mutex},
 };
 
@@ -12,7 +13,7 @@ use axum::{
     },
     http::StatusCode,
     response::Response,
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
@@ -49,6 +50,7 @@ fn default_router(state: AppState) -> Router {
         .route("/rest/ws", get(websocket_handler))
         // We are matching all possible keys for the user
         .route("/rest/mavlink", get(endpoints::mavlink))
+        .route("/rest/mavlink", post(endpoints::post_mavlink))
         .route("/rest/mavlink/", get(endpoints::mavlink))
         .route("/rest/mavlink/*path", get(endpoints::mavlink))
         .route(
@@ -369,9 +371,14 @@ pub async fn run(address: String) {
             }
         };
 
-        if let Err(error) = axum::serve(listener, router.clone())
-            .with_graceful_shutdown(shutdown_signal())
-            .await
+        if let Err(error) = axum::serve(
+            listener,
+            router
+                .clone()
+                .into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(shutdown_signal())
+        .await
         {
             error!("WebServer error: {error}");
             continue;
