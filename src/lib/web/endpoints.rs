@@ -1,5 +1,7 @@
+use std::net::SocketAddr;
+
 use axum::{
-    extract::Path,
+    extract::{connect_info::ConnectInfo, Path, State},
     http::{header, StatusCode},
     response::IntoResponse,
     Json,
@@ -7,8 +9,10 @@ use axum::{
 use include_dir::{include_dir, Dir};
 use mime_guess::from_path;
 use serde::{Deserialize, Serialize};
+use tracing::*;
 
 use crate::stats;
+use crate::web::AppState;
 
 static HTML_DIST: Dir = include_dir!("src/webpage/dist");
 
@@ -90,6 +94,17 @@ pub async fn mavlink(path: Option<Path<String>>) -> impl IntoResponse {
         None => String::default(),
     };
     crate::drivers::rest::data::messages(&path)
+}
+
+pub async fn post_mavlink(
+    ConnectInfo(address): ConnectInfo<SocketAddr>,
+    State(state): State<AppState>,
+    message: String,
+) {
+    debug!("Got message from: {address:?}, {message}");
+    if let Err(error) = state.message_tx.send(message) {
+        error!("Failed to send message to main loop: {error:?}");
+    }
 }
 
 pub async fn message_id_from_name(name: Path<String>) -> impl IntoResponse {
