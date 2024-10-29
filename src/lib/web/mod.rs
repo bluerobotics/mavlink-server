@@ -33,6 +33,7 @@ fn default_router(state: AppState) -> Router {
         .route("/", get(endpoints::root))
         .route("/:path", get(endpoints::root))
         .route("/info", get(endpoints::info))
+        .route("/info_full", get(endpoints::info_full))
         .route("/stats/driver", get(endpoints::driver_stats))
         .route("/stats/hub", get(endpoints::hub_stats))
         .route("/stats/messages", get(endpoints::hub_messages_stats))
