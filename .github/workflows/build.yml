@@ -82,7 +82,13 @@ jobs:
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
     - name: Install build dependencies - Cargo-Binstall
-      uses: cargo-bins/cargo-binstall@main
+      if: runner.os != 'Windows'
+      shell: sh
+      run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+    - name: Install build dependencies - Cargo-Binstall
+      if: runner.os == 'Windows'
+      run: Set-ExecutionPolicy Unrestricted -Scope Process; iex (iwr "https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.ps1").Content
+      shell: powershell
 
     - name: Install build dependencies - Cross, Trunk
       run: cargo binstall -y trunk cross
