@@ -95,11 +95,13 @@ impl Driver for UdpServer {
             stats: self.stats.clone(),
         };
 
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
         let mut first = true;
         loop {
-            if !first {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            if first {
                 first = false;
+            } else {
+                interval.tick().await;
             }
 
             debug!("Trying to bind to address {local_addr:?}...");
@@ -108,7 +110,6 @@ impl Driver for UdpServer {
                 Ok(socket) => Arc::new(socket),
                 Err(error) => {
                     error!("Failed binding UdpServer to address {local_addr:?}: {error:?}");
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     continue;
                 }
             };

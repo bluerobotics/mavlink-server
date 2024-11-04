@@ -162,11 +162,13 @@ pub fn parse_query<T: serde::ser::Serialize>(message: &T) -> String {
 impl Driver for Rest {
     #[instrument(level = "debug", skip(self, hub_sender))]
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
         let mut first = true;
         loop {
-            if !first {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            if first {
                 first = false;
+            } else {
+                interval.tick().await;
             }
 
             let hub_sender = hub_sender.clone();
