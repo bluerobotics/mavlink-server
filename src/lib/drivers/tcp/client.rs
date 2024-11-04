@@ -89,13 +89,7 @@ impl Driver for TcpClient {
             stats: self.stats.clone(),
         };
 
-        let mut first = true;
         loop {
-            if !first {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                first = false;
-            }
-
             debug!("Trying to connect...");
 
             let stream = match TcpStream::connect(server_addr).await {

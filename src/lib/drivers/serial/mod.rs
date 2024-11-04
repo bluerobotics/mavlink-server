@@ -86,13 +86,7 @@ impl Driver for Serial {
             stats: self.stats.clone(),
         };
 
-        let mut first = true;
         loop {
-            if !first {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                first = false;
-            }
-
             debug!("Trying to connect...");
 
             let stream = match tokio_serial::new(&port_name, self.baud_rate)

@@ -95,13 +95,7 @@ impl Driver for UdpServer {
             stats: self.stats.clone(),
         };
 
-        let mut first = true;
         loop {
-            if !first {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                first = false;
-            }
-
             debug!("Trying to bind to address {local_addr:?}...");
 
             let socket = match UdpSocket::bind(&local_addr).await {
