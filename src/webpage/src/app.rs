@@ -23,8 +23,8 @@ pub struct App {
     expand_all: bool,
 }
 
-impl App {
-    pub fn new() -> Self {
+impl Default for App {
+    fn default() -> Self {
         let location = window().unwrap().location();
         let host = location.host().unwrap();
         let protocol = if location.protocol().unwrap() == "https:" {
@@ -58,7 +58,9 @@ impl App {
             expand_all: false,
         }
     }
+}
 
+impl App {
     fn reconnect(&mut self) {
         let location = window().unwrap().location();
         let host = location.host().unwrap();
