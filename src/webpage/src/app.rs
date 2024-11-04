@@ -13,6 +13,7 @@ use web_sys::window;
 use crate::{
     messages::{FieldInfo, MessageInfo, VehiclesMessages},
     stats::{
+        drivers_stats::{DriversStatsHistorical, DriversStatsSample},
         hub_messages_stats::{HubMessagesStatsHistorical, HubMessagesStatsSample},
         hub_stats::{HubStatsHistorical, HubStatsSample},
         ByteStatsHistorical, DelayStatsHistorical, MessageStatsHistorical, StatsInner,
@@ -22,6 +23,7 @@ use crate::{
 const MAVLINK_MESSAGES_WEBSOCKET_PATH: &str = "rest/ws";
 const HUB_MESSAGES_STATS_WEBSOCKET_PATH: &str = "stats/messages/ws";
 const HUB_STATS_WEBSOCKET_PATH: &str = "stats/hub/ws";
+const DRIVERS_STATS_WEBSOCKET_PATH: &str = "stats/drivers/ws";
 
 pub struct App {
     now: DateTime<Utc>,
@@ -31,12 +33,16 @@ pub struct App {
     hub_messages_stats_sender: WsSender,
     hub_stats_receiver: WsReceiver,
     hub_stats_sender: WsSender,
+    drivers_stats_receiver: WsReceiver,
+    drivers_stats_sender: WsSender,
     /// Realtime messages, grouped by Vehicle ID and Component ID
     vehicles_mavlink: VehiclesMessages,
     /// Hub messages statsistics, groupbed by Vehicle ID and Component ID
     hub_messages_stats: HubMessagesStatsHistorical,
     /// Hub statistics
     hub_stats: HubStatsHistorical,
+    /// Driver statistics
+    drivers_stats: DriversStatsHistorical,
     search_query: String,
     collapse_all: bool,
     expand_all: bool,
@@ -53,6 +59,9 @@ impl Default for App {
         let (hub_stats_sender, hub_stats_receiver) =
             connect_websocket(HUB_STATS_WEBSOCKET_PATH).unwrap();
 
+        let (drivers_stats_sender, drivers_stats_receiver) =
+            connect_websocket(DRIVERS_STATS_WEBSOCKET_PATH).unwrap();
+
         Self {
             now: Utc::now(),
             mavlink_receiver,
@@ -61,9 +70,12 @@ impl Default for App {
             hub_messages_stats_sender,
             hub_stats_receiver,
             hub_stats_sender,
+            drivers_stats_receiver,
+            drivers_stats_sender,
             vehicles_mavlink: Default::default(),
             hub_messages_stats: Default::default(),
             hub_stats: Default::default(),
+            drivers_stats: Default::default(),
             search_query: String::new(),
             collapse_all: false,
             expand_all: false,
@@ -284,6 +296,53 @@ impl App {
         self.hub_stats.update(hub_stats_sample)
     }
 
+    fn process_drivers_stats_websocket(&mut self) {
+        use ewebsock::{WsEvent, WsMessage};
+
+        loop {
+            match self.drivers_stats_receiver.try_recv() {
+                Some(WsEvent::Message(WsMessage::Text(message))) => {
+                    self.deal_with_drivers_stats_message(message)
+                }
+                Some(WsEvent::Closed) => {
+                    log::error!("Drivers Stats WebSocket closed");
+                    (self.drivers_stats_sender, self.drivers_stats_receiver) =
+                        connect_websocket(DRIVERS_STATS_WEBSOCKET_PATH).unwrap();
+
+                    break;
+                }
+                Some(WsEvent::Error(message)) => {
+                    log::error!("Drivers Stats WebSocket error: {message}");
+                    (self.drivers_stats_sender, self.drivers_stats_receiver) =
+                        connect_websocket(DRIVERS_STATS_WEBSOCKET_PATH).unwrap();
+
+                    break;
+                }
+                Some(WsEvent::Opened) => {
+                    log::info!("Drivers Stats WebSocket opened");
+                }
+                something @ Some(_) => {
+                    log::trace!("Drivers Stats WebSocket got an unexpected event: {something:#?}");
+                }
+                None => break,
+            }
+        }
+    }
+
+    fn deal_with_drivers_stats_message(&mut self, message: String) {
+        let drivers_stats_sample = match serde_json::from_str::<DriversStatsSample>(&message) {
+            Ok(stats) => stats,
+            Err(error) => {
+                log::error!(
+                    "Failed to parse Drivers Stats message: {error:?}. Message: {message:#?}"
+                );
+                return;
+            }
+        };
+
+        self.drivers_stats.update(drivers_stats_sample)
+    }
+
     fn create_messages_ui(&self, ui: &mut eframe::egui::Ui) {
         let search_query = self.search_query.to_lowercase();
         eframe::egui::ScrollArea::vertical().show(ui, |ui| {
@@ -458,6 +517,111 @@ impl App {
                     });
             });
     }
+
+    fn create_drivers_stats_ui(&self, ui: &mut eframe::egui::Ui) {
+        eframe::egui::ScrollArea::vertical()
+            .id_salt("scrolldrivers_stats")
+            .show(ui, |ui| {
+                let drivers_stats = &self.drivers_stats.drivers_stats;
+
+                for (driver_uuid, driver_stats) in drivers_stats {
+                    let driver_name = &driver_stats.name;
+                    let driver_type = &driver_stats.driver_type;
+
+                    let drivers_stats_id_str = format!("driver_stats_{driver_uuid}");
+                    let drivers_stats_id_hash = ui.make_persistent_id(&drivers_stats_id_str);
+
+                    let _ = CollapsingHeader::new(format!("Driver Stats: {driver_name}"))
+                        .id_salt(drivers_stats_id_hash)
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            let stats = &driver_stats.stats;
+
+                            TableBuilder::new(ui)
+                                .id_salt(format!("driver_stats_info_table_{driver_uuid}"))
+                                .striped(true)
+                                .column(Column::auto().at_least(120.))
+                                .column(Column::remainder().at_least(150.))
+                                .body(|mut body| {
+                                    body.row(15., |mut row| {
+                                        row.col(|ui| {
+                                            ui.label("Name");
+                                        });
+                                        row.col(|ui| {
+                                            ui.label(driver_name);
+                                        });
+                                    });
+
+                                    body.row(15., |mut row| {
+                                        row.col(|ui| {
+                                            ui.label("Type");
+                                        });
+                                        row.col(|ui| {
+                                            ui.label(driver_type);
+                                        });
+                                    });
+
+                                    body.row(15., |mut row| {
+                                        row.col(|ui| {
+                                            ui.label("UUID");
+                                        });
+                                        row.col(|ui| {
+                                            ui.label(driver_uuid.to_string());
+                                        });
+                                    });
+                                });
+
+                            let _ = CollapsingHeader::new("Input")
+                                .id_salt(ui.make_persistent_id(format!(
+                                    "driver_stats_input_{driver_uuid}"
+                                )))
+                                .default_open(true)
+                                .show(ui, |ui| {
+                                    if let Some(input_stats) = &stats.input {
+                                        TableBuilder::new(ui)
+                                            .id_salt(format!(
+                                                "driver_stats_input_table_{driver_uuid}"
+                                            ))
+                                            .striped(true)
+                                            .column(Column::auto().at_least(100.))
+                                            .column(Column::remainder().at_least(150.))
+                                            .body(|mut body| {
+                                                add_label_and_plot_all_stats(
+                                                    &mut body,
+                                                    self.now,
+                                                    input_stats,
+                                                );
+                                            });
+                                    }
+                                });
+
+                            let _ = CollapsingHeader::new("Output")
+                                .id_salt(ui.make_persistent_id(format!(
+                                    "driver_stats_output_{driver_uuid}"
+                                )))
+                                .default_open(true)
+                                .show(ui, |ui| {
+                                    if let Some(output_stats) = &stats.output {
+                                        TableBuilder::new(ui)
+                                            .id_salt(format!(
+                                                "driver_stats_output_table_{driver_uuid}"
+                                            ))
+                                            .striped(true)
+                                            .column(Column::auto().at_least(100.))
+                                            .column(Column::remainder().at_least(150.))
+                                            .body(|mut body| {
+                                                add_label_and_plot_all_stats(
+                                                    &mut body,
+                                                    self.now,
+                                                    output_stats,
+                                                );
+                                            });
+                                    }
+                                });
+                        });
+                }
+            });
+    }
 }
 
 fn get_protocol() -> (String, String) {
@@ -564,6 +728,7 @@ impl eframe::App for App {
         self.process_mavlink_websocket();
         self.process_hub_messages_stats_websocket();
         self.process_hub_stats_websocket();
+        self.process_drivers_stats_websocket();
 
         self.top_bar(ctx);
 
