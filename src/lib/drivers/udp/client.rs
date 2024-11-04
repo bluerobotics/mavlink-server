@@ -87,11 +87,13 @@ impl Driver for UdpClient {
             stats: self.stats.clone(),
         };
 
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
         let mut first = true;
         loop {
-            if !first {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            if first {
                 first = false;
+            } else {
+                interval.tick().await;
             }
 
             debug!("Trying to bind to address {local_addr:?}...");
@@ -100,7 +102,6 @@ impl Driver for UdpClient {
                 Ok(socket) => socket,
                 Err(error) => {
                     error!("Failed binding UdpClient to address {local_addr:?}: {error:?}");
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     continue;
                 }
             };
@@ -109,7 +110,6 @@ impl Driver for UdpClient {
 
             if let Err(error) = socket.connect(&remote_addr).await {
                 error!("Failed connecting UdpClient to {remote_addr:?}: {error:?}");
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 continue;
             };
 
