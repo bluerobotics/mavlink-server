@@ -47,6 +47,9 @@ pub struct App {
     search_query: String,
     collapse_all: bool,
     expand_all: bool,
+    showhub_stats: Arc<Mutex<bool>>,
+    show_messages_stats: Arc<Mutex<bool>>,
+    showdrivers_stats: Arc<Mutex<bool>>,
     stats_frequency: Arc<Mutex<f32>>,
 }
 
@@ -84,6 +87,9 @@ impl Default for App {
             search_query: String::new(),
             collapse_all: false,
             expand_all: false,
+            showhub_stats: Arc::new(Mutex::new(false)),
+            show_messages_stats: Arc::new(Mutex::new(false)),
+            showdrivers_stats: Arc::new(Mutex::new(false)),
             stats_frequency,
         }
     }
@@ -738,39 +744,94 @@ impl eframe::App for App {
 
         self.top_bar(ctx);
 
-        eframe::egui::SidePanel::left("left_panel").show(ctx, |ui| {
-            ui.heading("Messages");
-            ui.horizontal(|ui| {
-                ui.label("Search:");
-                ui.add(
-                    eframe::egui::TextEdit::singleline(&mut self.search_query)
-                        .hint_text("Search..."),
-                );
-                if ui.button("Clear").clicked() {
-                    self.search_query.clear();
-                }
-                if ui.button("Collapse All").clicked() {
-                    self.collapse_all = true;
+        egui::SidePanel::left("left_menu")
+            .show_separator_line(true)
+            .min_width(150.)
+            .show(ctx, |ui| {
+                ui.vertical(|ui| {
+                    ui.checkbox(&mut self.showhub_stats.lock(), "Hub Stats");
+                    ui.checkbox(&mut self.show_messages_stats.lock(), "Messages Stats");
+                    ui.checkbox(&mut self.showdrivers_stats.lock(), "Drivers Stats");
+                });
+
+                ui.separator();
+
+                ui.vertical(|ui| {
+                    let mut stats_frequency = self.stats_frequency.lock().to_owned();
+                    ui.label("Stats Frequency");
+                    if ui
+                        .add(
+                            egui::Slider::new(&mut stats_frequency, 0.1..=10.)
+                                .suffix("Hz")
+                                .fixed_decimals(1)
+                                .step_by(0.1)
+                                .logarithmic(true)
+                                .trailing_fill(true),
+                        )
+                        .drag_stopped()
+                    {
+                        crate::stats::stats_frequency::set_stats_frequency(
+                            &self.stats_frequency.clone(),
+                            stats_frequency,
+                        );
+                    }
+                });
+            });
+
+        egui::SidePanel::left("messages_inspector")
+            .show_separator_line(true)
+            .min_width(250.)
+            .show(ctx, |ui| {
+                ui.horizontal_top(|ui| {
+                    ui.label("Search:");
+                    ui.add(
+                        eframe::egui::TextEdit::singleline(&mut self.search_query)
+                            .hint_text("Search...")
+                            .desired_width(100.),
+                    );
+                    if ui.button("Clear").clicked() {
+                        self.search_query.clear();
+                    }
+                    if ui.button("Collapse All").clicked() {
+                        self.collapse_all = true;
+                        self.expand_all = false;
+                    }
+                    if ui.button("Expand All").clicked() {
+                        self.expand_all = true;
+                        self.collapse_all = false;
+                    }
+                });
+
+                self.create_messages_ui(ui);
+
+                // Reset collapse and expand flags
+                if self.expand_all || self.collapse_all {
                     self.expand_all = false;
-                }
-                if ui.button("Expand All").clicked() {
-                    self.expand_all = true;
                     self.collapse_all = false;
                 }
             });
 
-            self.create_messages_ui(ui);
-            //self.create_messages_stats_ui(ui);
-            // Reset collapse and expand flags
-            if self.expand_all || self.collapse_all {
-                self.expand_all = false;
-                self.collapse_all = false;
-            }
+        egui::CentralPanel::default().show(ctx, |_ui| {
+            // TODO: In the future, we can add the mavlink2rest message watcher here
         });
 
-        eframe::egui::CentralPanel::default().show(ctx, |ui| {
-            self.create_hub_messages_stats_ui(ui);
-        });
+        egui::Window::new("Hub Stats")
+            .open(&mut self.showhub_stats.lock())
+            .show(ctx, |ui| {
+                self.create_hub_stats_ui(ui);
+            });
+
+        egui::Window::new("Messages Stats")
+            .open(&mut self.show_messages_stats.lock())
+            .show(ctx, |ui| {
+                self.create_hub_messages_stats_ui(ui);
+            });
+
+        egui::Window::new("Drivers Stats")
+            .open(&mut self.showdrivers_stats.lock())
+            .show(ctx, |ui| {
+                self.create_drivers_stats_ui(ui);
+            });
 
         ctx.request_repaint();
     }
