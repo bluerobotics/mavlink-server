@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use indexmap::IndexMap;
-use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio::sync::{mpsc, Mutex, Notify, RwLock};
 use tracing::*;
 
 use crate::{
@@ -23,10 +23,13 @@ pub struct StatsActor {
     update_period: Arc<RwLock<tokio::time::Duration>>,
     last_accumulated_drivers_stats: Arc<Mutex<AccumulatedDriversStats>>,
     drivers_stats: Arc<RwLock<DriversStats>>,
+    drivers_stats_notify: Arc<Notify>,
     last_accumulated_hub_stats: Arc<Mutex<AccumulatedStatsInner>>,
     hub_stats: Arc<RwLock<StatsInner>>,
+    hub_stats_notify: Arc<Notify>,
     last_accumulated_hub_messages_stats: Arc<Mutex<AccumulatedHubMessagesStats>>,
     hub_messages_stats: Arc<RwLock<HubMessagesStats>>,
+    hub_messages_stats_notify: Arc<Notify>,
 }
 
 impl StatsActor {
@@ -35,6 +38,7 @@ impl StatsActor {
             let update_period = self.update_period.clone();
             let last_accumulated_drivers_stats = self.last_accumulated_drivers_stats.clone();
             let drivers_stats = self.drivers_stats.clone();
+            let drivers_stats_notify = self.drivers_stats_notify.clone();
             let start_time = self.start_time.clone();
 
             async move {
@@ -46,6 +50,8 @@ impl StatsActor {
                     )
                     .await;
 
+                    drivers_stats_notify.notify_waiters();
+
                     tokio::time::sleep(*update_period.read().await).await;
                 }
             }
@@ -55,11 +61,14 @@ impl StatsActor {
             let update_period = self.update_period.clone();
             let last_accumulated_hub_stats = self.last_accumulated_hub_stats.clone();
             let hub_stats = self.hub_stats.clone();
+            let hub_stats_notify = self.hub_stats_notify.clone();
             let start_time = self.start_time.clone();
 
             async move {
                 loop {
                     update_hub_stats(&last_accumulated_hub_stats, &hub_stats, &start_time).await;
+
+                    hub_stats_notify.notify_waiters();
 
                     tokio::time::sleep(*update_period.read().await).await;
                 }
@@ -71,6 +80,7 @@ impl StatsActor {
             let last_accumulated_hub_messages_stats =
                 self.last_accumulated_hub_messages_stats.clone();
             let hub_messages_stats = self.hub_messages_stats.clone();
+            let hub_messages_stats_notify = self.hub_messages_stats_notify.clone();
             let start_time = self.start_time.clone();
 
             async move {
@@ -81,6 +91,8 @@ impl StatsActor {
                         &start_time,
                     )
                     .await;
+
+                    hub_messages_stats_notify.notify_waiters();
 
                     tokio::time::sleep(*update_period.read().await).await;
                 }
@@ -93,20 +105,36 @@ impl StatsActor {
                     let result = self.set_period(period).await;
                     let _ = response.send(result);
                 }
+                StatsCommand::GetPeriod { response } => {
+                    let result = self.period().await;
+                    let _ = response.send(result);
+                }
                 StatsCommand::Reset { response } => {
-                    let result = self.reset().await;
+                    let result: std::result::Result<(), anyhow::Error> = self.reset().await;
                     let _ = response.send(result);
                 }
                 StatsCommand::GetDriversStats { response } => {
                     let result = self.drivers_stats().await;
                     let _ = response.send(result);
                 }
+                StatsCommand::GetDriversStatsStream { response } => {
+                    let result = self.drivers_stats_stream().await;
+                    let _ = response.send(result);
+                }
                 StatsCommand::GetHubStats { response } => {
                     let result = self.hub_stats().await;
                     let _ = response.send(result);
                 }
+                StatsCommand::GetHubStatsStream { response } => {
+                    let result = self.hub_stats_stream().await;
+                    let _ = response.send(result);
+                }
                 StatsCommand::GetHubMessagesStats { response } => {
                     let result = self.hub_messages_stats().await;
+                    let _ = response.send(result);
+                }
+                StatsCommand::GetHubMessagesStatsStream { response } => {
+                    let result = self.hub_messages_stats_stream().await;
                     let _ = response.send(result);
                 }
             }
@@ -122,12 +150,15 @@ impl StatsActor {
         let update_period = Arc::new(RwLock::new(update_period));
         let last_accumulated_hub_stats = Arc::new(Mutex::new(AccumulatedStatsInner::default()));
         let hub_stats = Arc::new(RwLock::new(StatsInner::default()));
+        let hub_stats_notify = Arc::new(Notify::new());
         let last_accumulated_drivers_stats =
             Arc::new(Mutex::new(AccumulatedDriversStats::default()));
         let drivers_stats = Arc::new(RwLock::new(DriversStats::default()));
+        let drivers_stats_notify = Arc::new(Notify::new());
         let last_accumulated_hub_messages_stats =
             Arc::new(Mutex::new(AccumulatedHubMessagesStats::default()));
         let hub_messages_stats = Arc::new(RwLock::new(HubMessagesStats::default()));
+        let hub_messages_stats_notify = Arc::new(Notify::new());
         let start_time = Arc::new(RwLock::new(chrono::Utc::now().timestamp_micros() as u64));
 
         Self {
@@ -135,10 +166,13 @@ impl StatsActor {
             update_period,
             last_accumulated_hub_stats,
             hub_stats,
+            hub_stats_notify,
             last_accumulated_drivers_stats,
             drivers_stats,
+            drivers_stats_notify,
             last_accumulated_hub_messages_stats,
             hub_messages_stats,
+            hub_messages_stats_notify,
         }
     }
 
@@ -150,6 +184,27 @@ impl StatsActor {
     }
 
     #[instrument(level = "debug", skip(self))]
+    async fn hub_stats_stream(&self) -> Result<mpsc::Receiver<StatsInner>> {
+        let (sender, receiver) = mpsc::channel(100);
+
+        let hub_stats = self.hub_stats.clone();
+        let hub_stats_notify = self.hub_stats_notify.clone();
+
+        tokio::spawn(async move {
+            loop {
+                hub_stats_notify.notified().await;
+
+                if let Err(error) = sender.send(hub_stats.read().await.clone()).await {
+                    trace!("Finishing Hub Stats stream: {error:?}");
+                    break;
+                }
+            }
+        });
+
+        Ok(receiver)
+    }
+
+    #[instrument(level = "debug", skip(self))]
     async fn hub_messages_stats(&self) -> Result<HubMessagesStats> {
         let hub_messages_stats = self.hub_messages_stats.read().await.clone();
 
@@ -157,10 +212,52 @@ impl StatsActor {
     }
 
     #[instrument(level = "debug", skip(self))]
+    async fn hub_messages_stats_stream(&self) -> Result<mpsc::Receiver<HubMessagesStats>> {
+        let (sender, receiver) = mpsc::channel(100);
+
+        let hub_messages_stats = self.hub_messages_stats.clone();
+        let hub_messages_stats_notify = self.hub_messages_stats_notify.clone();
+
+        tokio::spawn(async move {
+            loop {
+                hub_messages_stats_notify.notified().await;
+
+                if let Err(error) = sender.send(hub_messages_stats.read().await.clone()).await {
+                    trace!("Finishing Hub Messages Stats stream: {error:?}");
+                    break;
+                }
+            }
+        });
+
+        Ok(receiver)
+    }
+
+    #[instrument(level = "debug", skip(self))]
     async fn drivers_stats(&mut self) -> Result<DriversStats> {
         let drivers_stats = self.drivers_stats.read().await.clone();
 
         Ok(drivers_stats)
+    }
+
+    #[instrument(level = "debug", skip(self))]
+    async fn drivers_stats_stream(&self) -> Result<mpsc::Receiver<DriversStats>> {
+        let (sender, receiver) = mpsc::channel(100);
+
+        let drivers_stats = self.drivers_stats.clone();
+        let drivers_stats_notify = self.drivers_stats_notify.clone();
+
+        tokio::spawn(async move {
+            loop {
+                drivers_stats_notify.notified().await;
+
+                if let Err(error) = sender.send(drivers_stats.read().await.clone()).await {
+                    trace!("Finishing Drivers Stats stream: {error:?}");
+                    break;
+                }
+            }
+        });
+
+        Ok(receiver)
     }
 
     #[instrument(level = "debug", skip(self))]

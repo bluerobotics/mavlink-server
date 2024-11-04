@@ -1,5 +1,5 @@
 use anyhow::Result;
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::stats::{DriversStats, StatsInner};
 
@@ -19,10 +19,19 @@ pub enum StatsCommand {
     GetDriversStats {
         response: oneshot::Sender<Result<DriversStats>>,
     },
+    GetDriversStatsStream {
+        response: oneshot::Sender<Result<mpsc::Receiver<DriversStats>>>,
+    },
     GetHubStats {
         response: oneshot::Sender<Result<StatsInner>>,
     },
+    GetHubStatsStream {
+        response: oneshot::Sender<Result<mpsc::Receiver<StatsInner>>>,
+    },
     GetHubMessagesStats {
         response: oneshot::Sender<Result<HubMessagesStats>>,
+    },
+    GetHubMessagesStatsStream {
+        response: oneshot::Sender<Result<mpsc::Receiver<HubMessagesStats>>>,
     },
 }
