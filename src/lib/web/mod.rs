@@ -60,7 +60,7 @@ fn default_router(state: AppState) -> Router {
 }
 
 async fn websocket_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
-    ws.on_upgrade(|socket| async { websocket_connection(socket, state).await })
+    ws.on_upgrade(|socket| websocket_connection(socket, state))
 }
 async fn websocket_connection(socket: WebSocket, state: AppState) {
     let identifier = Uuid::new_v4();
