@@ -35,6 +35,11 @@ pub struct Info {
     service: InfoContent,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Frequency {
+    pub frequency: f32,
+}
+
 pub async fn root(filename: Option<Path<String>>) -> impl IntoResponse {
     let filename = filename
         .map(|Path(name)| {
@@ -106,4 +111,18 @@ pub async fn hub_stats() -> impl IntoResponse {
 
 pub async fn hub_messages_stats() -> impl IntoResponse {
     Json(stats::hub_messages_stats().await.unwrap())
+}
+
+pub async fn stats_frequency() -> impl IntoResponse {
+    let frequency = 1. / stats::period().await.unwrap().as_secs_f32();
+    Json(Frequency { frequency })
+}
+
+pub async fn set_stats_frequency(
+    Json(Frequency { frequency }): Json<Frequency>,
+) -> impl IntoResponse {
+    let period = tokio::time::Duration::from_secs_f32(1. / frequency.clamp(0.1, 10.));
+
+    let frequency = 1. / stats::set_period(period).await.unwrap().as_secs_f32();
+    Json(Frequency { frequency })
 }
