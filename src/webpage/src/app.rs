@@ -8,16 +8,24 @@ use humantime::format_duration;
 use url::Url;
 use web_sys::window;
 
-use crate::messages::{FieldInfo, MessageInfo, VehiclesMessages};
+use crate::{
+    messages::{FieldInfo, MessageInfo, VehiclesMessages},
+    stats::hub_messages_stats::HubMessagesStatsHistorical,
+};
+
+const MAVLINK_MESSAGES_WEBSOCKET_PATH: &str = "rest/ws";
+const HUB_MESSAGES_STATS_WEBSOCKET_PATH: &str = "stats/messages/ws";
 
 pub struct App {
     now: DateTime<Utc>,
     mavlink_receiver: WsReceiver,
     mavlink_sender: WsSender,
-    stats_receiver: WsReceiver,
-    stats_sender: WsSender,
+    hub_messages_stats_receiver: WsReceiver,
+    hub_messages_stats_sender: WsSender,
+    /// Realtime messages, grouped by Vehicle ID and Component ID
     vehicles_mavlink: VehiclesMessages,
-    messages_stats: MessagesStats,
+    /// Hub messages statsistics, groupbed by Vehicle ID and Component ID
+    hub_messages_stats: HubMessagesStatsHistorical,
     search_query: String,
     collapse_all: bool,
     expand_all: bool,
@@ -25,34 +33,20 @@ pub struct App {
 
 impl Default for App {
     fn default() -> Self {
-        let location = window().unwrap().location();
-        let host = location.host().unwrap();
-        let protocol = if location.protocol().unwrap() == "https:" {
-            "wss:"
-        } else {
-            "ws:"
-        };
+        let (mavlink_sender, mavlink_receiver) =
+            connect_websocket(MAVLINK_MESSAGES_WEBSOCKET_PATH).unwrap();
 
-        let url = format!("{protocol}//{host}/rest/ws");
-        let (mavlink_sender, mavlink_receiver) = {
-            let url = Url::parse(&url).unwrap().to_string();
-            connect(url, ewebsock::Options::default()).expect("Can't connect")
-        };
-
-        let url = format!("{protocol}//{host}/stats/ws?frequency=20");
-        let (stats_sender, stats_receiver) = {
-            let url = Url::parse(&url).unwrap().to_string();
-            connect(url, ewebsock::Options::default()).expect("Can't connect")
-        };
+        let (hub_messages_stats_sender, hub_messages_stats_receiver) =
+            connect_websocket(HUB_MESSAGES_STATS_WEBSOCKET_PATH).unwrap();
 
         Self {
             now: Utc::now(),
             mavlink_receiver,
             mavlink_sender,
-            stats_receiver,
-            stats_sender,
+            hub_messages_stats_receiver,
+            hub_messages_stats_sender,
             vehicles_mavlink: Default::default(),
-            messages_stats: Default::default(),
+            hub_messages_stats: Default::default(),
             search_query: String::new(),
             collapse_all: false,
             expand_all: false,
@@ -61,33 +55,6 @@ impl Default for App {
 }
 
 impl App {
-    fn reconnect(&mut self) {
-        let location = window().unwrap().location();
-        let host = location.host().unwrap();
-        let protocol = if location.protocol().unwrap() == "https:" {
-            "wss:"
-        } else {
-            "ws:"
-        };
-
-        let url = format!("{protocol}//{host}/rest/ws");
-        let (mavlink_sender, mavlink_receiver) = {
-            let url = Url::parse(&url).unwrap().to_string();
-            connect(url, ewebsock::Options::default()).expect("Can't connect")
-        };
-
-        let url = format!("{protocol}//{host}/stats/ws?frequency=20");
-        let (stats_sender, stats_receiver) = {
-            let url = Url::parse(&url).unwrap().to_string();
-            connect(url, ewebsock::Options::default()).expect("Can't connect")
-        };
-
-        self.mavlink_sender = mavlink_sender;
-        self.mavlink_receiver = mavlink_receiver;
-        self.stats_sender = stats_sender;
-        self.stats_receiver = stats_receiver;
-    }
-
     fn top_bar(&mut self, ctx: &Context) {
         eframe::egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             eframe::egui::menu::bar(ui, |ui| {
@@ -176,7 +143,8 @@ impl App {
                 }
                 Some(ewebsock::WsEvent::Closed) => {
                     log::error!("MAVLink WebSocket closed");
-                    self.reconnect();
+                    (self.mavlink_sender, self.mavlink_receiver) =
+                        connect_websocket(MAVLINK_MESSAGES_WEBSOCKET_PATH).unwrap();
                     break;
                 }
                 Some(ewebsock::WsEvent::Error(message)) => {
@@ -487,6 +455,26 @@ impl App {
                 }
             });
     }
+}
+
+fn get_protocol() -> (String, String) {
+    let location = window().unwrap().location();
+    let host = location.host().unwrap();
+    let protocol = if location.protocol().unwrap() == "https:" {
+        "wss:"
+    } else {
+        "ws:"
+    };
+    (host, protocol.to_string())
+}
+
+fn connect_websocket(path: &str) -> Result<(WsSender, WsReceiver), String> {
+    let (host, protocol) = get_protocol();
+
+    let url = format!("{protocol}//{host}/{path}");
+
+    let url = Url::parse(&url).unwrap();
+    connect(url, ewebsock::Options::default())
 }
 
 impl eframe::App for App {
