@@ -24,7 +24,7 @@ lazy_static! {
 #[derive(Clone)]
 struct Stats {
     sender: mpsc::Sender<StatsCommand>,
-    task: Arc<Mutex<tokio::task::JoinHandle<()>>>,
+    _task: Arc<Mutex<tokio::task::JoinHandle<()>>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -59,8 +59,8 @@ impl Stats {
     fn new(update_period: tokio::time::Duration) -> Self {
         let (sender, receiver) = mpsc::channel(32);
         let actor = StatsActor::new(update_period);
-        let task = Arc::new(Mutex::new(tokio::spawn(actor.start(receiver))));
-        Self { sender, task }
+        let _task = Arc::new(Mutex::new(tokio::spawn(actor.start(receiver))));
+        Self { sender, _task }
     }
 }
 
