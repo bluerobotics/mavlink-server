@@ -5,12 +5,13 @@ use eframe::egui::{CollapsingHeader, Context};
 use egui_plot::{Line, Plot, PlotPoints};
 use ewebsock::{connect, WsReceiver, WsSender};
 use humantime::format_duration;
+use ringbuffer::RingBuffer;
 use url::Url;
 use web_sys::window;
 
 use crate::{
     messages::{FieldInfo, MessageInfo, VehiclesMessages},
-    stats::hub_messages_stats::HubMessagesStatsHistorical,
+    stats::hub_messages_stats::{HubMessagesStatsHistorical, HubMessagesStatsSample},
 };
 
 const MAVLINK_MESSAGES_WEBSOCKET_PATH: &str = "rest/ws";
@@ -120,147 +121,106 @@ impl App {
             let Some(num) = extract_number(value) else {
                 continue;
             };
-            let field_info = message_info
+            let new_entry = (self.now, num);
+            message_info
                 .fields
                 .entry(field_name.clone())
-                .or_insert_with(|| FieldInfo {
-                    history: Vec::new(),
-                    latest_value: num,
+                .and_modify(|field| {
+                    field.history.push(new_entry);
+                })
+                .or_insert_with(|| {
+                    let mut field_info = FieldInfo::default();
+                    field_info.history.push(new_entry);
+                    field_info
                 });
-            field_info.latest_value = num;
-            field_info.history.push((self.now, num));
-            if field_info.history.len() > 1000 {
-                field_info.history.remove(0);
-            }
         }
     }
 
     fn process_mavlink_websocket(&mut self) {
+        use ewebsock::{WsEvent, WsMessage};
+
         loop {
             match self.mavlink_receiver.try_recv() {
-                Some(ewebsock::WsEvent::Message(ewebsock::WsMessage::Text(message))) => {
+                Some(WsEvent::Message(WsMessage::Text(message))) => {
                     self.deal_with_mavlink_message(message)
                 }
-                Some(ewebsock::WsEvent::Closed) => {
+                Some(WsEvent::Closed) => {
                     log::error!("MAVLink WebSocket closed");
                     (self.mavlink_sender, self.mavlink_receiver) =
                         connect_websocket(MAVLINK_MESSAGES_WEBSOCKET_PATH).unwrap();
+
                     break;
                 }
-                Some(ewebsock::WsEvent::Error(message)) => {
-                    log::error!("MAVLink WebSocket error: {}", message);
+                Some(WsEvent::Error(message)) => {
+                    log::error!("MAVLink WebSocket error: {message}");
+                    (self.mavlink_sender, self.mavlink_receiver) =
+                        connect_websocket(MAVLINK_MESSAGES_WEBSOCKET_PATH).unwrap();
+
                     break;
                 }
-                Some(ewebsock::WsEvent::Opened) => {
+                Some(WsEvent::Opened) => {
                     log::info!("MAVLink WebSocket opened");
                 }
                 something @ Some(_) => {
-                    log::warn!("Unexpected event: {:#?}", something);
+                    log::trace!("MAVLink WebSocket got an unexpected event: {something:#?}");
                 }
                 None => break,
             }
         }
     }
 
-    fn process_stats_websocket(&mut self) {
-        while let Some(ewebsock::WsEvent::Message(ewebsock::WsMessage::Text(message))) =
-            self.stats_receiver.try_recv()
-        {
-            // Parse the JSON message
-            let root_json = match serde_json::from_str::<serde_json::Value>(&message) {
-                Ok(json) => json,
-                Err(e) => {
-                    log::error!("Failed to parse JSON: {e}");
-                    continue;
+    fn process_hub_messages_stats_websocket(&mut self) {
+        use ewebsock::{WsEvent, WsMessage};
+
+        loop {
+            match self.hub_messages_stats_receiver.try_recv() {
+                Some(WsEvent::Message(WsMessage::Text(message))) => {
+                    self.deal_with_hub_messages_stats_message(message)
                 }
-            };
+                Some(WsEvent::Closed) => {
+                    log::error!("Hub Messages Stats WebSocket closed");
+                    (
+                        self.hub_messages_stats_sender,
+                        self.hub_messages_stats_receiver,
+                    ) = connect_websocket(HUB_MESSAGES_STATS_WEBSOCKET_PATH).unwrap();
 
-            // Extract "systems_messages_stats"
-            let systems_messages_stats = match root_json.get("systems_messages_stats") {
-                Some(value) => match value.as_object() {
-                    Some(obj) => obj,
-                    None => {
-                        log::error!("'systems_messages_stats' is not an object");
-                        continue;
-                    }
-                },
-                None => {
-                    log::error!("'systems_messages_stats' key not found");
-                    continue;
+                    break;
                 }
-            };
+                Some(WsEvent::Error(message)) => {
+                    log::error!("Hub Messages Stats WebSocket error: {message}");
+                    (
+                        self.hub_messages_stats_sender,
+                        self.hub_messages_stats_receiver,
+                    ) = connect_websocket(HUB_MESSAGES_STATS_WEBSOCKET_PATH).unwrap();
 
-            for (system_id_str, system_stats) in systems_messages_stats {
-                let system_id = match system_id_str.parse::<u8>() {
-                    Ok(id) => id,
-                    Err(_) => {
-                        log::error!("Invalid system_id: {system_id_str}");
-                        continue;
-                    }
-                };
-
-                let components_messages_stats = match system_stats.get("components_messages_stats")
-                {
-                    Some(value) => match value.as_object() {
-                        Some(obj) => obj,
-                        None => {
-                            log::error!("'components_messages_stats' is not an object");
-                            continue;
-                        }
-                    },
-                    None => {
-                        log::error!("'components_messages_stats' key not found");
-                        continue;
-                    }
-                };
-
-                for (component_id_str, component_stats) in components_messages_stats {
-                    let component_id = match component_id_str.parse::<u8>() {
-                        Ok(id) => id,
-                        Err(_) => {
-                            log::error!("Invalid component_id: {component_id_str}");
-                            continue;
-                        }
-                    };
-
-                    let messages_stats = match component_stats.get("messages_stats") {
-                        Some(value) => match value.as_object() {
-                            Some(obj) => obj,
-                            None => {
-                                log::error!("'messages_stats' is not an object");
-                                continue;
-                            }
-                        },
-                        None => {
-                            log::error!("'messages_stats' key not found");
-                            continue;
-                        }
-                    };
-
-                    for (message_id_str, message_stats_json) in messages_stats {
-                        let message_id = match message_id_str.parse::<u16>() {
-                            Ok(id) => id,
-                            Err(_) => {
-                                log::error!("Invalid message_id: {message_id_str}");
-                                continue;
-                            }
-                        };
-
-                        let message_stats = parse_message_stats(message_stats_json);
-                        self.messages_stats
-                            .entry(system_id)
-                            .or_default()
-                            .entry(component_id)
-                            .or_default()
-                            .entry(message_id) // Now using u16
-                            .and_modify(|existing| {
-                                existing.update_with(&message_stats);
-                            })
-                            .or_insert(message_stats);
-                    }
+                    break;
                 }
+                Some(WsEvent::Opened) => {
+                    log::info!("Hub Messages Stats WebSocket opened");
+                }
+                something @ Some(_) => {
+                    log::trace!(
+                        "Hub Messages Stats WebSocket got an unexpected event: {something:#?}"
+                    );
+                }
+                None => break,
             }
         }
+    }
+
+    fn deal_with_hub_messages_stats_message(&mut self, message: String) {
+        let hub_messages_stats_sample =
+            match serde_json::from_str::<HubMessagesStatsSample>(&message) {
+                Ok(stats) => stats,
+                Err(error) => {
+                    log::error!(
+                    "Failed to parse Hub Messages Stats message: {error:?}. Message: {message:#?}"
+                );
+                    return;
+                }
+            };
+
+        self.hub_messages_stats.update(hub_messages_stats_sample)
     }
 
     fn create_messages_ui(&mut self, ui: &mut eframe::egui::Ui) {
@@ -481,7 +441,7 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.now = Utc::now();
         self.process_mavlink_websocket();
-        self.process_stats_websocket();
+        self.process_hub_messages_stats_websocket();
 
         self.top_bar(ctx);
 
