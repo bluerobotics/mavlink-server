@@ -199,7 +199,7 @@ impl StatsInner {
             last_message_time_us: current_stats.last_update_us,
             bytes: byte_stats,
             messages: message_stats,
-            delay_stats: delay_stats,
+            delay_stats,
         }
     }
 }
