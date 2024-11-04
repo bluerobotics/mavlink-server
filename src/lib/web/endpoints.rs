@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use axum::{
     extract::Path,
     http::{header, StatusCode},
@@ -8,7 +6,7 @@ use axum::{
 };
 use include_dir::{include_dir, Dir};
 use mime_guess::from_path;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::stats;
 

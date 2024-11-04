@@ -8,7 +8,7 @@ use std::{
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Query, State,
+        State,
     },
     http::StatusCode,
     response::Response,
@@ -16,7 +16,6 @@ use axum::{
     Router,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
-use serde::Deserialize;
 use tokio::{
     signal,
     sync::{broadcast, mpsc, RwLock},
@@ -26,7 +25,7 @@ use uuid::Uuid;
 
 use lazy_static::lazy_static;
 
-use crate::{hub, stats};
+use crate::stats;
 
 fn default_router(state: AppState) -> Router {
     Router::new()
