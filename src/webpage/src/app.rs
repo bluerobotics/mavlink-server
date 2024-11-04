@@ -8,8 +8,7 @@ use humantime::format_duration;
 use url::Url;
 use web_sys::window;
 
-type VehiclesMessages = BTreeMap<u8, BTreeMap<u8, BTreeMap<String, MessageInfo>>>;
-type MessagesStats = BTreeMap<u8, BTreeMap<u8, BTreeMap<u16, MessageStats>>>;
+use crate::messages::{FieldInfo, MessageInfo, VehiclesMessages};
 
 pub struct App {
     now: DateTime<Utc>,
@@ -22,60 +21,6 @@ pub struct App {
     search_query: String,
     collapse_all: bool,
     expand_all: bool,
-}
-
-#[derive(Clone)]
-struct MessageInfo {
-    last_sample_time: DateTime<Utc>,
-    fields: BTreeMap<String, FieldInfo>,
-}
-
-#[derive(Clone)]
-struct MessageStats {
-    last_message: Option<LastMessage>,
-    last_update_us: DateTime<Utc>,
-    messages: u64,
-    bytes: u64,
-    delay: u64,
-    fields: BTreeMap<String, FieldInfo>,
-}
-
-impl MessageStats {
-    fn update_with(&mut self, other: &MessageStats) {
-        self.last_message = other.last_message.clone();
-        self.last_update_us = other.last_update_us.clone();
-        self.messages = other.messages;
-        self.bytes = other.bytes;
-        self.delay = other.delay;
-
-        for (value, field) in [
-            (self.messages, "messages"),
-            (self.bytes, "bytes"),
-            (self.delay, "delay"),
-        ] {
-            self.fields.get_mut(field).unwrap().latest_value = value as f64;
-            self.fields
-                .get_mut(field)
-                .unwrap()
-                .history
-                .push((self.last_update_us, value as f64));
-            if self.fields.get_mut(field).unwrap().history.len() > 1000 {
-                self.fields.get_mut(field).unwrap().history.remove(0);
-            }
-        }
-    }
-}
-
-#[derive(Clone)]
-struct LastMessage {
-    origin: String,
-    timestamp: u64,
-}
-
-#[derive(Clone)]
-struct FieldInfo {
-    history: Vec<(DateTime<Utc>, f64)>,
-    latest_value: f64,
 }
 
 impl App {
@@ -224,7 +169,9 @@ impl App {
     fn process_mavlink_websocket(&mut self) {
         loop {
             match self.mavlink_receiver.try_recv() {
-                Some(ewebsock::WsEvent::Message(ewebsock::WsMessage::Text(message))) => self.deal_with_mavlink_message(message),
+                Some(ewebsock::WsEvent::Message(ewebsock::WsMessage::Text(message))) => {
+                    self.deal_with_mavlink_message(message)
+                }
                 Some(ewebsock::WsEvent::Closed) => {
                     log::error!("MAVLink WebSocket closed");
                     self.reconnect();
@@ -633,72 +580,4 @@ fn show_stats_tooltip(ui: &mut eframe::egui::Ui, field_info: &FieldInfo, field_n
                 plot_ui.line(line);
             });
     });
-}
-
-fn parse_message_stats(message_stats_json: &serde_json::Value) -> MessageStats {
-    let last_message = message_stats_json.get("last_message").and_then(|lm| {
-        Some(LastMessage {
-            origin: lm
-                .get("origin")
-                .and_then(|o| o.as_str())
-                .unwrap_or("")
-                .to_string(),
-            timestamp: lm.get("timestamp").and_then(|t| t.as_u64()).unwrap_or(0),
-        })
-    });
-
-    let last_time_us = message_stats_json
-        .get("last_update_us")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-    let last_update_us = us_since_epoch_to_utc(last_time_us);
-    let messages = message_stats_json
-        .get("messages")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-    let bytes = message_stats_json
-        .get("bytes")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-    let delay = message_stats_json
-        .get("delay")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-
-    MessageStats {
-        last_message,
-        last_update_us: last_update_us,
-        messages,
-        bytes,
-        delay,
-        fields: BTreeMap::from([
-            (
-                "messages".to_string(),
-                FieldInfo {
-                    history: vec![(last_update_us, messages as f64)],
-                    latest_value: messages as f64,
-                },
-            ),
-            (
-                "bytes".to_string(),
-                FieldInfo {
-                    history: vec![(last_update_us, bytes as f64)],
-                    latest_value: bytes as f64,
-                },
-            ),
-            (
-                "delay".to_string(),
-                FieldInfo {
-                    history: vec![(last_update_us, delay as f64)],
-                    latest_value: delay as f64,
-                },
-            ),
-        ]),
-    }
-}
-
-fn us_since_epoch_to_utc(us: u64) -> DateTime<Utc> {
-    let sec = (us / 1_000_000) as i64;
-    let nsec = ((us % 1_000_000) * 1_000) as u32;
-    Utc.timestamp_opt(sec, nsec).unwrap()
 }
