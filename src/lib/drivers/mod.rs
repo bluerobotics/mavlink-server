@@ -5,6 +5,7 @@ pub mod serial;
 pub mod tcp;
 pub mod tlog;
 pub mod udp;
+pub mod zenoh;
 
 use std::sync::Arc;
 
@@ -27,6 +28,7 @@ pub enum Type {
     TcpServer,
     UdpClient,
     UdpServer,
+    Zenoh,
 }
 
 // This legacy description is based on others tools like mavp2p, mavproxy and mavlink-router
@@ -222,6 +224,10 @@ pub fn endpoints() -> Vec<ExtInfo> {
         ExtInfo {
             driver_ext: Box::new(fake::FakeSourceInfo),
             typ: Type::FakeSource,
+        },
+        ExtInfo {
+            driver_ext: Box::new(zenoh::ZenohInfo),
+            typ: Type::Zenoh,
         },
     ]
 }
