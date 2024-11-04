@@ -97,7 +97,18 @@ pub async fn hub_messages_stats() -> Result<HubMessagesStats> {
     response_rx.await?
 }
 
-pub async fn set_period(period: tokio::time::Duration) -> Result<()> {
+pub async fn period() -> Result<tokio::time::Duration> {
+    let (response_tx, response_rx) = oneshot::channel();
+    STATS
+        .sender
+        .send(StatsCommand::GetPeriod {
+            response: response_tx,
+        })
+        .await?;
+    response_rx.await?
+}
+
+pub async fn set_period(period: tokio::time::Duration) -> Result<tokio::time::Duration> {
     let (response_tx, response_rx) = oneshot::channel();
     STATS
         .sender

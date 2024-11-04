@@ -164,10 +164,16 @@ impl StatsActor {
     }
 
     #[instrument(level = "debug", skip(self))]
-    async fn set_period(&mut self, period: tokio::time::Duration) -> Result<()> {
+    async fn set_period(&mut self, period: tokio::time::Duration) -> Result<tokio::time::Duration> {
+        let period = tokio::time::Duration::from_secs_f32(period.as_secs_f32().clamp(0.1, 10.));
         *self.update_period.write().await = period;
 
-        Ok(())
+        Ok(*self.update_period.read().await)
+    }
+
+    #[instrument(level = "debug", skip(self))]
+    async fn period(&mut self) -> Result<tokio::time::Duration> {
+        Ok(*self.update_period.read().await)
     }
 
     #[instrument(level = "debug", skip(self))]
