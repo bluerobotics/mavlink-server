@@ -19,7 +19,7 @@ egui_dock = { version = "0.14", features = ["serde"] }
 egui_extras = { version = "0.29", features = ["chrono", "serde"] }
 egui_plot = "0.29.0"
 egui-modal = "0.5.0"
-ewebsock = "0.6.0"
+ewebsock = "0.7.0"
 humantime = "2.1.0"
 log = "0.4"
 rfd = "0.15"
