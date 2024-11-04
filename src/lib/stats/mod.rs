@@ -75,6 +75,17 @@ pub async fn drivers_stats() -> Result<DriversStats> {
     response_rx.await?
 }
 
+pub async fn drivers_stats_stream() -> Result<mpsc::Receiver<DriversStats>> {
+    let (response_tx, response_rx) = oneshot::channel();
+    STATS
+        .sender
+        .send(StatsCommand::GetDriversStatsStream {
+            response: response_tx,
+        })
+        .await?;
+    response_rx.await?
+}
+
 pub async fn hub_stats() -> Result<StatsInner> {
     let (response_tx, response_rx) = oneshot::channel();
     STATS
@@ -86,11 +97,33 @@ pub async fn hub_stats() -> Result<StatsInner> {
     response_rx.await?
 }
 
+pub async fn hub_stats_stream() -> Result<mpsc::Receiver<StatsInner>> {
+    let (response_tx, response_rx) = oneshot::channel();
+    STATS
+        .sender
+        .send(StatsCommand::GetHubStatsStream {
+            response: response_tx,
+        })
+        .await?;
+    response_rx.await?
+}
+
 pub async fn hub_messages_stats() -> Result<HubMessagesStats> {
     let (response_tx, response_rx) = oneshot::channel();
     STATS
         .sender
         .send(StatsCommand::GetHubMessagesStats {
+            response: response_tx,
+        })
+        .await?;
+    response_rx.await?
+}
+
+pub async fn hub_messages_stats_stream() -> Result<mpsc::Receiver<HubMessagesStats>> {
+    let (response_tx, response_rx) = oneshot::channel();
+    STATS
+        .sender
+        .send(StatsCommand::GetHubMessagesStatsStream {
             response: response_tx,
         })
         .await?;
