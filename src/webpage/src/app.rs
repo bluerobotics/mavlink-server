@@ -1,7 +1,8 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use chrono::prelude::*;
 use eframe::egui::{CollapsingHeader, Context};
+use egui::mutex::Mutex;
 use egui_extras::{Column, TableBody, TableBuilder};
 use egui_plot::{Line, Plot, PlotPoints};
 use ewebsock::{connect, WsReceiver, WsSender};
@@ -46,12 +47,16 @@ pub struct App {
     search_query: String,
     collapse_all: bool,
     expand_all: bool,
+    stats_frequency: Arc<Mutex<f32>>,
 }
 
 impl Default for App {
     fn default() -> Self {
         let (mavlink_sender, mavlink_receiver) =
             connect_websocket(MAVLINK_MESSAGES_WEBSOCKET_PATH).unwrap();
+
+        let stats_frequency = Arc::new(Mutex::new(1.));
+        crate::stats::stats_frequency::stats_frequency(&stats_frequency);
 
         let (hub_messages_stats_sender, hub_messages_stats_receiver) =
             connect_websocket(HUB_MESSAGES_STATS_WEBSOCKET_PATH).unwrap();
@@ -79,6 +84,7 @@ impl Default for App {
             search_query: String::new(),
             collapse_all: false,
             expand_all: false,
+            stats_frequency,
         }
     }
 }
