@@ -101,7 +101,7 @@ pub async fn message_id_from_name(name: Path<String>) -> impl IntoResponse {
         .unwrap_or_else(|_| (StatusCode::NOT_FOUND, "404 Not Found").into_response())
 }
 
-pub async fn driver_stats() -> impl IntoResponse {
+pub async fn drivers_stats() -> impl IntoResponse {
     Json(stats::drivers_stats().await.unwrap())
 }
 

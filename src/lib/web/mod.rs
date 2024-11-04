@@ -34,6 +34,7 @@ fn default_router(state: AppState) -> Router {
         .route("/:path", get(endpoints::root))
         .route("/info", get(endpoints::info))
         .route("/info_full", get(endpoints::info_full))
+        .route("/stats/drivers", get(endpoints::drivers_stats))
         .route(
             "/stats/frequency",
             get(endpoints::stats_frequency).post(endpoints::set_stats_frequency),
