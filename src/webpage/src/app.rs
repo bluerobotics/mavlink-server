@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use chrono::prelude::*;
 use eframe::egui::{CollapsingHeader, Context};
+use egui_extras::{Column, TableBody, TableBuilder};
 use egui_plot::{Line, Plot, PlotPoints};
 use ewebsock::{connect, WsReceiver, WsSender};
 use humantime::format_duration;
@@ -11,7 +12,10 @@ use web_sys::window;
 
 use crate::{
     messages::{FieldInfo, MessageInfo, VehiclesMessages},
-    stats::hub_messages_stats::{HubMessagesStatsHistorical, HubMessagesStatsSample},
+    stats::{
+        hub_messages_stats::{HubMessagesStatsHistorical, HubMessagesStatsSample},
+        ByteStatsHistorical, DelayStatsHistorical, MessageStatsHistorical, StatsInner,
+    },
 };
 
 const MAVLINK_MESSAGES_WEBSOCKET_PATH: &str = "rest/ws";
@@ -223,7 +227,7 @@ impl App {
         self.hub_messages_stats.update(hub_messages_stats_sample)
     }
 
-    fn create_messages_ui(&mut self, ui: &mut eframe::egui::Ui) {
+    fn create_messages_ui(&self, ui: &mut eframe::egui::Ui) {
         let search_query = self.search_query.to_lowercase();
         eframe::egui::ScrollArea::vertical().show(ui, |ui| {
             for (system_id, components) in &self.vehicles_mavlink {
@@ -265,153 +269,112 @@ impl App {
                 }
 
                 if !matching_components.is_empty() {
-                    let vehicle_id = ui.make_persistent_id(format!("vehicle_{system_id}"));
-                    let vehicle_header = CollapsingHeader::new(format!("Vehicle {system_id}"))
-                        .id_salt(vehicle_id)
-                        .default_open(true);
+                    let _ = CollapsingHeader::new(format!("Vehicle {system_id}"))
+                        .id_salt(ui.make_persistent_id(format!("vehicle_{system_id}")))
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            for (component_id, messages) in matching_components {
+                                let _ = CollapsingHeader::new(format!("Component {component_id}"))
+                                    .id_salt(ui.make_persistent_id(format!(
+                                        "component_{system_id}_{component_id}"
+                                    )))
+                                    .default_open(true)
+                                    .show(ui, |ui| {
+                                        for (name, (message, matching_fields, _message_matches)) in
+                                            messages
+                                        {
+                                            let mut message_header = CollapsingHeader::new(&name)
+                                                .default_open(true)
+                                                .id_salt(ui.make_persistent_id(format!(
+                                                    "message_{system_id}_{component_id}_{name}"
+                                                )));
 
-                    vehicle_header.show(ui, |ui| {
-                        for (component_id, messages) in matching_components {
-                            let component_id_str = format!("component_{system_id}_{component_id}");
-                            let component_id_hash = ui.make_persistent_id(&component_id_str);
-                            let component_header =
-                                CollapsingHeader::new(format!("Component {component_id}"))
-                                    .id_salt(component_id_hash)
-                                    .default_open(true);
-
-                            component_header.show(ui, |ui| {
-                                for (name, (message, matching_fields, _message_matches)) in messages
-                                {
-                                    let message_id_str =
-                                        format!("message_{system_id}_{component_id}_{name}");
-                                    let message_id_hash = ui.make_persistent_id(&message_id_str);
-                                    let mut message_header =
-                                        CollapsingHeader::new(name).id_salt(message_id_hash);
-
-                                    if self.expand_all {
-                                        message_header = message_header.open(Some(true));
-                                    } else if self.collapse_all {
-                                        message_header = message_header.open(Some(false));
-                                    } else if !search_query.is_empty() {
-                                        message_header = message_header.open(Some(true));
-                                    }
-
-                                    message_header.show(ui, |ui| {
-                                        for (field_name, field_info) in &matching_fields {
-                                            let field_value_str = format!(
-                                                "{field_name}: {}",
-                                                field_info.latest_value
-                                            );
-                                            let label = ui.label(field_value_str);
-
-                                            if label.hovered() {
-                                                show_stats_tooltip(ui, field_info, field_name);
+                                            if self.expand_all {
+                                                message_header = message_header.open(Some(true));
+                                            } else if self.collapse_all {
+                                                message_header = message_header.open(Some(false));
+                                            } else if !search_query.is_empty() {
+                                                message_header = message_header.open(Some(true));
                                             }
+
+                                            message_header.show(ui, |ui| {
+                                                TableBuilder::new(ui)
+                                                    .id_salt("hub_stats_table")
+                                                    .striped(true)
+                                                    .column(Column::auto().at_least(100.))
+                                                    .column(Column::remainder().at_least(150.))
+                                                    .body(|mut body| {
+                                                        for (field_name, field_info) in
+                                                            &matching_fields
+                                                        {
+                                                            add_row_with_graph(
+                                                                &mut body, field_info, field_name,
+                                                            );
+                                                        }
+
+                                                        add_last_update_row(
+                                                            &mut body,
+                                                            self.now,
+                                                            message
+                                                                .last_sample_time
+                                                                .timestamp_micros(),
+                                                        );
+                                                    });
+                                            });
                                         }
-                                        ui.label(
-                                            format_duration(
-                                                (self.now - message.last_sample_time)
-                                                    .to_std()
-                                                    .unwrap(),
-                                            )
-                                            .to_string()
-                                                + " Ago",
-                                        );
                                     });
-                                }
-                            });
-                        }
-                    });
+                            }
+                        });
                 }
             }
         });
     }
 
-    fn create_messages_stats_ui(&mut self, ui: &mut eframe::egui::Ui) {
+    fn create_hub_messages_stats_ui(&self, ui: &mut eframe::egui::Ui) {
         eframe::egui::ScrollArea::vertical()
             .id_salt("scroll_messages_stats")
             .show(ui, |ui| {
-                for (system_id, components) in &self.messages_stats {
-                    let vehicle_id = ui.make_persistent_id(format!("vehicle_{system_id}"));
-                    let vehicle_header = CollapsingHeader::new(format!("Vehicle {system_id}"))
-                        .id_salt(vehicle_id)
-                        .default_open(true);
-                    vehicle_header.show(ui, |ui| {
-                        for (component_id, messages) in components {
-                            let component_id_str = format!("component_{system_id}_{component_id}");
-                            let component_id_hash = ui.make_persistent_id(&component_id_str);
-                            let component_header =
-                                CollapsingHeader::new(format!("Component {component_id}"))
-                                    .id_salt(component_id_hash)
-                                    .default_open(true);
-
-                            component_header.show(ui, |ui| {
-                                for (message_id, message_stats) in messages {
-                                    let message_id_str =
-                                        format!("message_{system_id}_{component_id}_{message_id}");
-                                    let message_id_hash = ui.make_persistent_id(&message_id_str);
-                                    let mut message_header =
-                                        CollapsingHeader::new(format!("Message ID: {message_id}"))
-                                            .id_salt(message_id_hash)
-                                            .default_open(true);
-
-                                    if self.expand_all {
-                                        message_header = message_header.open(Some(true));
-                                    } else if self.collapse_all {
-                                        message_header = message_header.open(Some(false));
-                                    }
-
-                                    message_header.show(ui, |ui| {
-                                        let label = ui
-                                            .label(format!("Messages: {}", message_stats.messages));
-                                        if label.hovered() {
-                                            show_stats_tooltip(
-                                                ui,
-                                                &message_stats.fields["messages"],
-                                                "Messages",
-                                            );
-                                        }
-                                        let label =
-                                            ui.label(format!("Bytes: {}", message_stats.bytes));
-                                        if label.hovered() {
-                                            show_stats_tooltip(
-                                                ui,
-                                                &message_stats.fields["bytes"],
-                                                "Bytes",
-                                            );
-                                        }
-                                        let label =
-                                            ui.label(format!("Delay: {}", message_stats.delay));
-                                        if label.hovered() {
-                                            show_stats_tooltip(
-                                                ui,
-                                                &message_stats.fields["delay"],
-                                                "Delay",
-                                            );
-                                        }
-
-                                        if let Some(last_message) = &message_stats.last_message {
-                                            ui.label(format!("Origin: {}", last_message.origin));
-                                            ui.label(format!(
-                                                "Timestamp: {}",
-                                                last_message.timestamp
-                                            ));
-                                        }
-
-                                        ui.label(
-                                            format_duration(
-                                                (self.now - message_stats.last_update_us)
-                                                    .to_std()
-                                                    .unwrap_or(std::time::Duration::from_secs(0)),
-                                            )
-                                            .to_string()
-                                                + " Ago",
-                                        );
-                                    });
-                                }
-                            });
-                        }
-                    });
+                for (system_id, components) in &self.hub_messages_stats.systems_messages_stats {
+                    let _ = CollapsingHeader::new(format!("Vehicle ID: {system_id}"))
+                        .id_salt(ui.make_persistent_id(format!("vehicle_{system_id}")))
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            for (component_id, messages) in &components.components_messages_stats {
+                                let _ =
+                                    CollapsingHeader::new(format!("Component ID: {component_id}"))
+                                        .id_salt(ui.make_persistent_id(format!(
+                                            "component_{system_id}_{component_id}"
+                                        )))
+                                        .default_open(true)
+                                        .show(ui, |ui| {
+                                            for (message_id, message_stats) in
+                                                &messages.messages_stats
+                                            {
+                                                let _ = CollapsingHeader::new(format!(
+                                                    "Message ID: {message_id}"
+                                                ))
+                                                .id_salt(ui.make_persistent_id(format!(
+                                                "message_{system_id}_{component_id}_{message_id}"
+                                            )))
+                                                .default_open(true)
+                                                .show(ui, |ui: &mut egui::Ui| {
+                                                    TableBuilder::new(ui)
+                                                        .id_salt("hub_stats_table")
+                                                        .striped(true)
+                                                        .column(Column::auto().at_least(100.))
+                                                        .column(Column::remainder().at_least(150.))
+                                                        .body(|mut body| {
+                                                            add_label_and_plot_all_stats(
+                                                                &mut body,
+                                                                self.now,
+                                                                message_stats,
+                                                            );
+                                                        });
+                                                });
+                                            }
+                                        });
+                            }
+                        });
                 }
             });
     }
@@ -435,6 +398,84 @@ fn connect_websocket(path: &str) -> Result<(WsSender, WsReceiver), String> {
 
     let url = Url::parse(&url).unwrap();
     connect(url, ewebsock::Options::default())
+}
+
+fn add_label_and_plot_all_stats(
+    body: &mut TableBody<'_>,
+    now: DateTime<Utc>,
+    message_stats: &StatsInner<ByteStatsHistorical, MessageStatsHistorical, DelayStatsHistorical>,
+) {
+    // Messages stats
+    add_row_with_graph(body, &message_stats.messages.total_messages, "Messages");
+    add_row_with_graph(
+        body,
+        &message_stats.messages.messages_per_second,
+        "Messages/s",
+    );
+
+    // Bytes stats
+    add_row_with_graph(body, &message_stats.bytes.total_bytes, "Bytes");
+    add_row_with_graph(body, &message_stats.bytes.bytes_per_second, "Bytes/s");
+    add_row_with_graph(
+        body,
+        &message_stats.bytes.average_bytes_per_second,
+        "Avg Bytes",
+    );
+
+    // Delay stats
+    add_row_with_graph(body, &message_stats.delay_stats.delay, "Delay [us]");
+    add_row_with_graph(body, &message_stats.delay_stats.jitter, "Jitter [s]");
+
+    add_last_update_row(body, now, message_stats.last_message_time_us as i64);
+}
+
+fn add_last_update_row(body: &mut TableBody<'_>, now: DateTime<Utc>, last_message_time_us: i64) {
+    body.row(15., |mut row| {
+        row.col(|ui| {
+            ui.label("Last Update");
+        });
+        row.col(|ui| {
+            ui.label(
+                format_duration(
+                    (now - chrono::DateTime::from_timestamp_micros(last_message_time_us)
+                        .unwrap_or_default())
+                    .to_std()
+                    .unwrap_or_default(),
+                )
+                .to_string()
+                    + " Ago",
+            );
+        });
+    });
+}
+
+fn add_row_with_graph<T>(body: &mut TableBody<'_>, field_info: &FieldInfo<T>, field_name: &str)
+where
+    f64: std::convert::From<T>,
+    T: Copy + std::fmt::Display + std::fmt::Debug + Default,
+{
+    body.row(15., |mut row| {
+        row.col(|ui| {
+            let label = ui.label(field_name);
+
+            if label.hovered() {
+                show_stats_tooltip(ui, field_info, field_name);
+            };
+        });
+        row.col(|ui| {
+            let label = ui.label(
+                field_info
+                    .history
+                    .back()
+                    .map(|(_time, value)| value.to_string())
+                    .unwrap_or("?".to_string()),
+            );
+
+            if label.hovered() {
+                show_stats_tooltip(ui, field_info, field_name);
+            };
+        });
+    });
 }
 
 impl eframe::App for App {
@@ -476,7 +517,7 @@ impl eframe::App for App {
         });
 
         eframe::egui::CentralPanel::default().show(ctx, |ui| {
-            self.create_messages_stats_ui(ui);
+            self.create_hub_messages_stats_ui(ui);
         });
 
         ctx.request_repaint();
@@ -488,27 +529,29 @@ fn extract_number(value: &serde_json::Value) -> Option<f64> {
         Some(num)
     } else if let Some(num) = value.as_i64() {
         Some(num as f64)
-    } else if let Some(num) = value.as_u64() {
-        Some(num as f64)
     } else {
-        None
+        value.as_u64().map(|num| num as f64)
     }
 }
 
-fn show_stats_tooltip(ui: &mut eframe::egui::Ui, field_info: &FieldInfo, field_name: &str) {
+fn show_stats_tooltip<T>(ui: &mut eframe::egui::Ui, field_info: &FieldInfo<T>, field_name: &str)
+where
+    f64: std::convert::From<T>,
+    T: Copy + std::fmt::Debug,
+{
     eframe::egui::show_tooltip(ui.ctx(), ui.layer_id(), ui.id(), |ui| {
         let points: PlotPoints = field_info
             .history
             .iter()
             .map(|(time, value)| {
                 let timestamp = time.timestamp_millis() as f64;
-                [timestamp, *value]
+                [timestamp, f64::from(*value)]
             })
             .collect();
 
-        let line = Line::new(points).name(field_name.clone());
+        let line = Line::new(points).name(field_name);
 
-        Plot::new(field_name.clone())
+        Plot::new(field_name)
             .view_aspect(2.0)
             .x_axis_formatter(|x, _range| {
                 let datetime = DateTime::from_timestamp_millis(x.value as i64);
