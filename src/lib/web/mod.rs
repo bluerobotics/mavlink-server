@@ -352,8 +352,15 @@ type ClientSender = mpsc::UnboundedSender<Message>;
 pub async fn run(address: String) {
     let router = SERVER.router.lock().unwrap().clone();
 
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+    let mut first = true;
     loop {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        if first {
+            first = false;
+        } else {
+            interval.tick().await;
+        }
+
         let listener = match tokio::net::TcpListener::bind(&address).await {
             Ok(listener) => listener,
             Err(error) => {
