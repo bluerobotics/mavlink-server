@@ -54,6 +54,7 @@ tracing-log = "0.2.0"
 # Reference: https://github.com/tokio-rs/tracing/issues/2441
 tracing-appender = { git = "https://github.com/joaoantoniocardoso/tracing", branch = "tracing-appender-0.2.2-with-filename-suffix" }
 toml = "0.8.19"
+zenoh = "1.0.1"
 
 [dev-dependencies]
 criterion = "0.5"
