@@ -82,7 +82,9 @@ jobs:
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
     - name: Install build dependencies - Cargo-Binstall
-      uses: cargo-bins/cargo-binstall@main
+      #uses: cargo-bins/cargo-binstall@main
+      # Waits for https://github.com/cargo-bins/cargo-binstall/issues/1953 to be fixed
+      run: curl -A "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/81.0" -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
     - name: Install build dependencies - Cross, Trunk
       run: cargo binstall -y trunk cross
