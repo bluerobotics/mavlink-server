@@ -235,7 +235,7 @@ impl DriverInfo for RestInfo {
         vec![]
     }
 
-    fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
+    fn create_endpoint_from_url(&self, _url: &url::Url) -> Option<Arc<dyn Driver>> {
         None
     }
 }
