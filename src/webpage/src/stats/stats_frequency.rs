@@ -59,10 +59,8 @@ pub fn set_stats_frequency(stats_frequency: &Arc<Mutex<f32>>, new_stats_frequenc
         request,
         move |result: ehttp::Result<ehttp::Response>| match result {
             Ok(response) => {
-                if let Some(json) = response.text() {
-                    if let Ok(Frequency { frequency }) = serde_json::from_str(json) {
-                        *stats_frequency.lock() = frequency;
-                    }
+                if let Ok(Frequency { frequency }) = response.json() {
+                    *stats_frequency.lock() = frequency;
                 }
             }
             Err(error) => log::error!("Status code: {error:?}"),
