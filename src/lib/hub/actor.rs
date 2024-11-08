@@ -19,6 +19,7 @@ use crate::{
     },
 };
 
+#[allow(dead_code)]
 pub struct HubActor {
     drivers: IndexMap<DriverUuid, Arc<dyn Driver>>,
     bcst_sender: broadcast::Sender<Arc<Protocol>>,
