@@ -462,10 +462,11 @@ impl App {
                                             }
 
                                             message_header.show(ui, |ui| {
+                                                let id_salt = ui.make_persistent_id(format!(
+                                                    "messages_table_{system_id}_{component_id}_{message_id}"
+                                                ));
                                                 TableBuilder::new(ui)
-                                                    .id_salt(ui.make_persistent_id(format!(
-                                                        "messages_table_{system_id}_{component_id}_{message_id}"
-                                                    )))
+                                                    .id_salt(id_salt)
                                                     .striped(true)
                                                     .column(Column::auto().at_least(100.))
                                                     .column(Column::remainder().at_least(150.))
@@ -498,7 +499,7 @@ impl App {
 
     fn create_hub_messages_stats_ui(&self, ui: &mut eframe::egui::Ui) {
         eframe::egui::ScrollArea::vertical()
-            .id_salt("scroll_messages_stats")
+            .id_salt(ui.make_persistent_id("scroll_messages_stats"))
             .show(ui, |ui| {
                 for (system_id, components) in &self.hub_messages_stats.systems_messages_stats {
                     let _ = CollapsingHeader::new(format!("Vehicle ID: {system_id}"))
@@ -520,12 +521,15 @@ impl App {
                                                     "Message ID: {message_id}"
                                                 ))
                                                 .id_salt(ui.make_persistent_id(format!(
-                                                "message_{system_id}_{component_id}_{message_id}"
-                                            )))
+                                                    "message_{system_id}_{component_id}_{message_id}"
+                                                )))
                                                 .default_open(true)
                                                 .show(ui, |ui: &mut egui::Ui| {
+                                                    let id_salt = ui.make_persistent_id(format!(
+                                                        "messages_table_{system_id}_{component_id}_{message_id}"
+                                                    ));
                                                     TableBuilder::new(ui)
-                                                        .id_salt("hub_stats_table")
+                                                        .id_salt(id_salt)
                                                         .striped(true)
                                                         .column(Column::auto().at_least(100.))
                                                         .column(Column::remainder().at_least(150.))
@@ -556,8 +560,9 @@ impl App {
                     .id_salt(ui.make_persistent_id("hub_stats"))
                     .default_open(true)
                     .show(ui, |ui| {
+                        let salt = ui.make_persistent_id("hub_stats_table");
                         TableBuilder::new(ui)
-                            .id_salt("hub_stats_table")
+                            .id_salt(salt)
                             .striped(true)
                             .column(Column::auto().at_least(100.))
                             .column(Column::remainder().at_least(150.))
@@ -587,8 +592,11 @@ impl App {
                         .show(ui, |ui| {
                             let stats = &driver_stats.stats;
 
+                            let salt = ui.make_persistent_id(format!(
+                                "driver_stats_info_table_{driver_uuid}"
+                            ));
                             TableBuilder::new(ui)
-                                .id_salt(format!("driver_stats_info_table_{driver_uuid}"))
+                                .id_salt(salt)
                                 .striped(true)
                                 .column(Column::auto().at_least(120.))
                                 .column(Column::remainder().at_least(150.))
@@ -627,11 +635,12 @@ impl App {
                                 )))
                                 .default_open(true)
                                 .show(ui, |ui| {
+                                    let id_salt = ui.make_persistent_id(format!(
+                                        "driver_stats_input_table_{driver_uuid}"
+                                    ));
                                     if let Some(input_stats) = &stats.input {
                                         TableBuilder::new(ui)
-                                            .id_salt(format!(
-                                                "driver_stats_input_table_{driver_uuid}"
-                                            ))
+                                            .id_salt(id_salt)
                                             .striped(true)
                                             .column(Column::auto().at_least(100.))
                                             .column(Column::remainder().at_least(150.))
@@ -652,10 +661,11 @@ impl App {
                                 .default_open(true)
                                 .show(ui, |ui| {
                                     if let Some(output_stats) = &stats.output {
+                                        let id_salt = ui.make_persistent_id(format!(
+                                            "driver_stats_output_table_{driver_uuid}"
+                                        ));
                                         TableBuilder::new(ui)
-                                            .id_salt(format!(
-                                                "driver_stats_output_table_{driver_uuid}"
-                                            ))
+                                            .id_salt(id_salt)
                                             .striped(true)
                                             .column(Column::auto().at_least(100.))
                                             .column(Column::remainder().at_least(150.))
@@ -700,7 +710,11 @@ fn add_label_and_plot_all_stats(
     message_stats: &StatsInner<ByteStatsHistorical, MessageStatsHistorical, DelayStatsHistorical>,
 ) {
     // Messages stats
-    add_row_with_graph(body, &message_stats.messages.total_messages, "Messages [Total]");
+    add_row_with_graph(
+        body,
+        &message_stats.messages.total_messages,
+        "Messages [Total]",
+    );
     add_row_with_graph(
         body,
         &message_stats.messages.messages_per_second,
@@ -714,7 +728,11 @@ fn add_label_and_plot_all_stats(
 
     // Bytes stats
     add_row_with_graph(body, &message_stats.bytes.total_bytes, "Bytes [Total]");
-    add_row_with_graph(body, &message_stats.bytes.bytes_per_second, "Inst. Bytes [B/s]");
+    add_row_with_graph(
+        body,
+        &message_stats.bytes.bytes_per_second,
+        "Inst. Bytes [B/s]",
+    );
     add_row_with_graph(
         body,
         &message_stats.bytes.average_bytes_per_second,
