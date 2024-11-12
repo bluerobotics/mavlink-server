@@ -1,10 +1,11 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
 
 use chrono::prelude::*;
 use eframe::egui::{CollapsingHeader, Context};
 use egui::mutex::Mutex;
 use egui_extras::{Column, TableBody, TableBuilder};
 use egui_plot::{Line, Plot, PlotPoints};
+use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use ewebsock::{connect, WsReceiver, WsSender};
 use humantime::format_duration;
 use ringbuffer::RingBuffer;
@@ -25,6 +26,14 @@ const MAVLINK_MESSAGES_WEBSOCKET_PATH: &str = "rest/ws";
 const HUB_MESSAGES_STATS_WEBSOCKET_PATH: &str = "stats/messages/ws";
 const HUB_STATS_WEBSOCKET_PATH: &str = "stats/hub/ws";
 const DRIVERS_STATS_WEBSOCKET_PATH: &str = "stats/drivers/ws";
+
+#[derive(Clone, PartialEq)]
+enum Tab {
+    MessagesInspector,
+    HubStats,
+    MessagesStats,
+    DriversStats,
+}
 
 pub struct App {
     now: DateTime<Utc>,
@@ -47,10 +56,8 @@ pub struct App {
     search_query: String,
     collapse_all: bool,
     expand_all: bool,
-    showhub_stats: Arc<Mutex<bool>>,
-    show_messages_stats: Arc<Mutex<bool>>,
-    showdrivers_stats: Arc<Mutex<bool>>,
     stats_frequency: Arc<Mutex<f32>>,
+    dock_state: Option<DockState<Tab>>,
 }
 
 impl Default for App {
@@ -70,6 +77,18 @@ impl Default for App {
         let (drivers_stats_sender, drivers_stats_receiver) =
             connect_websocket(DRIVERS_STATS_WEBSOCKET_PATH).unwrap();
 
+        let mut dock_state = DockState::new(vec![Tab::MessagesInspector]);
+
+        let [left, right] = dock_state
+            .main_surface_mut()
+            .split_left(NodeIndex::root(), 0.3, vec![Tab::HubStats]);
+        let [_, _] = dock_state
+            .main_surface_mut()
+            .split_below(left, 0.7, vec![Tab::MessagesStats]);
+        let [_, _] = dock_state
+            .main_surface_mut()
+            .split_below(right, 0.5, vec![Tab::DriversStats]);
+
         Self {
             now: Utc::now(),
             mavlink_receiver,
@@ -87,10 +106,8 @@ impl Default for App {
             search_query: String::new(),
             collapse_all: false,
             expand_all: false,
-            showhub_stats: Arc::new(Mutex::new(false)),
-            show_messages_stats: Arc::new(Mutex::new(false)),
-            showdrivers_stats: Arc::new(Mutex::new(false)),
             stats_frequency,
+            dock_state: Some(dock_state),
         }
     }
 }
@@ -734,6 +751,67 @@ where
     });
 }
 
+//https://cdn-useast1.kapwing.com/static/templates/our-meme-template-full-9bbb8a21.webp
+struct OurTabViewer<'a> {
+    app: &'a mut App,
+}
+
+impl<'a> TabViewer for OurTabViewer<'a> {
+    type Tab = Tab;
+
+    fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
+        match tab {
+            Tab::MessagesInspector => "Messages Inspector".into(),
+            Tab::HubStats => "Hub Stats".into(),
+            Tab::MessagesStats => "Messages Stats".into(),
+            Tab::DriversStats => "Drivers Stats".into(),
+        }
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
+        match tab {
+            Tab::MessagesInspector => {
+                ui.horizontal_top(|ui| {
+                    ui.label("Search:");
+                    ui.add(
+                        eframe::egui::TextEdit::singleline(&mut self.app.search_query)
+                            .hint_text("Search...")
+                            .desired_width(100.),
+                    );
+                    if ui.button("Clear").clicked() {
+                        self.app.search_query.clear();
+                    }
+                    if ui.button("Collapse All").clicked() {
+                        self.app.collapse_all = true;
+                        self.app.expand_all = false;
+                    }
+                    if ui.button("Expand All").clicked() {
+                        self.app.expand_all = true;
+                        self.app.collapse_all = false;
+                    }
+                });
+
+                self.app.create_messages_ui(ui);
+
+                // Reset collapse and expand flags
+                if self.app.expand_all || self.app.collapse_all {
+                    self.app.expand_all = false;
+                    self.app.collapse_all = false;
+                }
+            }
+            Tab::HubStats => {
+                self.app.create_hub_stats_ui(ui);
+            }
+            Tab::MessagesStats => {
+                self.app.create_hub_messages_stats_ui(ui);
+            }
+            Tab::DriversStats => {
+                self.app.create_drivers_stats_ui(ui);
+            }
+        }
+    }
+}
+
 impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.now = Utc::now();
@@ -748,14 +826,6 @@ impl eframe::App for App {
             .show_separator_line(true)
             .min_width(150.)
             .show(ctx, |ui| {
-                ui.vertical(|ui| {
-                    ui.checkbox(&mut self.showhub_stats.lock(), "Hub Stats");
-                    ui.checkbox(&mut self.show_messages_stats.lock(), "Messages Stats");
-                    ui.checkbox(&mut self.showdrivers_stats.lock(), "Drivers Stats");
-                });
-
-                ui.separator();
-
                 ui.vertical(|ui| {
                     let mut stats_frequency = self.stats_frequency.lock().to_owned();
                     ui.label("Stats Frequency");
@@ -778,60 +848,12 @@ impl eframe::App for App {
                 });
             });
 
-        egui::SidePanel::left("messages_inspector")
-            .show_separator_line(true)
-            .min_width(250.)
-            .show(ctx, |ui| {
-                ui.horizontal_top(|ui| {
-                    ui.label("Search:");
-                    ui.add(
-                        eframe::egui::TextEdit::singleline(&mut self.search_query)
-                            .hint_text("Search...")
-                            .desired_width(100.),
-                    );
-                    if ui.button("Clear").clicked() {
-                        self.search_query.clear();
-                    }
-                    if ui.button("Collapse All").clicked() {
-                        self.collapse_all = true;
-                        self.expand_all = false;
-                    }
-                    if ui.button("Expand All").clicked() {
-                        self.expand_all = true;
-                        self.collapse_all = false;
-                    }
-                });
-
-                self.create_messages_ui(ui);
-
-                // Reset collapse and expand flags
-                if self.expand_all || self.collapse_all {
-                    self.expand_all = false;
-                    self.collapse_all = false;
-                }
-            });
-
-        egui::CentralPanel::default().show(ctx, |_ui| {
-            // TODO: In the future, we can add the mavlink2rest message watcher here
-        });
-
-        egui::Window::new("Hub Stats")
-            .open(&mut self.showhub_stats.lock())
-            .show(ctx, |ui| {
-                self.create_hub_stats_ui(ui);
-            });
-
-        egui::Window::new("Messages Stats")
-            .open(&mut self.show_messages_stats.lock())
-            .show(ctx, |ui| {
-                self.create_hub_messages_stats_ui(ui);
-            });
-
-        egui::Window::new("Drivers Stats")
-            .open(&mut self.showdrivers_stats.lock())
-            .show(ctx, |ui| {
-                self.create_drivers_stats_ui(ui);
-            });
+        if let Some(mut dock_state) = self.dock_state.take() {
+            DockArea::new(&mut dock_state)
+                .style(Style::from_egui(ctx.style().as_ref()))
+                .show(ctx, &mut OurTabViewer { app: self });
+            self.dock_state = Some(dock_state);
+        }
 
         ctx.request_repaint();
     }
