@@ -3,7 +3,6 @@ use std::sync::Arc;
 use anyhow::Result;
 use mavlink::{self, Message};
 use mavlink_codec::Packet;
-use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 use zenoh;
@@ -11,18 +10,13 @@ use zenoh;
 use crate::{
     callbacks::{Callbacks, MessageCallback},
     drivers::{generic_tasks::SendReceiveContext, Driver, DriverInfo},
+    mavlink_json::{MAVLinkJSON, MAVLinkJSONHeader},
     protocol::Protocol,
     stats::{
         accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
         driver::DriverUuid,
     },
 };
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct MAVLinkMessage<T> {
-    pub header: mavlink::MavHeader,
-    pub message: T,
-}
 
 #[derive(Debug)]
 pub struct Zenoh {
@@ -89,7 +83,7 @@ impl Zenoh {
         };
 
         while let Ok(sample) = subscriber.recv_async().await {
-            let Ok(content) = json5::from_str::<MAVLinkMessage<mavlink::ardupilotmega::MavMessage>>(
+            let Ok(content) = json5::from_str::<MAVLinkJSON<mavlink::ardupilotmega::MavMessage>>(
                 std::str::from_utf8(&sample.payload().to_bytes()).unwrap(),
             ) else {
                 debug!("Failed to parse message, not a valid MAVLinkMessage: {sample:?}");
@@ -98,7 +92,7 @@ impl Zenoh {
 
             let bus_message = {
                 let mut message_raw = mavlink::MAVLinkV2MessageRaw::new();
-                message_raw.serialize_message(content.header, &content.message);
+                message_raw.serialize_message(content.header.inner, &content.message);
 
                 Arc::new(Protocol::new("zenoh", Packet::from(message_raw)))
             };
@@ -167,8 +161,13 @@ impl Zenoh {
                 continue;
             };
 
+            let header = MAVLinkJSONHeader {
+                inner: header,
+                message_id: Some(mavlink::Message::message_id(&message)),
+            };
+
             let message_name = message.message_name();
-            let mavlink_message = MAVLinkMessage { header, message };
+            let mavlink_message = MAVLinkJSON { header, message };
             let json_string = &match json5::to_string(&mavlink_message) {
                 Ok(json) => json,
                 Err(error) => {
@@ -186,7 +185,7 @@ impl Zenoh {
 
             let topic_name = &format!(
                 "mavlink/{}/{}/{}",
-                header.system_id, header.component_id, message_name
+                header.inner.system_id, header.inner.component_id, message_name
             );
             if let Err(error) = session.put(topic_name, json_string).await {
                 error!("Failed to send message to {topic_name}: {error:?}");
