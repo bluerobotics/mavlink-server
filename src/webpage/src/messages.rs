@@ -5,10 +5,15 @@ use ringbuffer::ConstGenericRingBuffer;
 
 const BUFFERS_CAPACITY: usize = 128;
 
-pub type VehiclesMessages = BTreeMap<u8, BTreeMap<u8, BTreeMap<String, MessageInfo>>>;
+pub type VehiclesMessages =
+    BTreeMap<VehicleID, BTreeMap<ComponentID, BTreeMap<MessageID, MessageInfo>>>;
+pub type VehicleID = u8;
+pub type ComponentID = u8;
+pub type MessageID = u32;
 
 #[derive(Clone)]
 pub struct MessageInfo {
+    pub name: String,
     pub last_sample_time: DateTime<Utc>,
     pub fields: BTreeMap<String, FieldInfo<f64>>,
 }
