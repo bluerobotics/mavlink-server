@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use chrono::prelude::*;
 use eframe::egui::{CollapsingHeader, Context};
