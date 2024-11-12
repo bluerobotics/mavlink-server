@@ -686,6 +686,11 @@ fn add_label_and_plot_all_stats(
         &message_stats.messages.messages_per_second,
         "Messages/s",
     );
+    add_row_with_graph(
+        body,
+        &message_stats.messages.average_messages_per_second,
+        "Avg Messages/s",
+    );
 
     // Bytes stats
     add_row_with_graph(body, &message_stats.bytes.total_bytes, "Bytes");
