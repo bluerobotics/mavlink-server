@@ -170,7 +170,8 @@ impl App {
         let Some(messages) = vehicle.get_mut(&component_id) else {
             return;
         };
-        let message_info = messages.entry(message_name).or_insert_with(|| MessageInfo {
+        let message_info = messages.entry(message_id).or_insert_with(|| MessageInfo {
+            name: message_name,
             last_sample_time: self.now,
             fields: Default::default(),
         });
@@ -388,7 +389,8 @@ impl App {
                 for (component_id, messages) in components {
                     let mut matching_messages = BTreeMap::new();
 
-                    for (name, message) in messages {
+                    for (message_id, message) in messages {
+                        let name = &message.name;
                         let name_lower = name.to_lowercase();
                         let message_matches =
                             search_query.is_empty() || name_lower.contains(&search_query);
@@ -409,7 +411,7 @@ impl App {
 
                         if message_matches || !matching_fields.is_empty() {
                             matching_messages.insert(
-                                name.clone(),
+                                message_id,
                                 (message.clone(), matching_fields, message_matches),
                             );
                         }
