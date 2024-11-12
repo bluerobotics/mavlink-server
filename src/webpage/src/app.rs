@@ -424,25 +424,33 @@ impl App {
                 }
 
                 if !matching_components.is_empty() {
-                    let _ = CollapsingHeader::new(format!("Vehicle {system_id}"))
-                        .id_salt(ui.make_persistent_id(format!("vehicle_{system_id}")))
-                        .default_open(true)
-                        .show(ui, |ui| {
-                            for (component_id, messages) in matching_components {
-                                let _ = CollapsingHeader::new(format!("Component {component_id}"))
+                    let _ =
+                        CollapsingHeader::new(format!("Vehicle ID: {system_id}"))
+                            .id_salt(ui.make_persistent_id(format!("vehicle_{system_id}")))
+                            .default_open(true)
+                            .show(ui, |ui| {
+                                for (component_id, messages) in matching_components {
+                                    let _ = CollapsingHeader::new(format!(
+                                        "Component ID: {component_id}"
+                                    ))
                                     .id_salt(ui.make_persistent_id(format!(
                                         "component_{system_id}_{component_id}"
                                     )))
                                     .default_open(true)
                                     .show(ui, |ui| {
-                                        for (name, (message, matching_fields, _message_matches)) in
-                                            messages
+                                        for (
+                                            message_id,
+                                            (message, matching_fields, _message_matches),
+                                        ) in messages
                                         {
-                                            let mut message_header = CollapsingHeader::new(&name)
-                                                .default_open(true)
-                                                .id_salt(ui.make_persistent_id(format!(
-                                                    "message_{system_id}_{component_id}_{name}"
-                                                )));
+                                            let name = message.name;
+                                            let mut message_header = CollapsingHeader::new(
+                                                format!("Message ID: {message_id}\t({name})",),
+                                            )
+                                            .default_open(true)
+                                            .id_salt(ui.make_persistent_id(format!(
+                                                "message_{system_id}_{component_id}_{message_id}"
+                                            )));
 
                                             if self.expand_all {
                                                 message_header = message_header.open(Some(true));
@@ -454,7 +462,9 @@ impl App {
 
                                             message_header.show(ui, |ui| {
                                                 TableBuilder::new(ui)
-                                                    .id_salt("hub_stats_table")
+                                                    .id_salt(ui.make_persistent_id(format!(
+                                                        "messages_table_{system_id}_{component_id}_{message_id}"
+                                                    )))
                                                     .striped(true)
                                                     .column(Column::auto().at_least(100.))
                                                     .column(Column::remainder().at_least(150.))
@@ -478,8 +488,8 @@ impl App {
                                             });
                                         }
                                     });
-                            }
-                        });
+                                }
+                            });
                 }
             }
         });
