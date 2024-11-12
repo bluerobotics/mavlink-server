@@ -79,9 +79,10 @@ impl Default for App {
 
         let mut dock_state = DockState::new(vec![Tab::MessagesInspector]);
 
-        let [left, right] = dock_state
-            .main_surface_mut()
-            .split_left(NodeIndex::root(), 0.3, vec![Tab::HubStats]);
+        let [left, right] =
+            dock_state
+                .main_surface_mut()
+                .split_left(NodeIndex::root(), 0.3, vec![Tab::HubStats]);
         let [_, _] = dock_state
             .main_surface_mut()
             .split_below(left, 0.7, vec![Tab::MessagesStats]);
