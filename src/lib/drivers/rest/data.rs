@@ -7,6 +7,8 @@ use lazy_static::lazy_static;
 use mavlink::{self, Message};
 use serde::{Deserialize, Serialize};
 
+use crate::mavlink_json::{MAVLinkJSON, MAVLinkJSONHeader};
+
 lazy_static! {
     static ref DATA: Data = Data {
         messages: Arc::new(Mutex::new(MAVLinkVehiclesData::default())),
@@ -24,8 +26,8 @@ pub struct MAVLinkVehiclesData {
 }
 
 impl MAVLinkVehiclesData {
-    fn update(&mut self, message: MAVLinkMessage<mavlink::ardupilotmega::MavMessage>) {
-        let vehicle_id = message.header.system_id;
+    fn update(&mut self, message: MAVLinkJSON<mavlink::ardupilotmega::MavMessage>) {
+        let vehicle_id = message.header.inner.system_id;
         self.vehicles
             .entry(vehicle_id)
             .or_insert(MAVLinkVehicleData {
@@ -63,8 +65,8 @@ struct MAVLinkVehicleData {
 }
 
 impl MAVLinkVehicleData {
-    fn update(&mut self, message: MAVLinkMessage<mavlink::ardupilotmega::MavMessage>) {
-        let component_id = message.header.component_id;
+    fn update(&mut self, message: MAVLinkJSON<mavlink::ardupilotmega::MavMessage>) {
+        let component_id = message.header.inner.component_id;
         self.components
             .entry(component_id)
             .or_insert(MAVLinkVehicleComponentData {
@@ -82,7 +84,7 @@ struct MAVLinkVehicleComponentData {
 }
 
 impl MAVLinkVehicleComponentData {
-    fn update(&mut self, message: MAVLinkMessage<mavlink::ardupilotmega::MavMessage>) {
+    fn update(&mut self, message: MAVLinkJSON<mavlink::ardupilotmega::MavMessage>) {
         let message_name = message.message.message_name().to_string();
         self.messages
             .entry(message_name)
@@ -101,16 +103,10 @@ struct MAVLinkMessageStatus {
 }
 
 impl MAVLinkMessageStatus {
-    fn update(&mut self, message: MAVLinkMessage<mavlink::ardupilotmega::MavMessage>) {
+    fn update(&mut self, message: MAVLinkJSON<mavlink::ardupilotmega::MavMessage>) {
         self.message = message.message;
         self.status.update();
     }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct MAVLinkMessage<T> {
-    pub header: mavlink::MavHeader,
-    pub message: T,
 }
 
 #[derive(Default, Debug, Deserialize, Serialize)]
@@ -154,11 +150,11 @@ impl Temporal {
     }
 }
 
-pub fn update((header, message): (mavlink::MavHeader, mavlink::ardupilotmega::MavMessage)) {
+pub fn update((header, message): (MAVLinkJSONHeader, mavlink::ardupilotmega::MavMessage)) {
     DATA.messages
         .lock()
         .unwrap()
-        .update(MAVLinkMessage { header, message });
+        .update(MAVLinkJSON { header, message });
 }
 
 pub fn messages(path: &str) -> String {

@@ -5,25 +5,19 @@ use std::sync::Arc;
 use anyhow::Result;
 use mavlink::ardupilotmega::MavMessage;
 use mavlink_codec::Packet;
-use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 
 use crate::{
     callbacks::{Callbacks, MessageCallback},
     drivers::{Driver, DriverInfo},
+    mavlink_json::{MAVLinkJSON, MAVLinkJSONHeader},
     protocol::Protocol,
     stats::{
         accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
         driver::DriverUuid,
     },
 };
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct MAVLinkMessage<T> {
-    pub header: mavlink::MavHeader,
-    pub message: T,
-}
 
 #[derive(Debug)]
 pub struct Rest {
@@ -82,10 +76,10 @@ impl Rest {
         match ws_receiver.recv().await {
             Ok(message) => {
                 if let Ok(content) =
-                    json5::from_str::<MAVLinkMessage<mavlink::ardupilotmega::MavMessage>>(&message)
+                    json5::from_str::<MAVLinkJSON<mavlink::ardupilotmega::MavMessage>>(&message)
                 {
                     let mut message_raw = mavlink::MAVLinkV2MessageRaw::new();
-                    message_raw.serialize_message(content.header, &content.message);
+                    message_raw.serialize_message(content.header.inner, &content.message);
                     let bus_message = Arc::new(Protocol::new("Ws", Packet::from(message_raw)));
                     stats.write().await.stats.update_input(&bus_message);
 
@@ -139,7 +133,13 @@ impl Rest {
                         continue;
                     };
 
-                    let mavlink_message = MAVLinkMessage { header, message };
+                    let header = MAVLinkJSONHeader {
+                        inner: header,
+                        message_id: Some(mavlink::Message::message_id(&message)),
+                    };
+
+                    let mavlink_message = MAVLinkJSON { header, message };
+
                     let json_string = parse_query(&mavlink_message);
                     data::update((header, mavlink_message.message));
                     crate::web::send_message(json_string).await;
