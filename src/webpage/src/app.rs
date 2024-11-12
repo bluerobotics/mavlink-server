@@ -86,9 +86,10 @@ impl Default for App {
         let [_, _] = dock_state
             .main_surface_mut()
             .split_right(left, 0.5, vec![Tab::MessagesStats]);
-        let [_, _] = dock_state
-            .main_surface_mut()
-            .split_below(right, 0.25, vec![Tab::DriversStats]);
+        let [_, _] =
+            dock_state
+                .main_surface_mut()
+                .split_below(right, 0.25, vec![Tab::DriversStats]);
 
         Self {
             now: Utc::now(),
