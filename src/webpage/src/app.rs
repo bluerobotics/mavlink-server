@@ -147,6 +147,12 @@ impl App {
         else {
             return;
         };
+        let Some(message_id) = message_json["header"]["message_id"]
+            .as_u64()
+            .map(|n| n as u32)
+        else {
+            return;
+        };
         let Some(message_name) = message_json["message"]["type"]
             .as_str()
             .map(|s| s.to_string())
