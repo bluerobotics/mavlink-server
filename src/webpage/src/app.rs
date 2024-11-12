@@ -392,8 +392,9 @@ impl App {
                     for (message_id, message) in messages {
                         let name = &message.name;
                         let name_lower = name.to_lowercase();
-                        let message_matches =
-                            search_query.is_empty() || name_lower.contains(&search_query);
+                        let message_matches = search_query.is_empty()
+                            || name_lower.contains(&search_query)
+                            || message_id.to_string().contains(&search_query);
 
                         let mut matching_fields = BTreeMap::new();
 
