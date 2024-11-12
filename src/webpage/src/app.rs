@@ -680,30 +680,30 @@ fn add_label_and_plot_all_stats(
     message_stats: &StatsInner<ByteStatsHistorical, MessageStatsHistorical, DelayStatsHistorical>,
 ) {
     // Messages stats
-    add_row_with_graph(body, &message_stats.messages.total_messages, "Messages");
+    add_row_with_graph(body, &message_stats.messages.total_messages, "Messages [Total]");
     add_row_with_graph(
         body,
         &message_stats.messages.messages_per_second,
-        "Messages/s",
+        "Inst. Messages [Msg/s]",
     );
     add_row_with_graph(
         body,
         &message_stats.messages.average_messages_per_second,
-        "Avg Messages/s",
+        "Messages [M/s]",
     );
 
     // Bytes stats
-    add_row_with_graph(body, &message_stats.bytes.total_bytes, "Bytes");
-    add_row_with_graph(body, &message_stats.bytes.bytes_per_second, "Bytes/s");
+    add_row_with_graph(body, &message_stats.bytes.total_bytes, "Bytes [Total]");
+    add_row_with_graph(body, &message_stats.bytes.bytes_per_second, "Inst. Bytes [B/s]");
     add_row_with_graph(
         body,
         &message_stats.bytes.average_bytes_per_second,
-        "Avg Bytes",
+        "Avg. Bytes [B/s]",
     );
 
     // Delay stats
     add_row_with_graph(body, &message_stats.delay_stats.delay, "Delay [us]");
-    add_row_with_graph(body, &message_stats.delay_stats.jitter, "Jitter [s]");
+    add_row_with_graph(body, &message_stats.delay_stats.jitter, "Int. Jitter [s]");
 
     add_last_update_row(body, now, message_stats.last_message_time_us as i64);
 }
