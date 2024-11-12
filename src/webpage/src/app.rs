@@ -47,7 +47,7 @@ pub struct App {
     drivers_stats_sender: WsSender,
     /// Realtime messages, grouped by Vehicle ID and Component ID
     vehicles_mavlink: VehiclesMessages,
-    /// Hub messages statsistics, groupbed by Vehicle ID and Component ID
+    /// Hub messages statistics, grouped by Vehicle ID and Component ID
     hub_messages_stats: HubMessagesStatsHistorical,
     /// Hub statistics
     hub_stats: HubStatsHistorical,
