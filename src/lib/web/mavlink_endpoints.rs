@@ -8,7 +8,8 @@ use axum::{
     },
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    routing::{get, post},
+    Json, Router,
 };
 
 use futures::{sink::SinkExt, stream::StreamExt};
@@ -17,6 +18,20 @@ use tracing::*;
 use uuid::Uuid;
 
 use crate::web::{broadcast_message_websockets, AppState};
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/ws", get(websocket_handler))
+        // We are matching all possible keys for the user
+        .route("/mavlink", get(mavlink))
+        .route("/mavlink", post(post_mavlink))
+        .route("/mavlink/", get(mavlink))
+        .route("/mavlink/*path", get(mavlink))
+        .route(
+            "/mavlink/message_id_from_name/*name",
+            get(message_id_from_name),
+        )
+}
 
 pub async fn mavlink(path: Option<Path<String>>) -> impl IntoResponse {
     let path = match path {

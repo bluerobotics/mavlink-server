@@ -14,7 +14,7 @@ use axum::{
     },
     http::StatusCode,
     response::Response,
-    routing::{get, post},
+    routing::get,
     Router,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
@@ -49,16 +49,7 @@ fn default_router(state: AppState) -> Router {
             "/stats/messages/ws",
             get(hub_messages_stats_websocket_handler),
         )
-        .route("/rest/ws", get(mavlink_endpoints::websocket_handler))
-        // We are matching all possible keys for the user
-        .route("/rest/mavlink", get(mavlink_endpoints::mavlink))
-        .route("/rest/mavlink", post(mavlink_endpoints::post_mavlink))
-        .route("/rest/mavlink/", get(mavlink_endpoints::mavlink))
-        .route("/rest/mavlink/*path", get(mavlink_endpoints::mavlink))
-        .route(
-            "/rest/mavlink/message_id_from_name/*name",
-            get(mavlink_endpoints::message_id_from_name),
-        )
+        .nest("/rest/", mavlink_endpoints::router())
         .fallback(get(|| async { (StatusCode::NOT_FOUND, "Not found :(") }))
         .with_state(state)
 }
