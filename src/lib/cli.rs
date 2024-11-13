@@ -50,6 +50,7 @@ struct Args {
     #[arg(long, default_value = "./logs")]
     log_path: Option<String>,
 
+    /// Disables stream request (not implemented)
     #[arg(long, default_value = "true")]
     streamreq_disable: bool,
 
