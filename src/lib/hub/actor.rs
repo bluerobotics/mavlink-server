@@ -2,7 +2,6 @@ use std::{ops::Div, sync::Arc};
 
 use anyhow::{anyhow, Context, Result};
 use indexmap::IndexMap;
-use mavlink_codec::Packet;
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tracing::*;
 
@@ -185,12 +184,9 @@ impl HubActor {
                 ..Default::default()
             };
 
-            let mut message_raw = mavlink::MAVLinkV2MessageRaw::new();
-            message_raw.serialize_message(header, &message);
+            let message = Arc::new(Protocol::from_mavlink_raw(header, &message, ""));
 
-            let message = Protocol::new("", Packet::from(message_raw));
-
-            if let Err(error) = bcst_sender.send(Arc::new(message)) {
+            if let Err(error) = bcst_sender.send(message) {
                 error!("Failed to send HEARTBEAT message: {error}");
             }
 
