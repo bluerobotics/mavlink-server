@@ -9,6 +9,7 @@ use lazy_static::lazy_static;
 use tokio::sync::{broadcast, mpsc, oneshot, RwLock};
 
 use crate::{
+    cli,
     drivers::{Driver, DriverInfo},
     protocol::Protocol,
     stats::{
@@ -26,11 +27,9 @@ use protocol::HubCommand;
 lazy_static! {
     static ref HUB: Hub = Hub::new(
         10000,
-        Arc::new(RwLock::new(
-            mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_ONBOARD_COMPUTER as u8,
-        )),
-        Arc::new(RwLock::new(1)),
-        Arc::new(RwLock::new(1.)),
+        Arc::new(RwLock::new(cli::mavlink_system_id())),
+        Arc::new(RwLock::new(cli::mavlink_component_id())),
+        Arc::new(RwLock::new(cli::mavlink_heartbeat_frequency())),
     );
 }
 
