@@ -7,6 +7,7 @@ use tokio::sync::{broadcast, mpsc, RwLock};
 use tracing::*;
 
 use crate::{
+    cli,
     drivers::{Driver, DriverInfo},
     hub::HubCommand,
     protocol::Protocol,
@@ -157,11 +158,22 @@ impl HubActor {
                 mavlink_version: 0x3,
             });
 
+        let burst_size = 5;
+        let mut burst_msgs_counter = 0;
+        let mut do_burst = cli::send_initial_heartbeats();
+
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs_f32(
-                1f32.div(*frequency.read().await),
-            ))
-            .await;
+            let duration = if do_burst {
+                if burst_msgs_counter == burst_size {
+                    do_burst = false;
+                }
+
+                tokio::time::Duration::from_millis(100)
+            } else {
+                tokio::time::Duration::from_secs_f32(1f32.div(*frequency.read().await))
+            };
+
+            tokio::time::sleep(duration).await;
 
             if bcst_sender.receiver_count().eq(&0) {
                 continue; // Don't try to send if the channel has no subscribers yet
@@ -180,6 +192,10 @@ impl HubActor {
 
             if let Err(error) = bcst_sender.send(Arc::new(message)) {
                 error!("Failed to send HEARTBEAT message: {error}");
+            }
+
+            if do_burst && burst_msgs_counter < burst_size {
+                burst_msgs_counter += 1;
             }
         }
     }
