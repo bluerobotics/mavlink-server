@@ -374,7 +374,7 @@ struct AppState {
 
 type ClientSender = mpsc::UnboundedSender<Message>;
 
-pub async fn run(address: String) {
+pub async fn run(address: std::net::SocketAddrV4) {
     let router = SERVER.router.lock().unwrap().clone();
 
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
