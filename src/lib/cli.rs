@@ -78,6 +78,10 @@ struct Args {
     /// Sends a burst of initial heartbeats to the autopilot spaced by 0.1 seconds to wake up MAVLink connection (useful for PX4-like autopilots)
     #[arg(long, default_value = "false")]
     send_initial_heartbeats: bool,
+
+    /// Sets the MAVLink version used to communicate. This changes the heartbeat messages sent
+    #[arg(long, default_value = "2", value_names = ["1", "2"])]
+    mavlink_version: u8,
 }
 
 #[instrument(level = "trace")]
@@ -228,6 +232,11 @@ pub fn mavlink_heartbeat_frequency() -> f32 {
 #[instrument(level = "debug")]
 pub fn send_initial_heartbeats() -> bool {
     MANAGER.clap_matches.send_initial_heartbeats
+}
+
+#[instrument(level = "debug")]
+pub fn mavlink_version() -> u8 {
+    MANAGER.clap_matches.mavlink_version
 }
 
 #[cfg(test)]
