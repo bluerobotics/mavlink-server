@@ -109,7 +109,7 @@ async fn websocket_connection(socket: WebSocket, state: AppState) {
 }
 
 async fn log_websocket_handler(ws: WebSocketUpgrade) -> Response {
-    ws.on_upgrade(|socket| log_websocket_connection(socket))
+    ws.on_upgrade(log_websocket_connection)
 }
 
 #[instrument(level = "debug", skip_all)]
