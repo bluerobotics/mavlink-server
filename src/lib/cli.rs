@@ -42,6 +42,10 @@ struct Args {
     #[arg(short, long)]
     verbose: bool,
 
+    /// Sets the IP and port that the server will be provided
+    #[arg(long, default_value = "0.0.0.0:8080")]
+    web_server: std::net::SocketAddrV4,
+
     /// Turns all log categories up to Trace to the log file, for more information check RUST_LOG env variable.
     #[arg(long)]
     enable_tracing_level_log_file: bool,
@@ -182,6 +186,11 @@ pub fn udp_server_timeout() -> Option<tokio::time::Duration> {
     }
 
     Some(tokio::time::Duration::from_secs(seconds as u64))
+}
+
+#[instrument(level = "debug")]
+pub fn web_server() -> std::net::SocketAddrV4 {
+    MANAGER.clap_matches.web_server
 }
 
 #[cfg(test)]
