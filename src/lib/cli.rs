@@ -61,6 +61,19 @@ struct Args {
     /// The timeout duration (in seconds) after which inactive UDP clients will be discarded.
     #[arg(long, default_value = "10")]
     udp_server_timeout: i16,
+
+    /// Sets MAVLink system ID for this service
+    #[arg(long, default_value = "1")]
+    mavlink_system_id: u8,
+
+    /// Sets the MAVLink component ID for this service, for more information, check: https://mavlink.io/en/messages/common.html#MAV_COMPONENT")
+    /// note: the default value 191 means MAV_COMP_ID_ONBOARD_COMPUTER
+    #[arg(long, default_value = "191")]
+    mavlink_component_id: u8,
+
+    /// Sets the frequency of the MAVLink heartbeat message sent by the Mavlink Server
+    #[arg(long, default_value = "1")]
+    mavlink_heartbeat_frequency: f32,
 }
 
 #[instrument(level = "trace")]
@@ -191,6 +204,21 @@ pub fn udp_server_timeout() -> Option<tokio::time::Duration> {
 #[instrument(level = "debug")]
 pub fn web_server() -> std::net::SocketAddrV4 {
     MANAGER.clap_matches.web_server
+}
+
+#[instrument(level = "debug")]
+pub fn mavlink_system_id() -> u8 {
+    MANAGER.clap_matches.mavlink_system_id
+}
+
+#[instrument(level = "debug")]
+pub fn mavlink_component_id() -> u8 {
+    MANAGER.clap_matches.mavlink_component_id
+}
+
+#[instrument(level = "debug")]
+pub fn mavlink_heartbeat_frequency() -> f32 {
+    MANAGER.clap_matches.mavlink_heartbeat_frequency
 }
 
 #[cfg(test)]
