@@ -14,7 +14,7 @@ async fn main() -> Result<()> {
         hub::add_driver(driver).await?;
     }
 
-    web::run("0.0.0.0:8080".parse().unwrap()).await;
+    web::run(cli::web_server()).await;
 
     for (id, driver_info) in hub::drivers().await? {
         debug!("Removing driver id {id:?} ({driver_info:?})");
