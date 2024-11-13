@@ -1,4 +1,5 @@
 mod endpoints;
+mod mavlink_endpoints;
 
 use std::{
     collections::HashMap,
@@ -48,64 +49,18 @@ fn default_router(state: AppState) -> Router {
             "/stats/messages/ws",
             get(hub_messages_stats_websocket_handler),
         )
-        .route("/rest/ws", get(websocket_handler))
+        .route("/rest/ws", get(mavlink_endpoints::websocket_handler))
         // We are matching all possible keys for the user
-        .route("/rest/mavlink", get(endpoints::mavlink))
-        .route("/rest/mavlink", post(endpoints::post_mavlink))
-        .route("/rest/mavlink/", get(endpoints::mavlink))
-        .route("/rest/mavlink/*path", get(endpoints::mavlink))
+        .route("/rest/mavlink", get(mavlink_endpoints::mavlink))
+        .route("/rest/mavlink", post(mavlink_endpoints::post_mavlink))
+        .route("/rest/mavlink/", get(mavlink_endpoints::mavlink))
+        .route("/rest/mavlink/*path", get(mavlink_endpoints::mavlink))
         .route(
             "/rest/mavlink/message_id_from_name/*name",
-            get(endpoints::message_id_from_name),
+            get(mavlink_endpoints::message_id_from_name),
         )
         .fallback(get(|| async { (StatusCode::NOT_FOUND, "Not found :(") }))
         .with_state(state)
-}
-
-async fn websocket_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
-    ws.on_upgrade(|socket| websocket_connection(socket, state))
-}
-
-#[instrument(level = "debug", skip_all)]
-async fn websocket_connection(socket: WebSocket, state: AppState) {
-    let identifier = Uuid::new_v4();
-    debug!("WS client connected with ID: {identifier}");
-
-    let (mut sender, mut receiver) = socket.split();
-    let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
-    state.clients.write().await.insert(identifier, tx);
-
-    // Spawn a task to forward messages from the channel to the websocket
-    let send_task = tokio::spawn(async move {
-        while let Some(message) = rx.recv().await {
-            if sender.send(message).await.is_err() {
-                break;
-            }
-        }
-    });
-
-    // Handle incoming messages
-    while let Some(Ok(message)) = receiver.next().await {
-        match message {
-            Message::Text(text) => {
-                trace!("WS client received from {identifier}: {text}");
-                if let Err(error) = state.message_tx.send(text.clone()) {
-                    error!("Failed to send message to main loop: {error:?}");
-                }
-                broadcast_message_websockets(&state, identifier, Message::Text(text)).await;
-            }
-            Message::Close(frame) => {
-                debug!("WS client {identifier} disconnected: {frame:?}");
-                break;
-            }
-            _ => {}
-        }
-    }
-
-    // We should be disconnected now, let's remove it
-    state.clients.write().await.remove(&identifier);
-    debug!("WS client {identifier} removed");
-    send_task.await.unwrap();
 }
 
 async fn log_websocket_handler(ws: WebSocketUpgrade) -> Response {

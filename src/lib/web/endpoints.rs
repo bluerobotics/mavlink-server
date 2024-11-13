@@ -1,7 +1,5 @@
-use std::net::SocketAddr;
-
 use axum::{
-    extract::{connect_info::ConnectInfo, Path, State},
+    extract::Path,
     http::{header, StatusCode},
     response::IntoResponse,
     Json,
@@ -9,10 +7,8 @@ use axum::{
 use include_dir::{include_dir, Dir};
 use mime_guess::from_path;
 use serde::{Deserialize, Serialize};
-use tracing::*;
 
 use crate::stats;
-use crate::web::AppState;
 
 static HTML_DIST: Dir = include_dir!("src/webpage/dist");
 
@@ -86,32 +82,6 @@ pub async fn info_full() -> impl IntoResponse {
     let toml = std::str::from_utf8(include_bytes!("../../../Cargo.toml")).unwrap();
     let content: serde_json::Value = toml::from_str(toml).unwrap();
     serde_json::to_string(&content).unwrap()
-}
-
-pub async fn mavlink(path: Option<Path<String>>) -> impl IntoResponse {
-    let path = match path {
-        Some(path) => path.0.to_string(),
-        None => String::default(),
-    };
-    crate::drivers::rest::data::messages(&path)
-}
-
-pub async fn post_mavlink(
-    ConnectInfo(address): ConnectInfo<SocketAddr>,
-    State(state): State<AppState>,
-    message: String,
-) {
-    debug!("Got message from: {address:?}, {message}");
-    if let Err(error) = state.message_tx.send(message) {
-        error!("Failed to send message to main loop: {error:?}");
-    }
-}
-
-pub async fn message_id_from_name(name: Path<String>) -> impl IntoResponse {
-    use mavlink::{self, Message};
-    mavlink::ardupilotmega::MavMessage::message_id_from_name(&name.0.to_ascii_uppercase())
-        .map(|id| (StatusCode::OK, Json(id)).into_response())
-        .unwrap_or_else(|_| (StatusCode::NOT_FOUND, "404 Not Found").into_response())
 }
 
 pub async fn drivers_stats() -> impl IntoResponse {
