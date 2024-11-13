@@ -394,6 +394,8 @@ pub async fn run(address: String) {
             }
         };
 
+        info!("Running web server on address {address:?}");
+
         if let Err(error) = axum::serve(
             listener,
             router
