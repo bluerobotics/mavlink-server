@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use mavlink::{self, Message};
-use mavlink_codec::Packet;
 use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 use zenoh;
@@ -10,7 +9,7 @@ use zenoh;
 use crate::{
     callbacks::{Callbacks, MessageCallback},
     drivers::{generic_tasks::SendReceiveContext, Driver, DriverInfo},
-    mavlink_json::{MAVLinkJSON, MAVLinkJSONHeader},
+    mavlink_json::MAVLinkJSON,
     protocol::Protocol,
     stats::{
         accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
@@ -90,12 +89,11 @@ impl Zenoh {
                 continue;
             };
 
-            let bus_message = {
-                let mut message_raw = mavlink::MAVLinkV2MessageRaw::new();
-                message_raw.serialize_message(content.header.inner, &content.message);
-
-                Arc::new(Protocol::new("zenoh", Packet::from(message_raw)))
-            };
+            let bus_message = Arc::new(Protocol::from_mavlink_raw(
+                content.header.inner,
+                &content.message,
+                "zenoh",
+            ));
 
             trace!("Received message: {bus_message:?}");
 
@@ -153,22 +151,16 @@ impl Zenoh {
                 }
             }
 
-            let mut bytes = mavlink::async_peek_reader::AsyncPeekReader::new(message.as_slice());
-            let Ok((header, message)) =
-                mavlink::read_v2_msg_async::<mavlink::ardupilotmega::MavMessage, _>(&mut bytes)
-                    .await
+            let Ok(mavlink_json) = message
+                .to_mavlink_json::<mavlink::ardupilotmega::MavMessage>()
+                .await
             else {
                 continue;
             };
 
-            let header = MAVLinkJSONHeader {
-                inner: header,
-                message_id: Some(mavlink::Message::message_id(&message)),
-            };
+            let message_name = mavlink_json.message.message_name();
 
-            let message_name = message.message_name();
-            let mavlink_message = MAVLinkJSON { header, message };
-            let json_string = &match json5::to_string(&mavlink_message) {
+            let json_string = &match json5::to_string(&mavlink_json) {
                 Ok(json) => json,
                 Err(error) => {
                     error!("Failed to transform mavlink message {message_name} to json: {error:?}");
@@ -183,9 +175,10 @@ impl Zenoh {
                 trace!("Message sent to {topic_name}: {json_string:?}");
             }
 
+            let header = &mavlink_json.header.inner;
             let topic_name = &format!(
                 "mavlink/{}/{}/{}",
-                header.inner.system_id, header.inner.component_id, message_name
+                header.system_id, header.component_id, message_name
             );
             if let Err(error) = session.put(topic_name, json_string).await {
                 error!("Failed to send message to {topic_name}: {error:?}");
