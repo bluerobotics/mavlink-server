@@ -1,24 +1,14 @@
-mod endpoints;
+pub mod routes;
 
 use std::net::SocketAddr;
 
-use axum::{extract::ws::Message, http::StatusCode, routing::get, Router};
-use tokio::{
-    signal,
-    sync::{broadcast, mpsc, RwLock},
-};
+use axum::{extract::Request, ServiceExt};
+use tokio::signal;
+use tower::Layer;
+use tower_http::normalize_path::NormalizePathLayer;
 use tracing::*;
 
-fn default_router() -> Router {
-    Router::new()
-        .route("/", get(endpoints::root))
-        .route("/:path", get(endpoints::root))
-        .fallback(get(|| async { (StatusCode::NOT_FOUND, "Not found :(") }))
-}
-
 pub async fn run(address: std::net::SocketAddrV4) {
-    let router = default_router();
-
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
     let mut first = true;
     loop {
@@ -36,16 +26,14 @@ pub async fn run(address: std::net::SocketAddrV4) {
             }
         };
 
+        let app = NormalizePathLayer::trim_trailing_slash().layer(routes::router());
+        let service = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);
+
         info!("Running web server on address {address:?}");
 
-        if let Err(error) = axum::serve(
-            listener,
-            router
-                .clone()
-                .into_make_service_with_connect_info::<SocketAddr>(),
-        )
-        .with_graceful_shutdown(shutdown_signal())
-        .await
+        if let Err(error) = axum::serve(listener, service)
+            .with_graceful_shutdown(shutdown_signal())
+            .await
         {
             error!("WebServer error: {error}");
             continue;
