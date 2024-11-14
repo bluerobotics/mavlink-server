@@ -1,10 +1,16 @@
 use std::sync::Arc;
 
 use clap::Parser;
-use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
 use tracing::*;
 
 use crate::drivers;
+
+static MANAGER: OnceCell<Manager> = OnceCell::new();
+
+struct Manager {
+    clap_matches: Args,
+}
 
 #[derive(Debug, Parser)]
 #[command(
@@ -12,7 +18,7 @@ use crate::drivers;
     author = env!("CARGO_PKG_AUTHORS"),
     about = env!("CARGO_PKG_DESCRIPTION")
 )]
-struct Args {
+pub struct Args {
     /// Space-separated list of endpoints.
     /// At least one endpoint is required.
     /// Possible endpoints types are:
@@ -131,49 +137,44 @@ fn endpoints_parser(entry: &str) -> Result<Arc<dyn drivers::Driver>, String> {
     drivers::create_driver_from_entry(entry)
 }
 
-struct Manager {
-    clap_matches: Args,
-}
-
-lazy_static! {
-    static ref MANAGER: Arc<Manager> = Arc::new(Manager::new());
-}
-
-impl Manager {
-    fn new() -> Self {
-        Self {
-            clap_matches: Args::parse(),
-        }
-    }
+/// Constructs our manager, Should be done inside main
+#[instrument(level = "debug")]
+pub fn init() {
+    init_with(Args::parse());
 }
 
 /// Constructs our manager, Should be done inside main
-
 #[instrument(level = "debug")]
-pub fn init() {
-    MANAGER.as_ref();
+pub fn init_with(args: Args) {
+    MANAGER.get_or_init(|| Manager { clap_matches: args });
+}
+
+/// Local acessor to the parsed Args
+fn args() -> &'static Args {
+    &MANAGER.get().unwrap().clap_matches
 }
 
 /// Checks if the verbosity parameter was used
-
 #[instrument(level = "debug")]
 pub fn is_verbose() -> bool {
-    MANAGER.clap_matches.verbose
+    args().verbose
 }
 
 #[instrument(level = "debug")]
 pub fn is_tracing() -> bool {
-    MANAGER.clap_matches.enable_tracing_level_log_file
+    MANAGER
+        .get()
+        .unwrap()
+        .clap_matches
+        .enable_tracing_level_log_file
 }
-
-/// Our log path
 
 #[instrument(level = "debug")]
 pub fn log_path() -> String {
-    let log_path =
-        MANAGER.clap_matches.log_path.clone().expect(
-            "Clap arg \"log-path\" should always be \"Some(_)\" because of the default value.",
-        );
+    let log_path = args()
+        .log_path
+        .clone()
+        .expect("Clap arg \"log-path\" should always be \"Some(_)\" because of the default value.");
 
     shellexpand::full(&log_path)
         .expect("Failed to expand path")
@@ -182,7 +183,7 @@ pub fn log_path() -> String {
 
 pub fn endpoints() -> Vec<Arc<dyn drivers::Driver>> {
     let default_endpoints = Arc::new(crate::drivers::rest::Rest::builder("Default").build());
-    let mut endpoints = MANAGER.clap_matches.endpoints.clone();
+    let mut endpoints = args().endpoints.clone();
     endpoints.push(default_endpoints);
     endpoints
 }
@@ -192,15 +193,15 @@ pub fn command_line_string() -> String {
     std::env::args().collect::<Vec<String>>().join(" ")
 }
 
-// Return a clone of current Args struct
+/// Returns a pretty string of the current Args struct
 #[instrument(level = "debug")]
 pub fn command_line() -> String {
-    format!("{:#?}", MANAGER.clap_matches)
+    format!("{:#?}", args())
 }
 
 #[instrument(level = "debug")]
 pub fn udp_server_timeout() -> Option<tokio::time::Duration> {
-    let seconds = MANAGER.clap_matches.udp_server_timeout;
+    let seconds = args().udp_server_timeout;
 
     if seconds < 0 {
         return None;
@@ -211,32 +212,36 @@ pub fn udp_server_timeout() -> Option<tokio::time::Duration> {
 
 #[instrument(level = "debug")]
 pub fn web_server() -> std::net::SocketAddrV4 {
-    MANAGER.clap_matches.web_server
+    args().web_server
 }
 
 #[instrument(level = "debug")]
 pub fn mavlink_system_id() -> u8 {
-    MANAGER.clap_matches.mavlink_system_id
+    args().mavlink_system_id
 }
 
 #[instrument(level = "debug")]
 pub fn mavlink_component_id() -> u8 {
-    MANAGER.clap_matches.mavlink_component_id
+    args().mavlink_component_id
 }
 
 #[instrument(level = "debug")]
 pub fn mavlink_heartbeat_frequency() -> f32 {
-    MANAGER.clap_matches.mavlink_heartbeat_frequency
+    MANAGER
+        .get()
+        .unwrap()
+        .clap_matches
+        .mavlink_heartbeat_frequency
 }
 
 #[instrument(level = "debug")]
 pub fn send_initial_heartbeats() -> bool {
-    MANAGER.clap_matches.send_initial_heartbeats
+    args().send_initial_heartbeats
 }
 
 #[instrument(level = "debug")]
 pub fn mavlink_version() -> u8 {
-    MANAGER.clap_matches.mavlink_version
+    args().mavlink_version
 }
 
 #[cfg(test)]
