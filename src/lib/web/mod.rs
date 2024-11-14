@@ -1,11 +1,6 @@
 mod endpoints;
-mod mavlink_endpoints;
 
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-};
+use std::net::SocketAddr;
 
 use axum::{
     extract::{
@@ -23,13 +18,8 @@ use tokio::{
     sync::{broadcast, mpsc, RwLock},
 };
 use tracing::*;
-use uuid::Uuid;
 
-use lazy_static::lazy_static;
-
-use crate::stats;
-
-fn default_router(state: AppState) -> Router {
+fn default_router() -> Router {
     Router::new()
         .route("/", get(endpoints::root))
         .route("/:path", get(endpoints::root))
@@ -49,9 +39,7 @@ fn default_router(state: AppState) -> Router {
             "/stats/messages/ws",
             get(hub_messages_stats_websocket_handler),
         )
-        .nest("/rest/", mavlink_endpoints::router())
         .fallback(get(|| async { (StatusCode::NOT_FOUND, "Not found :(") }))
-        .with_state(state)
 }
 
 async fn log_websocket_handler(ws: WebSocketUpgrade) -> Response {
@@ -250,78 +238,8 @@ async fn drivers_stats_websocket_connection(socket: WebSocket, state: AppState) 
     debug!("WS client {identifier} removed");
 }
 
-async fn broadcast_message_websockets(state: &AppState, sender_identifier: Uuid, message: Message) {
-    let mut clients = state.clients.write().await;
-
-    for (&client_identifier, tx) in clients.iter_mut() {
-        if client_identifier != sender_identifier {
-            if let Err(error) = tx.send(message.clone()) {
-                error!(
-                    "Failed to send message to client {}: {:?}",
-                    client_identifier, error
-                );
-            }
-        }
-    }
-}
-
-pub async fn send_message_to_all_clients(message: Message) {
-    let state = SERVER.state.clone();
-    let clients = state.clients.read().await;
-    for (&client_identifier, tx) in clients.iter() {
-        if let Err(error) = tx.send(message.clone()) {
-            error!(
-                "Failed to send message to client {}: {:?}",
-                client_identifier, error
-            );
-        } else {
-            debug!("Sent message to client {}", client_identifier);
-        }
-    }
-}
-
-pub async fn send_message(message: String) {
-    let state = SERVER.state.clone();
-    broadcast_message_websockets(
-        &state,
-        Uuid::parse_str("00000000-0000-4000-0000-000000000000").unwrap(),
-        Message::Text(message),
-    )
-    .await;
-}
-
-pub fn create_message_receiver() -> broadcast::Receiver<String> {
-    SERVER.state.message_tx.subscribe()
-}
-
-lazy_static! {
-    static ref SERVER: Arc<SingletonServer> = {
-        let (message_tx, _message_rx) = broadcast::channel(100);
-        let clients = Arc::new(RwLock::new(HashMap::new()));
-        let state = AppState {
-            clients,
-            message_tx,
-        };
-        let router = Mutex::new(default_router(state.clone()));
-        Arc::new(SingletonServer { router, state })
-    };
-}
-
-struct SingletonServer {
-    router: Mutex<Router>,
-    state: AppState,
-}
-
-#[derive(Clone)]
-struct AppState {
-    clients: Arc<RwLock<HashMap<Uuid, ClientSender>>>,
-    message_tx: broadcast::Sender<String>,
-}
-
-type ClientSender = mpsc::UnboundedSender<Message>;
-
 pub async fn run(address: std::net::SocketAddrV4) {
-    let router = SERVER.router.lock().unwrap().clone();
+    let router = default_router();
 
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
     let mut first = true;
