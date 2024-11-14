@@ -23,8 +23,6 @@ fn default_router() -> Router {
     Router::new()
         .route("/", get(endpoints::root))
         .route("/:path", get(endpoints::root))
-        .route("/info", get(endpoints::info))
-        .route("/info_full", get(endpoints::info_full))
         .route("/stats/drivers", get(endpoints::drivers_stats))
         .route(
             "/stats/frequency",
