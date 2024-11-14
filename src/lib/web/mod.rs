@@ -23,7 +23,6 @@ fn default_router() -> Router {
     Router::new()
         .route("/", get(endpoints::root))
         .route("/:path", get(endpoints::root))
-        .route("/log", get(log_websocket_handler))
         .route("/info", get(endpoints::info))
         .route("/info_full", get(endpoints::info_full))
         .route("/stats/drivers", get(endpoints::drivers_stats))
@@ -40,28 +39,6 @@ fn default_router() -> Router {
             get(hub_messages_stats_websocket_handler),
         )
         .fallback(get(|| async { (StatusCode::NOT_FOUND, "Not found :(") }))
-}
-
-async fn log_websocket_handler(ws: WebSocketUpgrade) -> Response {
-    ws.on_upgrade(log_websocket_connection)
-}
-
-#[instrument(level = "debug", skip_all)]
-async fn log_websocket_connection(socket: WebSocket) {
-    let (mut websocket_sender, mut _websocket_receiver) = socket.split();
-    let (mut receiver, history) = crate::logger::HISTORY.lock().unwrap().subscribe();
-
-    for message in history {
-        if websocket_sender.send(Message::Text(message)).await.is_err() {
-            return;
-        }
-    }
-
-    while let Ok(message) = receiver.recv().await {
-        if websocket_sender.send(Message::Text(message)).await.is_err() {
-            break;
-        }
-    }
 }
 
 #[instrument(level = "debug", skip_all)]
