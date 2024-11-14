@@ -2272,6 +2272,7 @@ dependencies = [
  "mavlink",
  "mavlink-codec",
  "mime_guess",
+ "once_cell",
  "regex",
  "ringbuffer",
  "serde",
