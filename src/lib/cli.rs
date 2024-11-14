@@ -88,6 +88,10 @@ pub struct Args {
     /// Sets the MAVLink version used to communicate. This changes the heartbeat messages sent
     #[arg(long, default_value = "2", value_names = ["1", "2"])]
     mavlink_version: u8,
+
+    /// Sets the default version used by the REST API, this will remove the prefix used by its path.
+    #[arg(long, default_value = "1", value_names = ["1"])]
+    default_api_version: u8,
 }
 
 #[instrument(level = "trace")]
@@ -242,6 +246,11 @@ pub fn send_initial_heartbeats() -> bool {
 #[instrument(level = "debug")]
 pub fn mavlink_version() -> u8 {
     args().mavlink_version
+}
+
+#[instrument(level = "debug")]
+pub fn default_api_version() -> u8 {
+    args().default_api_version
 }
 
 #[cfg(test)]
