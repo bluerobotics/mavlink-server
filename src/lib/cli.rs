@@ -166,11 +166,7 @@ pub fn is_verbose() -> bool {
 
 #[instrument(level = "debug")]
 pub fn is_tracing() -> bool {
-    MANAGER
-        .get()
-        .unwrap()
-        .clap_matches
-        .enable_tracing_level_log_file
+    args().enable_tracing_level_log_file
 }
 
 #[instrument(level = "debug")]
@@ -231,11 +227,7 @@ pub fn mavlink_component_id() -> u8 {
 
 #[instrument(level = "debug")]
 pub fn mavlink_heartbeat_frequency() -> f32 {
-    MANAGER
-        .get()
-        .unwrap()
-        .clap_matches
-        .mavlink_heartbeat_frequency
+    args().mavlink_heartbeat_frequency
 }
 
 #[instrument(level = "debug")]
