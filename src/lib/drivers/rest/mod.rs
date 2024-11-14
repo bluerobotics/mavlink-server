@@ -3,6 +3,7 @@ pub mod data;
 use std::sync::Arc;
 
 use anyhow::Result;
+use axum::extract::ws;
 use tokio::sync::{broadcast, RwLock};
 use tracing::*;
 
@@ -15,6 +16,7 @@ use crate::{
         accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
         driver::DriverUuid,
     },
+    web::routes::v1::rest::websocket,
 };
 
 #[derive(Debug)]
@@ -111,6 +113,9 @@ impl Rest {
     async fn send_task(context: &SendReceiveContext) -> Result<()> {
         let mut hub_receiver = context.hub_sender.subscribe();
 
+        let origin = "Ws";
+        let uuid = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, origin.as_bytes());
+
         loop {
             let message = match hub_receiver.recv().await {
                 Ok(message) => message,
@@ -124,7 +129,7 @@ impl Rest {
                 }
             };
 
-            if message.origin.eq("Ws") {
+            if message.origin.eq(origin) {
                 continue; // Don't do loopback
             }
 
@@ -146,7 +151,7 @@ impl Rest {
             let json_string = parse_query(&mavlink_json);
             data::update((mavlink_json.header, mavlink_json.message));
 
-            crate::web::send_message(json_string).await;
+            websocket::broadcast(uuid, ws::Message::Text(json_string)).await;
         }
 
         debug!("Driver sender task stopped!");
@@ -181,7 +186,7 @@ impl Driver for Rest {
                 interval.tick().await;
             }
 
-            let mut ws_receiver = crate::web::create_message_receiver();
+            let mut ws_receiver = websocket::create_message_receiver();
 
             tokio::select! {
                 result = Rest::send_task(&context) => {
