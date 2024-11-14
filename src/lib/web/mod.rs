@@ -55,14 +55,6 @@ pub async fn run(address: std::net::SocketAddrV4) {
     }
 }
 
-pub fn configure_router<F>(modifier: F)
-where
-    F: FnOnce(&mut Router),
-{
-    let mut router = SERVER.router.lock().unwrap();
-    modifier(&mut router);
-}
-
 async fn shutdown_signal() {
     let ctrl_c = async {
         signal::ctrl_c()
