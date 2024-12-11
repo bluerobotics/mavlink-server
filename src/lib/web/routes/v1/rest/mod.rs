@@ -8,6 +8,7 @@ use tracing::*;
 pub fn router() -> Router {
     Router::new()
         .route("/ws", get(websocket::websocket_handler))
+        .route("/helper", get(mavlink::helper))
         .route(
             "/mavlink",
             get(mavlink::mavlink).post(mavlink::post_mavlink),
