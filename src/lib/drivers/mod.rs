@@ -241,12 +241,11 @@ mod tests {
     use tokio::sync::RwLock;
     use tracing::*;
 
+    use super::*;
     use crate::{
         callbacks::{Callbacks, MessageCallback},
         stats::{accumulated::driver::AccumulatedDriverStats, driver::DriverUuid},
     };
-
-    use super::*;
 
     #[test]
     fn test_unique_endpoints() {
