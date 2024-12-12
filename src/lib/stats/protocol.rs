@@ -1,9 +1,8 @@
 use anyhow::Result;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::stats::{DriversStats, StatsInner};
-
 use super::messages::HubMessagesStats;
+use crate::stats::{DriversStats, StatsInner};
 
 pub enum StatsCommand {
     SetPeriod {
