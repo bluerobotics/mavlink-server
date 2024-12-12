@@ -3,9 +3,11 @@ mod protocol;
 
 use std::sync::{Arc, Mutex};
 
+use actor::HubActor;
 use anyhow::Result;
 use indexmap::IndexMap;
 use lazy_static::lazy_static;
+use protocol::HubCommand;
 use tokio::sync::{broadcast, mpsc, oneshot, RwLock};
 
 use crate::{
@@ -20,9 +22,6 @@ use crate::{
         driver::DriverUuid,
     },
 };
-
-use actor::HubActor;
-use protocol::HubCommand;
 
 lazy_static! {
     static ref HUB: Hub = Hub::new(
