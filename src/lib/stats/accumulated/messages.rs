@@ -3,12 +3,11 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 use serde::Serialize;
 
+use super::AccumulatedStatsInner;
 use crate::{
     protocol::Protocol,
     stats::messages::{ComponentId, MessageId, SystemId},
 };
-
-use super::AccumulatedStatsInner;
 
 #[derive(Default, Clone, Debug, Serialize)]
 pub struct AccumulatedHubMessagesStats {
