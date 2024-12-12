@@ -75,7 +75,7 @@ impl Rest {
             let Ok(content) =
                 json5::from_str::<MAVLinkJSON<mavlink::ardupilotmega::MavMessage>>(&message)
             else {
-                debug!("Failed to parse message, not a valid MAVLinkMessage: {message:?}");
+                warn!("Failed to parse message, not a valid MAVLinkMessage: {message:?}");
                 continue;
             };
 
