@@ -6,16 +6,15 @@ mod protocol;
 
 use std::sync::{Arc, Mutex};
 
-use anyhow::Result;
-use lazy_static::lazy_static;
-use serde::Serialize;
-use tokio::sync::{mpsc, oneshot};
-
 use accumulated::AccumulatedStatsInner;
 use actor::StatsActor;
+use anyhow::Result;
 use driver::DriversStats;
+use lazy_static::lazy_static;
 use messages::HubMessagesStats;
 use protocol::StatsCommand;
+use serde::Serialize;
+use tokio::sync::{mpsc, oneshot};
 
 lazy_static! {
     static ref STATS: Stats = Stats::new(tokio::time::Duration::from_secs(1));
