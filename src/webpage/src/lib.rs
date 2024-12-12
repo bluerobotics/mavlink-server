@@ -2,5 +2,6 @@
 
 mod app;
 mod messages;
+mod messages_names;
 mod stats;
 pub use app::App;
