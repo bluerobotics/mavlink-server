@@ -3,9 +3,8 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 use serde::Serialize;
 
-use crate::{drivers::DriverInfo, protocol::Protocol, stats::driver::DriverUuid};
-
 use super::AccumulatedStatsInner;
+use crate::{drivers::DriverInfo, protocol::Protocol, stats::driver::DriverUuid};
 
 pub type AccumulatedDriversStats = IndexMap<DriverUuid, AccumulatedDriverStats>;
 
