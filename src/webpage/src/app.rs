@@ -3,9 +3,11 @@ use std::{collections::BTreeMap, sync::Arc};
 use chrono::prelude::*;
 use eframe::egui::{CollapsingHeader, Context};
 use egui::mutex::Mutex;
+use egui_autocomplete::AutoCompleteTextEdit;
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use egui_extras::{Column, TableBody, TableBuilder};
 use egui_plot::{Line, Plot, PlotPoints};
+use ehttp::{Request, Response};
 use ewebsock::{connect, WsReceiver, WsSender};
 use humantime::format_duration;
 use ringbuffer::RingBuffer;
@@ -14,6 +16,7 @@ use web_sys::window;
 
 use crate::{
     messages::{FieldInfo, MessageInfo, VehiclesMessages},
+    messages_names::NAMES as mavlink_names,
     stats::{
         drivers_stats::{DriversStatsHistorical, DriversStatsSample},
         hub_messages_stats::{HubMessagesStatsHistorical, HubMessagesStatsSample},
@@ -23,9 +26,16 @@ use crate::{
 };
 
 const MAVLINK_MESSAGES_WEBSOCKET_PATH: &str = "rest/ws";
+const MAVLINK_HELPER: &str = "rest/helper";
+const MAVLINK_POST: &str = "rest/mavlink";
 const HUB_MESSAGES_STATS_WEBSOCKET_PATH: &str = "stats/messages/ws";
 const HUB_STATS_WEBSOCKET_PATH: &str = "stats/hub/ws";
 const DRIVERS_STATS_WEBSOCKET_PATH: &str = "stats/drivers/ws";
+
+enum Screens {
+    Main,
+    Helper,
+}
 
 #[derive(Clone, PartialEq)]
 enum Tab {
@@ -54,10 +64,14 @@ pub struct App {
     /// Driver statistics
     drivers_stats: DriversStatsHistorical,
     search_query: String,
+    search_help_mavlink_query: String,
+    mavlink_code: Arc<Mutex<String>>,
+    mavlink_code_post_response: Arc<Mutex<String>>,
     collapse_all: bool,
     expand_all: bool,
     stats_frequency: Arc<Mutex<f32>>,
     dock_state: Option<DockState<Tab>>,
+    show_screen: Screens,
 }
 
 impl Default for App {
@@ -106,10 +120,14 @@ impl Default for App {
             hub_stats: Default::default(),
             drivers_stats: Default::default(),
             search_query: String::new(),
+            search_help_mavlink_query: "HEARTBEAT".to_string(),
+            mavlink_code: Arc::new(Mutex::new(String::new())),
+            mavlink_code_post_response: Arc::new(Mutex::new(String::new())),
             collapse_all: false,
             expand_all: false,
             stats_frequency,
             dock_state: Some(dock_state),
+            show_screen: Screens::Main,
         }
     }
 }
@@ -118,8 +136,13 @@ impl App {
     fn top_bar(&mut self, ctx: &Context) {
         eframe::egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             eframe::egui::menu::bar(ui, |ui| {
-                ui.label("MAVLink Server");
+                if ui.button("MAVLink Server").clicked() {
+                    self.show_screen = Screens::Main;
+                }
                 ui.add_space(16.0);
+                if ui.button("Helper").clicked() {
+                    self.show_screen = Screens::Helper;
+                }
 
                 ui.with_layout(
                     eframe::egui::Layout::right_to_left(eframe::egui::Align::RIGHT),
@@ -130,6 +153,121 @@ impl App {
                 );
             });
         });
+    }
+
+    fn show_main_screen(&mut self, ctx: &Context) {
+        egui::SidePanel::left("left_menu")
+            .show_separator_line(true)
+            .min_width(150.)
+            .show(ctx, |ui| {
+                ui.vertical(|ui| {
+                    let mut stats_frequency = self.stats_frequency.lock().to_owned();
+                    ui.label("Stats Frequency");
+                    if ui
+                        .add(
+                            egui::Slider::new(&mut stats_frequency, 0.1..=10.)
+                                .suffix("Hz")
+                                .fixed_decimals(1)
+                                .step_by(0.1)
+                                .logarithmic(true)
+                                .trailing_fill(true),
+                        )
+                        .drag_stopped()
+                    {
+                        crate::stats::stats_frequency::set_stats_frequency(
+                            &self.stats_frequency.clone(),
+                            stats_frequency,
+                        );
+                    }
+                });
+            });
+
+        if let Some(mut dock_state) = self.dock_state.take() {
+            DockArea::new(&mut dock_state)
+                .style(Style::from_egui(ctx.style().as_ref()))
+                .show(ctx, &mut OurTabViewer { app: self });
+            self.dock_state = Some(dock_state);
+        }
+    }
+
+    fn show_helper_screen(&mut self, ctx: &Context) {
+        egui::CentralPanel::default()
+            .show(ctx, |ui| {
+                ui.horizontal_top(|ui| {
+                    ui.label("Search:");
+                    ui.add(
+                        AutoCompleteTextEdit::new(
+                            &mut self.search_help_mavlink_query,
+                            mavlink_names,
+                            ),
+                    );
+
+                    if ui.button("Find").clicked() {
+                        let mavlink_code = self.mavlink_code.clone();
+                        ehttp::fetch(Request::get(format!("/{MAVLINK_HELPER}?name={}", self.search_help_mavlink_query)), move |res| {
+                            let mut s = mavlink_code.lock();
+                            *s = match res {
+                                Ok(Response { bytes, .. }) => String::from_utf8(bytes).unwrap(),
+                                Err(error) => format!("Error: {error:?}"),
+                            };
+                        });
+                    }
+                });
+
+                let mut theme = egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
+                ui.collapsing("Theme", |ui| {
+                    ui.group(|ui| {
+                        theme.ui(ui);
+                        theme.clone().store_in_memory(ui.ctx());
+                    });
+                });
+
+                let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
+                    let mut layout_job = egui_extras::syntax_highlighting::highlight(
+                        ui.ctx(),
+                        ui.style(),
+                        &theme,
+                        string,
+                        "js",
+                    );
+                    layout_job.wrap.max_width = wrap_width;
+                    ui.fonts(|f| f.layout_job(layout_job))
+                };
+
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    let mut mavlink_code = self.mavlink_code.lock().to_owned();
+                    ui.add(
+                        egui::TextEdit::multiline(&mut mavlink_code)
+                            .font(egui::TextStyle::Monospace)
+                            .code_editor()
+                            .desired_rows(30)
+                            .lock_focus(true)
+                            .desired_width(500.0)
+                            .layouter(&mut layouter),
+                    );
+                    *self.mavlink_code.lock() = mavlink_code;
+                });
+
+                ui.horizontal_top(|ui| {
+                    if ui.button("Send").clicked() {
+                        let mavlink_code = self.mavlink_code.lock();
+
+                        let mut request = Request::post(format!("/{MAVLINK_POST}"), mavlink_code.clone().into_bytes());
+                        request.headers.insert("Content-Type", "application/json");
+
+                        let mavlink_code_post_response = self.mavlink_code_post_response.clone();
+                        *mavlink_code_post_response.lock() = String::default();
+                        ehttp::fetch(request, move |res| {
+                            let mut s = mavlink_code_post_response.lock();
+                            *s = match res {
+                                Ok(Response { bytes, .. }) => String::from_utf8(bytes).unwrap(),
+                                Err(error) => format!("Error: {error:?}"),
+                            };
+                        });
+                    }
+                    ui.label(format!("{}", *self.mavlink_code_post_response.lock()));
+            });
+            });
     }
 
     fn deal_with_mavlink_message(&mut self, message: String) {
@@ -866,37 +1004,9 @@ impl eframe::App for App {
 
         self.top_bar(ctx);
 
-        egui::SidePanel::left("left_menu")
-            .show_separator_line(true)
-            .min_width(150.)
-            .show(ctx, |ui| {
-                ui.vertical(|ui| {
-                    let mut stats_frequency = self.stats_frequency.lock().to_owned();
-                    ui.label("Stats Frequency");
-                    if ui
-                        .add(
-                            egui::Slider::new(&mut stats_frequency, 0.1..=10.)
-                                .suffix("Hz")
-                                .fixed_decimals(1)
-                                .step_by(0.1)
-                                .logarithmic(true)
-                                .trailing_fill(true),
-                        )
-                        .drag_stopped()
-                    {
-                        crate::stats::stats_frequency::set_stats_frequency(
-                            &self.stats_frequency.clone(),
-                            stats_frequency,
-                        );
-                    }
-                });
-            });
-
-        if let Some(mut dock_state) = self.dock_state.take() {
-            DockArea::new(&mut dock_state)
-                .style(Style::from_egui(ctx.style().as_ref()))
-                .show(ctx, &mut OurTabViewer { app: self });
-            self.dock_state = Some(dock_state);
+        match self.show_screen {
+            Screens::Main => self.show_main_screen(ctx),
+            Screens::Helper => self.show_helper_screen(ctx),
         }
 
         ctx.request_repaint();
