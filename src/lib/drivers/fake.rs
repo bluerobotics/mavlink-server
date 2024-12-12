@@ -1,7 +1,7 @@
-use bytes::{BufMut, BytesMut};
 use std::sync::Arc;
 
 use anyhow::Result;
+use bytes::{BufMut, BytesMut};
 use mavlink_codec::{v2::V2Packet, Packet};
 use tokio::sync::{broadcast, RwLock};
 use tracing::*;
