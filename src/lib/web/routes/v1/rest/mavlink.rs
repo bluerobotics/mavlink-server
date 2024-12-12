@@ -6,14 +6,10 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use clap::error;
 use serde::Deserialize;
 use tracing::*;
 
-use crate::{
-    drivers::rest::parse_query,
-    mavlink_json::{MAVLinkJSON, MAVLinkJSONHeader},
-};
+use crate::mavlink_json::{MAVLinkJSON, MAVLinkJSONHeader};
 
 pub(crate) async fn mavlink(path: Option<Path<String>>) -> impl IntoResponse {
     let path = match path {
