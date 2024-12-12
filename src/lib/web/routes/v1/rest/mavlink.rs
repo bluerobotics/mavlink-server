@@ -29,10 +29,16 @@ pub(crate) async fn post_mavlink(
 ) -> impl IntoResponse {
     use crate::web::routes::v1::rest::websocket;
 
+    if let Err(error) = json5::from_str::<MAVLinkJSON<mavlink::ardupilotmega::MavMessage>>(&message)
+    {
+        return (StatusCode::BAD_REQUEST, format!("{{ error: \"{error}\" }}")).into_response();
+    }
+
     debug!("Got message from: {address:?}, {message}");
     if let Err(error) = websocket::send(message) {
         error!("Failed to send message to main loop: {error:?}");
     }
+    return (StatusCode::OK, "{response: \"OK\"}").into_response();
 }
 
 #[derive(Deserialize)]
