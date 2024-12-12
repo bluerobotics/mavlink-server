@@ -3,8 +3,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::cli;
-
 use lazy_static::lazy_static;
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use tokio::sync::broadcast::{Receiver, Sender};
@@ -15,6 +13,8 @@ use tracing_subscriber::{
     layer::SubscriberExt,
     EnvFilter, Layer,
 };
+
+use crate::cli;
 
 struct BroadcastWriter {
     sender: Sender<String>,
