@@ -138,6 +138,10 @@ impl std::fmt::Debug for dyn DriverInfo {
 }
 
 fn process_old_format(entry: &str) -> Option<DriverDescriptionLegacy> {
+    if entry.contains("://") {
+        return None;
+    }
+
     let captures = Regex::new(r"^(?P<scheme>\w+):(?P<arg1>[^:]+)(:(?P<arg2>\d+))?$")
         .unwrap()
         .captures(entry)?;
