@@ -25,13 +25,21 @@ async fn log_websocket_connection(socket: WebSocket) {
     let (mut receiver, history) = crate::logger::HISTORY.lock().unwrap().subscribe();
 
     for message in history {
-        if websocket_sender.send(Message::Text(message)).await.is_err() {
+        if websocket_sender
+            .send(Message::Text(message.into()))
+            .await
+            .is_err()
+        {
             return;
         }
     }
 
     while let Ok(message) = receiver.recv().await {
-        if websocket_sender.send(Message::Text(message)).await.is_err() {
+        if websocket_sender
+            .send(Message::Text(message.into()))
+            .await
+            .is_err()
+        {
             break;
         }
     }
