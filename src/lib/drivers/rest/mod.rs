@@ -151,7 +151,7 @@ impl Rest {
             let json_string = parse_query(&mavlink_json);
             data::update((mavlink_json.header, mavlink_json.message));
 
-            websocket::broadcast(uuid, ws::Message::Text(json_string)).await;
+            websocket::broadcast(uuid, ws::Message::Text(json_string.into())).await;
         }
 
         debug!("Driver sender task stopped!");

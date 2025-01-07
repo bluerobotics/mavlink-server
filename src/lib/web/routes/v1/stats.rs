@@ -98,7 +98,7 @@ async fn hub_messages_stats_websocket_connection(socket: WebSocket, addr: Socket
                     }
                 };
 
-                if let Err(error) = sender.send(ws::Message::Text(json)).await {
+                if let Err(error) = sender.send(ws::Message::Text(json.into())).await {
                     warn!("Failed to send message to WebSocket: {error:?}");
                     return;
                 }
@@ -154,7 +154,7 @@ async fn hub_stats_websocket_connection(socket: WebSocket, addr: SocketAddr) {
                     }
                 };
 
-                if let Err(error) = sender.send(ws::Message::Text(json)).await {
+                if let Err(error) = sender.send(ws::Message::Text(json.into())).await {
                     warn!("Failed to send message to WebSocket: {error:?}");
                     return;
                 }
@@ -210,7 +210,7 @@ async fn drivers_stats_websocket_connection(socket: WebSocket, addr: SocketAddr)
                     }
                 };
 
-                if let Err(error) = sender.send(ws::Message::Text(json)).await {
+                if let Err(error) = sender.send(ws::Message::Text(json.into())).await {
                     warn!("Failed to send message to WebSocket: {error:?}");
                     return;
                 }
