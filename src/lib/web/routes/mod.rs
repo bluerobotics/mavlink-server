@@ -20,7 +20,7 @@ static HTML_DIST: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/webpage/dist");
 pub fn router() -> Router {
     let app = Router::new()
         .route_service("/", get(root))
-        .route("/:path", get(root))
+        .route_service("/{*path}", get(root))
         .nest("/v1", v1::router())
         .fallback(handle_404())
         .layer(CorsLayer::permissive())

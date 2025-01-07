@@ -13,9 +13,9 @@ pub fn router() -> Router {
             "/mavlink",
             get(mavlink::mavlink).post(mavlink::post_mavlink),
         )
-        .route("/mavlink/*path", get(mavlink::mavlink))
+        .route("/mavlink/{*path}", get(mavlink::mavlink))
         .route(
-            "/mavlink/message_id_from_name/*name",
+            "/mavlink/message_id_from_name/{*name}",
             get(mavlink::message_id_from_name),
         )
 }
