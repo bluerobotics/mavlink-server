@@ -13,6 +13,7 @@ async fn main() -> Result<()> {
         hub::add_driver(driver).await?;
     }
 
+    // This will block until the web server is stopped, with this, the application ends
     web::run(cli::web_server()).await;
 
     for (id, driver_info) in hub::drivers().await? {
