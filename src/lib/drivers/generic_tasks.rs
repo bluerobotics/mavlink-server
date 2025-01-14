@@ -12,6 +12,7 @@ use crate::{
 
 #[derive(Clone)]
 pub struct SendReceiveContext {
+    pub direction: crate::drivers::Direction,
     pub hub_sender: broadcast::Sender<Arc<Protocol>>,
     pub on_message_output: Callbacks<Arc<Protocol>>,
     pub on_message_input: Callbacks<Arc<Protocol>>,

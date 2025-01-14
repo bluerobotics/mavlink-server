@@ -10,7 +10,9 @@ pub mod zenoh;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+
 use regex::Regex;
+use strum_macros;
 use tokio::sync::broadcast;
 use tracing::*;
 use url::Url;
@@ -29,6 +31,25 @@ pub enum Type {
     UdpClient,
     UdpServer,
     Zenoh,
+}
+
+#[derive(Copy, Clone, Debug, Default, Eq, Hash, PartialEq, strum_macros::EnumString)]
+#[strum(serialize_all = "snake_case")]
+pub enum Direction {
+    #[default]
+    Both,
+    Receiver,
+    Sender,
+}
+
+impl Direction {
+    pub fn can_receive(&self) -> bool {
+        *self == Direction::Receiver || *self == Direction::Both
+    }
+
+    pub fn can_send(&self) -> bool {
+        *self == Direction::Sender || *self == Direction::Both
+    }
 }
 
 // This legacy description is based on others tools like mavp2p, mavproxy and mavlink-router

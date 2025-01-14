@@ -40,31 +40,33 @@ where
             continue; // Don't do loopback
         }
 
-        context.stats.write().await.stats.update_output(&message);
+        if context.direction.can_send() {
+            context.stats.write().await.stats.update_output(&message);
 
-        for future in context.on_message_output.call_all(message.clone()) {
-            if let Err(error) = future.await {
-                debug!(
-                    client = ?remote_addr, "Dropping message: on_message_output callback returned error: {error:?}"
-                );
-                continue 'mainloop;
-            }
-        }
-
-        if let Err(io_error) = writer.send(((**message).clone(), *remote_addr)).await {
-            match io_error.kind() {
-                std::io::ErrorKind::ConnectionRefused => {
-                    trace!(client = ?remote_addr, "Failed send message: {io_error}");
-                    continue;
-                }
-                _ => {
-                    error!(client = ?remote_addr, "Failed to send message: {io_error:?}");
+            for future in context.on_message_output.call_all(message.clone()) {
+                if let Err(error) = future.await {
+                    debug!(
+                        client = ?remote_addr, "Dropping message: on_message_output callback returned error: {error:?}"
+                    );
+                    continue 'mainloop;
                 }
             }
-            break;
-        }
 
-        trace!("Message sent to {remote_addr}: {:?}", message.as_slice());
+            if let Err(io_error) = writer.send(((**message).clone(), *remote_addr)).await {
+                match io_error.kind() {
+                    std::io::ErrorKind::ConnectionRefused => {
+                        trace!(client = ?remote_addr, "Failed send message: {io_error}");
+                        continue;
+                    }
+                    _ => {
+                        error!(client = ?remote_addr, "Failed to send message: {io_error:?}");
+                    }
+                }
+                break;
+            }
+
+            trace!("Message sent to {remote_addr}: {:?}", message.as_slice());
+        }
     }
     Ok(())
 }

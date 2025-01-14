@@ -198,6 +198,7 @@ impl Driver for Zenoh {
     #[instrument(level = "debug", skip(self, hub_sender))]
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let context = SendReceiveContext {
+            direction: crate::drivers::Direction::Both,
             hub_sender,
             on_message_output: self.on_message_output.clone(),
             on_message_input: self.on_message_input.clone(),
