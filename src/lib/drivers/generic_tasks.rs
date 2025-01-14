@@ -109,7 +109,7 @@ where
 {
     let mut hub_receiver = context.hub_sender.subscribe();
 
-    loop {
+    'mainloop: loop {
         let message = match hub_receiver.recv().await {
             Ok(message) => message,
             Err(broadcast::error::RecvError::Closed) => {
@@ -131,7 +131,7 @@ where
         for future in context.on_message_output.call_all(message.clone()) {
             if let Err(error) = future.await {
                 debug!("Dropping message: on_message_output callback returned error: {error:?}");
-                continue;
+                continue 'mainloop;
             }
         }
 
