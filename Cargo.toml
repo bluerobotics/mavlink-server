@@ -59,6 +59,8 @@ tracing-appender = { git = "https://github.com/joaoantoniocardoso/tracing", bran
 toml = "0.8.19"
 zenoh = "1.0.1"
 ringbuffer = "0.15.0"
+strum = "0.26"
+strum_macros = "0.26"
 
 [dev-dependencies]
 criterion = "0.5"
