@@ -116,7 +116,7 @@ impl Rest {
         let origin = "Ws";
         let uuid = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, origin.as_bytes());
 
-        loop {
+        'mainloop: loop {
             let message = match hub_receiver.recv().await {
                 Ok(message) => message,
                 Err(broadcast::error::RecvError::Closed) => {
@@ -140,7 +140,7 @@ impl Rest {
                     debug!(
                         "Dropping message: on_message_output callback returned error: {error:?}"
                     );
-                    continue;
+                    continue 'mainloop;
                 }
             }
 

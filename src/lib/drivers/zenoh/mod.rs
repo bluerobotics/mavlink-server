@@ -123,7 +123,7 @@ impl Zenoh {
     async fn send_task(context: &SendReceiveContext, session: Arc<zenoh::Session>) -> Result<()> {
         let mut hub_receiver = context.hub_sender.subscribe();
 
-        loop {
+        'mainloop: loop {
             let message = match hub_receiver.recv().await {
                 Ok(message) => message,
                 Err(broadcast::error::RecvError::Closed) => {
@@ -147,7 +147,7 @@ impl Zenoh {
                     debug!(
                         "Dropping message: on_message_output callback returned error: {error:?}"
                     );
-                    continue;
+                    continue 'mainloop;
                 }
             }
 

@@ -23,7 +23,7 @@ where
 {
     let mut hub_receiver = context.hub_sender.subscribe();
 
-    loop {
+    'mainloop: loop {
         let message = match hub_receiver.recv().await {
             Ok(message) => message,
             Err(broadcast::error::RecvError::Closed) => {
@@ -47,7 +47,7 @@ where
                 debug!(
                     client = ?remote_addr, "Dropping message: on_message_output callback returned error: {error:?}"
                 );
-                continue;
+                continue 'mainloop;
             }
         }
 
