@@ -80,6 +80,7 @@ impl Driver for Serial {
         let port_name = self.port_name.clone();
 
         let context = SendReceiveContext {
+            direction: crate::drivers::Direction::Both,
             hub_sender,
             on_message_output: self.on_message_output.clone(),
             on_message_input: self.on_message_input.clone(),

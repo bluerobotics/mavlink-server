@@ -13,7 +13,9 @@ use tracing::*;
 
 use crate::{
     callbacks::{Callbacks, MessageCallback},
-    drivers::{generic_tasks::SendReceiveContext, udp::udp_send_task, Driver, DriverInfo},
+    drivers::{
+        generic_tasks::SendReceiveContext, udp::udp_send_task, Direction, Driver, DriverInfo,
+    },
     protocol::Protocol,
     stats::{
         accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
@@ -26,6 +28,7 @@ pub struct UdpServer {
     pub local_addr: String,
     name: arc_swap::ArcSwap<String>,
     uuid: DriverUuid,
+    direction: Direction,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
@@ -44,6 +47,11 @@ pub struct UdpServerBuilder(UdpServer);
 impl UdpServerBuilder {
     pub fn build(self) -> UdpServer {
         self.0
+    }
+
+    pub fn direction(mut self, direction: Direction) -> Self {
+        self.0.direction = direction;
+        self
     }
 
     pub fn on_message_input<C>(self, callback: C) -> Self
@@ -72,6 +80,7 @@ impl UdpServer {
             local_addr: local_addr.to_string(),
             name: arc_swap::ArcSwap::new(name.clone()),
             uuid: Self::generate_uuid(local_addr),
+            direction: Direction::Both,
             on_message_input: Callbacks::default(),
             on_message_output: Callbacks::default(),
             stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
@@ -89,6 +98,7 @@ impl Driver for UdpServer {
         let local_addr = self.local_addr.parse::<SocketAddr>()?;
 
         let context = SendReceiveContext {
+            direction: self.direction,
             hub_sender,
             on_message_output: self.on_message_output.clone(),
             on_message_input: self.on_message_input.clone(),
@@ -173,12 +183,14 @@ where
 
         trace!(origin = ?client_addr, "Received message: {message:?}");
 
-        context.stats.write().await.stats.update_input(&message);
+        if context.direction.can_receive() {
+            context.stats.write().await.stats.update_input(&message);
 
-        for future in context.on_message_input.call_all(message.clone()) {
-            if let Err(error) = future.await {
-                debug!(origin = ?client_addr, "Dropping message: on_message_input callback returned error: {error:?}");
-                continue;
+            for future in context.on_message_input.call_all(message.clone()) {
+                if let Err(error) = future.await {
+                    debug!(origin = ?client_addr, "Dropping message: on_message_input callback returned error: {error:?}");
+                    continue;
+                }
             }
         }
 
@@ -228,9 +240,11 @@ where
             });
         }
 
-        if let Err(send_error) = context.hub_sender.send(message) {
-            error!(origin = ?client_addr, "Failed to send message to hub: {send_error:?}");
-            continue;
+        if context.direction.can_receive() {
+            if let Err(send_error) = context.hub_sender.send(message) {
+                error!(origin = ?client_addr, "Failed to send message to hub: {send_error:?}");
+                continue;
+            }
         }
 
         trace!(origin = ?client_addr, "Message sent to hub");
@@ -291,21 +305,38 @@ impl DriverInfo for UdpServerInfo {
         let first_schema = &self.valid_schemes()[0];
         let second_schema = &self.valid_schemes()[1];
         vec![
-            format!("{first_schema}://<IP>:<PORT>").to_string(),
+            format!("{first_schema}://<IP>:<PORT>?direction=<DIRECTION|receiver,sender>")
+                .to_string(),
             url::Url::parse(&format!("{first_schema}://0.0.0.0:14550"))
                 .unwrap()
                 .to_string(),
-            url::Url::parse(&format!("{second_schema}://127.0.0.1:14660"))
-                .unwrap()
-                .to_string(),
+            url::Url::parse(&format!(
+                "{second_schema}://127.0.0.1:14660?direction=receiver"
+            ))
+            .unwrap()
+            .to_string(),
         ]
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
+        dbg!(url);
         let host = url.host_str().unwrap();
         let port = url.port().unwrap();
+
+        let direction = url
+            .query_pairs()
+            .find_map(|(key, value)| {
+                if key != "direction" {
+                    None
+                }
+                value.parse().map(Direction::from).ok()
+            })
+            .unwrap_or(Direction::Both);
+
         Some(Arc::new(
-            UdpServer::builder("UdpServer", &format!("{host}:{port}")).build(),
+            UdpServer::builder("UdpServer", &format!("{host}:{port}"))
+                .direction(direction)
+                .build(),
         ))
     }
 }

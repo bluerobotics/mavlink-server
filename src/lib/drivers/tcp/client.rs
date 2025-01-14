@@ -83,6 +83,7 @@ impl Driver for TcpClient {
         let server_addr = &self.remote_addr;
 
         let context = SendReceiveContext {
+            direction: crate::drivers::Direction::Both,
             hub_sender,
             on_message_output: self.on_message_output.clone(),
             on_message_input: self.on_message_input.clone(),
