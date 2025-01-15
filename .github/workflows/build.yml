@@ -34,9 +34,9 @@ jobs:
 
     - name: Run Tests
       run: |
-      SKIP_FRONTEND=1 cargo test --verbose -- --nocapture
-      SKIP_FRONTEND=1 cargo test test_udpserver_receive_only --verbose -- --nocapture
-      SKIP_FRONTEND=1 cargo test test_udpserver_send_only --verbose -- --nocapture
+        SKIP_FRONTEND=1 cargo test --verbose -- --nocapture
+        SKIP_FRONTEND=1 cargo test test_udpserver_receive_only --verbose -- --nocapture
+        SKIP_FRONTEND=1 cargo test test_udpserver_send_only --verbose -- --nocapture
 
   build:
     runs-on: ${{ matrix.os }}
