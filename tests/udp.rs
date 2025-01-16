@@ -1,6 +1,6 @@
 use anyhow::*;
 use clap::Parser;
-use mavlink_server::{cli, drivers, hub, logger, stats, web};
+use mavlink_server::{cli, hub, stats};
 use tracing::*;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
