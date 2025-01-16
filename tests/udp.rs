@@ -19,7 +19,7 @@ async fn test_udpserver_receive_only() -> Result<()> {
 
     stats::set_period(tokio::time::Duration::from_millis(100)).await?;
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    for (uuid, driver) in stats::drivers_stats().await? {
+    for (_uuid, driver) in stats::drivers_stats().await? {
         if *driver.name == "UdpServer" {
             assert!(driver.stats.output.is_none());
             assert!(driver.stats.input.is_some());
@@ -56,7 +56,7 @@ async fn test_udpserver_send_only() -> Result<()> {
 
     stats::set_period(tokio::time::Duration::from_millis(100)).await?;
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    for (uuid, driver) in stats::drivers_stats().await? {
+    for (_uuid, driver) in stats::drivers_stats().await? {
         if *driver.name == "UdpServer" {
             assert!(driver.stats.output.is_some());
             assert!(driver.stats.input.is_none());
