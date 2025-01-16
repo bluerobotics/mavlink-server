@@ -327,7 +327,7 @@ impl DriverInfo for UdpServerInfo {
             .query_pairs()
             .find_map(|(key, value)| {
                 if key != "direction" {
-                    None
+                    return None;
                 }
                 value.parse().map(Direction::from).ok()
             })
