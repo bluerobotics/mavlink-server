@@ -319,7 +319,6 @@ impl DriverInfo for UdpServerInfo {
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
-        dbg!(url);
         let host = url.host_str().unwrap();
         let port = url.port().unwrap();
 

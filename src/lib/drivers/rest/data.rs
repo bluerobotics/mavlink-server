@@ -43,9 +43,6 @@ impl MAVLinkVehiclesData {
         }
 
         let path = format!("/{path}");
-
-        dbg!(&path);
-
         if path == "/vehicles" {
             return serde_json::to_string_pretty(&self.vehicles).unwrap();
         };
