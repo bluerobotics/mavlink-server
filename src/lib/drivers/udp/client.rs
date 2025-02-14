@@ -12,7 +12,9 @@ use tracing::*;
 
 use crate::{
     callbacks::{Callbacks, MessageCallback},
-    drivers::{generic_tasks::SendReceiveContext, udp::udp_send_task, Driver, DriverInfo},
+    drivers::{
+        generic_tasks::SendReceiveContext, udp::udp_send_task, Direction, Driver, DriverInfo,
+    },
     protocol::Protocol,
     stats::{
         accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
@@ -25,6 +27,7 @@ pub struct UdpClient {
     pub remote_addr: String,
     name: arc_swap::ArcSwap<String>,
     uuid: DriverUuid,
+    direction: Direction,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
@@ -35,6 +38,11 @@ pub struct UdpClientBuilder(UdpClient);
 impl UdpClientBuilder {
     pub fn build(self) -> UdpClient {
         self.0
+    }
+
+    pub fn direction(mut self, direction: Direction) -> Self {
+        self.0.direction = direction;
+        self
     }
 
     pub fn on_message_input<C>(self, callback: C) -> Self
@@ -63,6 +71,7 @@ impl UdpClient {
             remote_addr: remote_addr.to_string(),
             name: arc_swap::ArcSwap::new(name.clone()),
             uuid: Self::generate_uuid(remote_addr),
+            direction: Direction::Both,
             on_message_input: Callbacks::default(),
             on_message_output: Callbacks::default(),
             stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
@@ -81,7 +90,7 @@ impl Driver for UdpClient {
         let remote_addr = self.remote_addr.parse::<SocketAddr>()?;
 
         let context = SendReceiveContext {
-            direction: crate::drivers::Direction::Both,
+            direction: self.direction,
             hub_sender,
             on_message_output: self.on_message_output.clone(),
             on_message_input: self.on_message_input.clone(),
@@ -152,6 +161,14 @@ where
     T: Stream<Item = std::io::Result<(std::result::Result<Packet, DecoderError>, SocketAddr)>>
         + std::marker::Unpin,
 {
+    if context.direction.send_only() {
+        return udp_send_task(&mut writer, remote_addr, context).await;
+    }
+
+    if context.direction.receive_only() {
+        return udp_receive_task(&mut reader, remote_addr, context).await;
+    }
+
     tokio::select! {
         result = udp_send_task(&mut writer, remote_addr, context) => {
             if let Err(error) = result {
@@ -255,21 +272,41 @@ impl DriverInfo for UdpClientInfo {
         let first_schema = &self.valid_schemes()[0];
         let second_schema = &self.valid_schemes()[1];
         vec![
-            format!("{first_schema}://<IP>:<PORT>").to_string(),
+            format!("{first_schema}://<IP>:<PORT>?direction=<DIRECTION|sender>").to_string(),
             url::Url::parse(&format!("{first_schema}://0.0.0.0:14550"))
                 .unwrap()
                 .to_string(),
-            url::Url::parse(&format!("{second_schema}://192.168.2.1:14660"))
-                .unwrap()
-                .to_string(),
+            url::Url::parse(&format!(
+                "{second_schema}://192.168.2.1:14660?direction=sender"
+            ))
+            .unwrap()
+            .to_string(),
         ]
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
         let host = url.host_str().unwrap();
         let port = url.port().unwrap();
+
+        let direction = url
+            .query_pairs()
+            .find_map(|(key, value)| {
+                if key != "direction" {
+                    return None;
+                }
+                value.parse().map(Direction::from).ok()
+            })
+            .unwrap_or(Direction::Both);
+
+        if direction.receive_only() {
+            info!("UdpClient cannot be created with direction: {direction:?}, there is no way to receive messages without sending them for UDP.");
+            return None;
+        }
+
         Some(Arc::new(
-            UdpClient::builder("UdpClient", &format!("{host}:{port}")).build(),
+            UdpClient::builder("UdpClient", &format!("{host}:{port}"))
+                .direction(direction)
+                .build(),
         ))
     }
 }
