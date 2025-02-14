@@ -279,7 +279,6 @@ mod tests {
         ];
 
         for (endpoint, expected) in endpoints {
-            dbg!(&endpoint);
             let result = endpoints_parser(endpoint);
             assert_eq!(result.is_ok(), expected);
         }

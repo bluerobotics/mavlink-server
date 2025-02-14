@@ -306,7 +306,6 @@ mod tests {
             .iter()
             .map(|sample| format!("{}:{}", sample.0, sample.1))
             .collect::<Vec<String>>();
-        dbg!(&messages_count_per_id_fmt);
 
         let mut messages_received = messages_received_per_id
             .values()
