@@ -43,6 +43,14 @@ pub enum Direction {
 }
 
 impl Direction {
+    pub fn receive_only(&self) -> bool {
+        *self == Direction::Receiver
+    }
+
+    pub fn send_only(&self) -> bool {
+        *self == Direction::Sender
+    }
+
     pub fn can_receive(&self) -> bool {
         *self == Direction::Receiver || *self == Direction::Both
     }
