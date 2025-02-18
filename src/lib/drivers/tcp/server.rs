@@ -14,7 +14,7 @@ use crate::{
     callbacks::{Callbacks, MessageCallback},
     drivers::{
         generic_tasks::{default_send_receive_run, SendReceiveContext},
-        Driver, DriverInfo,
+        Direction, Driver, DriverInfo,
     },
     protocol::Protocol,
     stats::{
@@ -28,6 +28,7 @@ pub struct TcpServer {
     pub local_addr: String,
     name: arc_swap::ArcSwap<String>,
     uuid: DriverUuid,
+    direction: Direction,
     on_message_input: Callbacks<Arc<Protocol>>,
     on_message_output: Callbacks<Arc<Protocol>>,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
@@ -38,6 +39,11 @@ pub struct TcpServerBuilder(TcpServer);
 impl TcpServerBuilder {
     pub fn build(self) -> TcpServer {
         self.0
+    }
+
+    pub fn direction(mut self, direction: Direction) -> Self {
+        self.0.direction = direction;
+        self
     }
 
     pub fn on_message_input<C>(self, callback: C) -> Self
@@ -66,6 +72,7 @@ impl TcpServer {
             local_addr: local_addr.to_string(),
             name: arc_swap::ArcSwap::new(name.clone()),
             uuid: Self::generate_uuid(local_addr),
+            direction: Direction::Both,
             on_message_input: Callbacks::default(),
             on_message_output: Callbacks::default(),
             stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
@@ -105,7 +112,7 @@ impl Driver for TcpServer {
         let local_addr = self.local_addr.parse::<SocketAddr>()?;
 
         let context = SendReceiveContext {
-            direction: crate::drivers::Direction::Both,
+            direction: self.direction,
             hub_sender,
             on_message_output: self.on_message_output.clone(),
             on_message_input: self.on_message_input.clone(),
@@ -206,21 +213,37 @@ impl DriverInfo for TcpServerInfo {
         let first_schema = &self.valid_schemes()[0];
         let second_schema = &self.valid_schemes()[1];
         vec![
-            format!("{first_schema}://<IP>:<PORT>").to_string(),
+            format!("{first_schema}://<IP>:<PORT>?direction=<DIRECTION|receiver,sender>")
+                .to_string(),
             url::Url::parse(&format!("{first_schema}://0.0.0.0:14550"))
                 .unwrap()
                 .to_string(),
-            url::Url::parse(&format!("{second_schema}://127.0.0.1:14660"))
-                .unwrap()
-                .to_string(),
+            url::Url::parse(&format!(
+                "{second_schema}://127.0.0.1:14660?direction=receiver"
+            ))
+            .unwrap()
+            .to_string(),
         ]
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
         let host = url.host_str().unwrap();
         let port = url.port().unwrap();
+
+        let direction = url
+            .query_pairs()
+            .find_map(|(key, value)| {
+                if key != "direction" {
+                    return None;
+                }
+                value.parse().map(Direction::from).ok()
+            })
+            .unwrap_or(Direction::Both);
+
         Some(Arc::new(
-            TcpServer::builder("TcpServer", &format!("{host}:{port}")).build(),
+            TcpServer::builder("TcpServer", &format!("{host}:{port}"))
+                .direction(direction)
+                .build(),
         ))
     }
 }

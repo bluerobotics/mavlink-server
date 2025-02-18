@@ -31,6 +31,14 @@ where
     T: Stream<Item = std::io::Result<std::result::Result<Packet, DecoderError>>>
         + std::marker::Unpin,
 {
+    if context.direction.receive_only() {
+        return default_receive_task(&mut reader, identifier, context).await;
+    }
+
+    if context.direction.send_only() {
+        return default_send_task(&mut writer, identifier, context).await;
+    }
+
     tokio::select! {
         result = default_send_task(&mut writer, identifier, context) => {
             if let Err(error) = result {
