@@ -144,10 +144,25 @@ fn endpoints_parser(entry: &str) -> Result<Arc<dyn drivers::Driver>, String> {
 /// Constructs our manager, Should be done inside main
 #[instrument(level = "debug")]
 pub fn init() {
-    init_with(Args::parse());
+    let expanded_args = std::env::args()
+        .map(|arg| {
+            // Fallback to the original if it fails to expand
+            shellexpand::env(&arg.clone())
+                .inspect_err(|_| {
+                    warn!("Failed expanding arg: {arg:?}, using the non-expanded instead.")
+                })
+                .unwrap_or_else(|_| arg.into())
+                .into_owned()
+        })
+        .collect::<Vec<String>>();
+
+    let reparsed_expanded_args = Args::parse_from(expanded_args);
+
+    init_with(reparsed_expanded_args);
 }
 
 /// Constructs our manager, Should be done inside main
+/// Note: differently from init(), this doesn't expand env variables
 #[instrument(level = "debug")]
 pub fn init_with(args: Args) {
     MANAGER.get_or_init(|| Manager { clap_matches: args });
@@ -174,11 +189,18 @@ pub fn log_path() -> String {
     let log_path = args()
         .log_path
         .clone()
-        .expect("Clap arg \"log-path\" should always be \"Some(_)\" because of the default value.");
+        .expect("Clap arg \"log-path\" should always be \"Some(_)\" because of the default value.")
+        .parse::<std::path::PathBuf>()
+        .expect("Failed parsing the passed log-path");
 
-    shellexpand::full(&log_path)
-        .expect("Failed to expand path")
-        .to_string()
+    std::fs::canonicalize(&log_path)
+        .inspect_err(|_| {
+            warn!("Failed canonicalizing path: {log_path:?}, using the non-canonized instead.")
+        })
+        .unwrap_or(log_path)
+        .into_os_string()
+        .into_string()
+        .expect("Failed converting PathBuf into string")
 }
 
 pub fn endpoints() -> Vec<Arc<dyn drivers::Driver>> {
