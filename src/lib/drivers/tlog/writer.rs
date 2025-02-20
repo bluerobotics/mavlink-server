@@ -45,6 +45,12 @@ impl TlogWriterBuilder {
 impl TlogWriter {
     #[instrument(level = "debug")]
     pub fn builder(name: &str, path: PathBuf) -> TlogWriterBuilder {
+        let path = std::fs::canonicalize(&path)
+            .inspect_err(|_| {
+                warn!("Failed canonicalizing path: {path:?}, using the non-canonized instead.")
+            })
+            .unwrap_or(path);
+
         let name = Arc::new(name.to_string());
         let path_str = path.clone().display().to_string();
 
