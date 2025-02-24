@@ -70,7 +70,7 @@ async fn websocket_connection(socket: WebSocket, addr: SocketAddr) {
         match message {
             ws::Message::Text(text) => {
                 trace!("WS client received from {identifier}: {text}");
-                if let Err(error) = state.message_tx.send(text.to_string().into()) {
+                if let Err(error) = state.message_tx.send(text.to_string()) {
                     error!("Failed to send message to main loop: {error:?}");
                 }
                 broadcast(identifier, ws::Message::Text(text)).await;
