@@ -1,3 +1,4 @@
+pub mod control;
 pub mod data;
 
 use std::sync::Arc;
@@ -110,6 +111,44 @@ impl Rest {
     }
 
     #[instrument(level = "debug", skip_all)]
+    async fn control_send_task(
+        context: &SendReceiveContext,
+        control_receiver: &mut broadcast::Receiver<mavlink::ardupilotmega::MavMessage>,
+    ) -> Result<()> {
+        let header = mavlink::MavHeader {
+            system_id: 255, // default system_id for gcs
+            component_id: mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_MISSIONPLANNER as u8,
+            ..Default::default()
+        };
+
+        while let Ok(message) = control_receiver.recv().await {
+            let bus_message = Arc::new(Protocol::from_mavlink_raw(header, &message, "Control"));
+
+            trace!("Received message: {bus_message:?}");
+
+            context.stats.write().await.stats.update_input(&bus_message);
+
+            for future in context.on_message_input.call_all(bus_message.clone()) {
+                if let Err(error) = future.await {
+                    debug!("Dropping message: on_message_input callback returned error: {error:?}");
+                    continue;
+                }
+            }
+
+            if let Err(error) = context.hub_sender.send(bus_message) {
+                error!("Failed to send message to hub: {error:?}");
+                continue;
+            }
+
+            trace!("Message sent to hub");
+        }
+
+        debug!("Driver sender task stopped!");
+
+        Ok(())
+    }
+
+    #[instrument(level = "debug", skip_all)]
     async fn send_task(context: &SendReceiveContext) -> Result<()> {
         let mut hub_receiver = context.hub_sender.subscribe();
 
@@ -155,6 +194,14 @@ impl Rest {
             let json_string = parse_query(&mavlink_json);
             data::update((mavlink_json.header, mavlink_json.message));
 
+            if let Ok(message) = message
+                .to_mavlink()
+                .await
+                .inspect_err(|error| warn!("Failed converting bus message to mavlink: {error:?}"))
+            {
+                control::update(message).await;
+            }
+
             websocket::broadcast(uuid, ws::Message::Text(json_string.into())).await;
         }
 
@@ -192,6 +239,7 @@ impl Driver for Rest {
             }
 
             let mut ws_receiver = websocket::create_message_receiver();
+            let mut control_receiver = control::subscribe_mavlink_message();
 
             tokio::select! {
                 result = Rest::send_task(&context) => {
@@ -202,6 +250,11 @@ impl Driver for Rest {
                 result = Rest::receive_task(&context, &mut ws_receiver) => {
                     if let Err(e) = result {
                         error!("Error in rest receive task: {e:?}");
+                    }
+                }
+                result = Rest::control_send_task(&context, &mut control_receiver) => {
+                    if let Err(e) = result {
+                        error!("Error in rest sender task: {e:?}");
                     }
                 }
             }
