@@ -335,12 +335,20 @@ mod test {
     use std::sync::Arc;
 
     use anyhow::Result;
+    use clap::Parser;
     use tokio::sync::{broadcast, RwLock};
+
+    use crate::cli;
 
     use super::*;
 
     #[tokio::test]
     async fn loopback_test() -> Result<()> {
+        cli::init_with(cli::Args::parse_from(vec![
+            "", // For some unknown reason, the first argument is ignored
+            "--allow-no-endpoints",
+        ]));
+
         let (hub_sender, _) = broadcast::channel(10000);
 
         let number_of_messages = 800;
