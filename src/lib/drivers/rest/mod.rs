@@ -144,7 +144,11 @@ impl Rest {
                 }
             }
 
-            let Ok(mavlink_json) = message.to_mavlink_json().await else {
+            let Ok(mavlink_json) = message
+                .to_mavlink_json()
+                .await
+                .inspect_err(|error| debug!("Failed converting message to json: {error:?}"))
+            else {
                 continue;
             };
 
