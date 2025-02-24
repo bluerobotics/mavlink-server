@@ -191,8 +191,34 @@ impl DriverInfo for TlogWriterInfo {
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
+        let params: std::collections::HashMap<_, _> = url.query_pairs().into_owned().collect();
+
+        let expected_system_id = params.get("system_id").and_then(|v| v.parse::<u8>().ok());
+        let expected_component_id = params
+            .get("component_id")
+            .and_then(|v| v.parse::<u8>().ok())
+            .unwrap_or(mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_AUTOPILOT1 as u8);
+
+        let file_creation_condition = params
+            .get("when")
+            .and_then(|v| {
+                v.parse()
+                    .map(FileCreationCondition::from)
+                    .map(|cond| match cond {
+                        FileCreationCondition::WhileArmed(_) => {
+                            FileCreationCondition::WhileArmed(ExpectedOrigin {
+                                system_id: RwLock::new(expected_system_id),
+                                component_id: expected_component_id,
+                            })
+                        }
+                        other => other,
+                    })
+                    .ok()
+            })
+            .unwrap_or(FileCreationCondition::Always);
+
         Some(Arc::new(
-            TlogWriter::builder("TlogWriter", url.path().into()).build(),
+            TlogWriter::builder("TlogWriter", url.path().into(), file_creation_condition).build(),
         ))
     }
 }
