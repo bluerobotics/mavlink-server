@@ -20,10 +20,24 @@ use crate::{
 #[derive(Debug)]
 pub struct TlogWriter {
     pub path: PathBuf,
+    file_creation_condition: FileCreationCondition,
     name: arc_swap::ArcSwap<String>,
     uuid: DriverUuid,
     on_message_output: Callbacks<Arc<Protocol>>,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
+}
+
+#[derive(Debug, strum_macros::EnumString)]
+#[strum(serialize_all = "snake_case")]
+pub enum FileCreationCondition {
+    WhileArmed(ExpectedOrigin),
+    Always,
+}
+
+#[derive(Debug, Default)]
+pub struct ExpectedOrigin {
+    pub system_id: RwLock<Option<u8>>,
+    pub component_id: u8,
 }
 
 pub struct TlogWriterBuilder(TlogWriter);
@@ -44,7 +58,11 @@ impl TlogWriterBuilder {
 
 impl TlogWriter {
     #[instrument(level = "debug")]
-    pub fn builder(name: &str, path: PathBuf) -> TlogWriterBuilder {
+    pub fn builder(
+        name: &str,
+        path: PathBuf,
+        file_creation_condition: FileCreationCondition,
+    ) -> TlogWriterBuilder {
         let path = std::fs::canonicalize(&path)
             .inspect_err(|_| {
                 warn!("Failed canonicalizing path: {path:?}, using the non-canonized instead.")
@@ -57,6 +75,7 @@ impl TlogWriter {
         TlogWriterBuilder(Self {
             path,
             name: arc_swap::ArcSwap::new(name.clone()),
+            file_creation_condition,
             uuid: Self::generate_uuid(&path_str),
             on_message_output: Callbacks::default(),
             stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
