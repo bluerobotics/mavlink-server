@@ -28,6 +28,7 @@ use crate::{
 const MAVLINK_MESSAGES_WEBSOCKET_PATH: &str = "rest/ws";
 const MAVLINK_HELPER: &str = "rest/helper";
 const MAVLINK_POST: &str = "rest/mavlink";
+const CONTROL_VEHICLES: &str = "rest/vehicles";
 const HUB_MESSAGES_STATS_WEBSOCKET_PATH: &str = "stats/messages/ws";
 const HUB_STATS_WEBSOCKET_PATH: &str = "stats/hub/ws";
 const DRIVERS_STATS_WEBSOCKET_PATH: &str = "stats/drivers/ws";
@@ -35,6 +36,7 @@ const DRIVERS_STATS_WEBSOCKET_PATH: &str = "stats/drivers/ws";
 enum Screens {
     Main,
     Helper,
+    Control,
 }
 
 #[derive(Clone, PartialEq)]
@@ -142,6 +144,10 @@ impl App {
                 ui.add_space(16.0);
                 if ui.button("Helper").clicked() {
                     self.show_screen = Screens::Helper;
+                }
+                ui.add_space(16.0);
+                if ui.button("Control").clicked() {
+                    self.show_screen = Screens::Control;
                 }
 
                 ui.with_layout(
@@ -268,6 +274,34 @@ impl App {
                     ui.label(format!("{}", *self.mavlink_code_post_response.lock()));
             });
             });
+    }
+
+    fn show_control_screen(&mut self, ctx: &Context) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.label("Control");
+            if ui.button("Arm").clicked() {
+                let mut request = Request::post(format!("/{CONTROL_VEHICLES}/arm"), "{
+                    \"system_id\": 1,
+                    \"component_id\": 1,
+                    \"force\": true
+                }".into());
+                request.headers.insert("Content-Type", "application/json");
+                ehttp::fetch(request, |res| {
+                    log::info!("Arm response: {res:?}");
+                });
+            }
+            if ui.button("Disarm").clicked() {
+                let mut request = Request::post(format!("/{CONTROL_VEHICLES}/disarm"), "{
+                    \"system_id\": 1,
+                    \"component_id\": 1,
+                    \"force\": true
+                }".into());
+                request.headers.insert("Content-Type", "application/json");
+                ehttp::fetch(request, |res| {
+                    log::info!("Disarm response: {res:?}");
+                });
+            }
+        });
     }
 
     fn deal_with_mavlink_message(&mut self, message: String) {
@@ -1007,6 +1041,7 @@ impl eframe::App for App {
         match self.show_screen {
             Screens::Main => self.show_main_screen(ctx),
             Screens::Helper => self.show_helper_screen(ctx),
+            Screens::Control => self.show_control_screen(ctx),
         }
 
         ctx.request_repaint();
