@@ -176,7 +176,11 @@ impl DriverInfo for TlogWriterInfo {
         let first_schema = &self.valid_schemes()[0];
         vec![
             format!("{first_schema}:<FILE>"),
+            format!("{first_schema}:<TLOGS_OUTPUT_DIR>"),
             format!("{first_schema}:/tmp/potato.tlog"),
+            format!("{first_schema}:/tmp/tlogs_output_dir/"),
+            format!("{first_schema}:<tmp/tlogs_output_dir>/?when=always"),
+            format!("{first_schema}:<tmp/tlogs_output_dir>/?when=while_armed"),
         ]
     }
 
@@ -184,9 +188,18 @@ impl DriverInfo for TlogWriterInfo {
         let first_schema = &self.valid_schemes()[0];
         vec![
             format!("{first_schema}://<FILE>").to_string(),
+            format!("{first_schema}://<TLOGS_OUTPUT_DIR>").to_string(),
             url::Url::parse(&format!("{first_schema}:///tmp/potato.tlog"))
                 .unwrap()
                 .to_string(),
+            url::Url::parse(&format!("{first_schema}:///tmp/tlogs_output_dir/"))
+                .unwrap()
+                .to_string(),
+            url::Url::parse(&format!(
+                "{first_schema}:///tmp/tlogs_output_dir/?when=while_armed"
+            ))
+            .unwrap()
+            .to_string(),
         ]
     }
 
