@@ -48,10 +48,10 @@ impl MAVLinkVehiclesData {
         };
 
         let value = serde_json::to_value(self).unwrap();
-        return match value.pointer(&path) {
+        match value.pointer(&path) {
             Some(content) => serde_json::to_string_pretty(content).unwrap(),
             None => "None".into(),
-        };
+        }
     }
 }
 
