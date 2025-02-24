@@ -78,27 +78,16 @@ impl Driver for FakeSink {
                 }
             }
 
-            let version = match &**message {
-                Packet::V1(_) => mavlink::MavlinkVersion::V1,
-                Packet::V2(_) => mavlink::MavlinkVersion::V2,
+            let Ok(mavlink_json) = message
+                .to_mavlink_json::<mavlink::ardupilotmega::MavMessage>()
+                .await
+                .inspect_err(|error| debug!("Failed converting message to json: {error:?}"))
+            else {
+                continue;
             };
 
-            let frame = match mavlink::MavFrame::<mavlink::ardupilotmega::MavMessage>::deser(
-                version,
-                message.as_slice(),
-            ) {
-                Ok(frame) => frame,
-                Err(error) => {
-                    warn!("Failed to deserialize Mavlink Message: {error:?}");
-                    continue;
-                }
-            };
-
-            let mavlink::MavFrame {
-                header,
-                msg: message,
-                protocol_version: _,
-            } = frame;
+            let header = mavlink_json.header;
+            let message = mavlink_json.message;
 
             if self.print {
                 println!("Message received: {header:?} {message:?}");
