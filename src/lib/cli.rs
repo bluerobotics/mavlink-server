@@ -35,7 +35,7 @@ pub struct Args {
     ///
     /// udps:listen_ip:port (udp, server mode)
     #[arg(
-        required = true,
+        required_if_eq("allow_no_endpoints", "false"),
         num_args = 1..,
         value_delimiter = ' ',
         value_parser = endpoints_parser,
@@ -92,6 +92,10 @@ pub struct Args {
     /// Sets the default version used by the REST API, this will remove the prefix used by its path.
     #[arg(long, default_value = "1", value_names = ["1"])]
     default_api_version: u8,
+
+    /// Only useful for test and debug
+    #[arg(long, hide = true, default_value = "false")]
+    allow_no_endpoints: bool,
 }
 
 #[instrument(level = "trace")]
