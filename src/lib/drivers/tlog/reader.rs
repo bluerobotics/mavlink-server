@@ -45,6 +45,12 @@ impl TlogReaderBuilder {
 impl TlogReader {
     #[instrument(level = "debug")]
     pub fn builder(name: &str, path: PathBuf) -> TlogReaderBuilder {
+        let path = std::fs::canonicalize(&path)
+            .inspect_err(|_| {
+                warn!("Failed canonicalizing path: {path:?}, using the non-canonized instead.")
+            })
+            .unwrap_or(path);
+
         let name = Arc::new(name.to_string());
         let path_str = path.clone().display().to_string();
 
@@ -207,12 +213,8 @@ impl DriverInfo for TlogReaderInfo {
         legacy_entry: crate::drivers::DriverDescriptionLegacy,
     ) -> Result<url::Url> {
         let scheme = self.default_scheme().context("No default scheme")?;
-        let path = legacy_entry.arg1;
-        std::fs::metadata(&path).context("Failed to get metadata for file")?;
-        // Get absolute path of file
-        let path = std::fs::canonicalize(&path).context("Failed to get absolute path for file")?;
-
-        let path_string = path.to_str().context("Failed to convert path to string")?;
+        let path_string = legacy_entry.arg1;
+        std::fs::metadata(&path_string).context("Failed to get metadata for file")?;
 
         if let Some(arg2) = legacy_entry.arg2 {
             warn!("Ignoring extra argument: {arg2:?}");
