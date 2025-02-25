@@ -34,7 +34,7 @@ pub(crate) async fn post_mavlink(
     if let Err(error) = websocket::send(message) {
         error!("Failed to send message to main loop: {error:?}");
     }
-    return (StatusCode::OK, "{response: \"OK\"}").into_response();
+    (StatusCode::OK, "{response: \"OK\"}").into_response()
 }
 
 #[derive(Deserialize)]

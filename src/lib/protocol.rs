@@ -59,6 +59,20 @@ impl Protocol {
         }
     }
 
+    pub async fn to_mavlink<M>(&self) -> Result<(mavlink::MavHeader, M)>
+    where
+        M: mavlink::Message,
+    {
+        let mut reader = mavlink::async_peek_reader::AsyncPeekReader::new(self.as_slice());
+
+        match cli::mavlink_version() {
+            1 => mavlink::read_v1_msg_async::<M, _>(&mut reader).await,
+            2 => mavlink::read_v2_msg_async::<M, _>(&mut reader).await,
+            _ => unreachable!(),
+        }
+        .map_err(anyhow::Error::msg)
+    }
+
     pub async fn to_mavlink_json<M>(&self) -> Result<MAVLinkJSON<M>>
     where
         M: mavlink::Message,
