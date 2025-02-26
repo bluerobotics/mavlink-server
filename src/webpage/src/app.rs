@@ -30,6 +30,7 @@ const MAVLINK_MESSAGES_WEBSOCKET_PATH: &str = "rest/ws";
 const MAVLINK_HELPER: &str = "rest/helper";
 const MAVLINK_POST: &str = "rest/mavlink";
 const CONTROL_VEHICLES: &str = "rest/vehicles";
+const CONTROL_VEHICLES_WEBSOCKET_PATH: &str = "rest/vehicles/ws";
 const HUB_MESSAGES_STATS_WEBSOCKET_PATH: &str = "stats/messages/ws";
 const HUB_STATS_WEBSOCKET_PATH: &str = "stats/hub/ws";
 const DRIVERS_STATS_WEBSOCKET_PATH: &str = "stats/drivers/ws";
@@ -52,6 +53,9 @@ pub struct App {
     now: DateTime<Utc>,
     mavlink_receiver: WsReceiver,
     mavlink_sender: WsSender,
+    vehicles_receiver: WsReceiver,
+    /// We are not using this, but it's needed to keep the connection alive
+    vehicles_sender: WsSender,
     hub_messages_stats_receiver: WsReceiver,
     hub_messages_stats_sender: WsSender,
     hub_stats_receiver: WsReceiver,
@@ -60,6 +64,7 @@ pub struct App {
     drivers_stats_sender: WsSender,
     /// Realtime messages, grouped by Vehicle ID and Component ID
     vehicles_mavlink: VehiclesMessages,
+    vehicles: serde_json::Value,
     /// Hub messages statistics, grouped by Vehicle ID and Component ID
     hub_messages_stats: HubMessagesStatsHistorical,
     /// Hub statistics
@@ -94,6 +99,9 @@ impl Default for App {
         let (drivers_stats_sender, drivers_stats_receiver) =
             connect_websocket(DRIVERS_STATS_WEBSOCKET_PATH).unwrap();
 
+        let (vehicles_sender, vehicles_receiver) =
+            connect_websocket(CONTROL_VEHICLES_WEBSOCKET_PATH).unwrap();
+
         let mut dock_state = DockState::new(vec![Tab::MessagesInspector]);
 
         let [left, right] =
@@ -112,6 +120,8 @@ impl Default for App {
             now: Utc::now(),
             mavlink_receiver,
             mavlink_sender,
+            vehicles_receiver,
+            vehicles_sender,
             hub_messages_stats_receiver,
             hub_messages_stats_sender,
             hub_stats_receiver,
@@ -119,6 +129,7 @@ impl Default for App {
             drivers_stats_receiver,
             drivers_stats_sender,
             vehicles_mavlink: Default::default(),
+            vehicles: Default::default(),
             hub_messages_stats: Default::default(),
             hub_stats: Default::default(),
             drivers_stats: Default::default(),
@@ -302,6 +313,53 @@ impl App {
                     log::info!("Disarm response: {res:?}");
                 });
             }
+
+            let system_id = self.vehicles["vehicle_id"].as_u64().unwrap_or(0) as u8;
+            let mut message_header = CollapsingHeader::new(format!("Vehicle: {system_id}",))
+                .default_open(true)
+                .id_salt(ui.make_persistent_id(format!("vehicle_control_{system_id}")));
+
+            message_header.show(ui, |ui| {
+                let id_salt = ui.make_persistent_id(format!("vehicle_table_control_{system_id}"));
+                TableBuilder::new(ui)
+                    .id_salt(id_salt)
+                    .striped(true)
+                    .column(Column::auto().at_least(100.))
+                    .column(Column::remainder().at_least(150.))
+                    .body(|mut body| {
+                        if let Some(values) = self.vehicles.as_object() {
+                            for (key, value) in values {
+                                if !value.is_object() {
+                                    body.row(15., |mut row| {
+                                        row.col(|ui| {
+                                            let label = ui.label(key);
+                                        });
+                                        row.col(|ui| {
+                                            let label = ui.label(value.to_string());
+                                        });
+                                    });
+                                } else {
+                                    body.row(15., |mut row| {
+                                        row.col(|ui| {
+                                            let label = ui.label(key);
+                                        });
+                                    });
+                                    for (key, value) in value.as_object().unwrap() {
+                                        body.row(10., |mut row| {
+                                            row.col(|ui| {
+                                                let label = ui.label(format!("\t{key}"));
+                                            });
+
+                                            row.col(|ui| {
+                                                let label = ui.label(format!("\t{value}"));
+                                            });
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    });
+            });
         });
     }
 
@@ -402,6 +460,47 @@ impl App {
                 }
                 something @ Some(_) => {
                     log::trace!("MAVLink WebSocket got an unexpected event: {something:#?}");
+                }
+                None => break,
+            }
+        }
+    }
+
+    fn deal_with_vehicles_message(&mut self, message: String) {
+        let Ok(message_json) = serde_json::from_str::<serde_json::Value>(&message) else {
+            log::error!("Failed to parse Vehicles message: {message}");
+            return;
+        };
+        self.vehicles = message_json;
+    }
+
+    fn process_vehicles_websocket(&mut self) {
+        use ewebsock::{WsEvent, WsMessage};
+
+        loop {
+            match self.vehicles_receiver.try_recv() {
+                Some(WsEvent::Message(WsMessage::Text(message))) => {
+                    self.deal_with_vehicles_message(message)
+                }
+                Some(WsEvent::Closed) => {
+                    log::error!("Vehicles WebSocket closed");
+                    (self.vehicles_sender, self.vehicles_receiver) =
+                        connect_websocket(CONTROL_VEHICLES_WEBSOCKET_PATH).unwrap();
+
+                    break;
+                }
+                Some(WsEvent::Error(message)) => {
+                    log::error!("Vehicles WebSocket error: {message}");
+                    (self.vehicles_sender, self.vehicles_receiver) =
+                        connect_websocket(CONTROL_VEHICLES_WEBSOCKET_PATH).unwrap();
+
+                    break;
+                }
+                Some(WsEvent::Opened) => {
+                    log::info!("Vehicles WebSocket opened");
+                }
+                something @ Some(_) => {
+                    log::trace!("Vehicles WebSocket got an unexpected event: {something:#?}");
                 }
                 None => break,
             }
@@ -1035,6 +1134,7 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.now = Utc::now();
         self.process_mavlink_websocket();
+        self.process_vehicles_websocket();
         self.process_hub_messages_stats_websocket();
         self.process_hub_stats_websocket();
         self.process_drivers_stats_websocket();
