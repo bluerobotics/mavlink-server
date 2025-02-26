@@ -15,6 +15,7 @@ use url::Url;
 use web_sys::window;
 
 use crate::{
+    components_names,
     messages::{FieldInfo, MessageInfo, VehiclesMessages},
     messages_names::NAMES as mavlink_names,
     stats::{
@@ -603,8 +604,9 @@ impl App {
                             .default_open(true)
                             .show(ui, |ui| {
                                 for (component_id, messages) in matching_components {
+                                    let component_name = components_names::get_component_name(component_id);
                                     let _ = CollapsingHeader::new(format!(
-                                        "Component ID: {component_id}"
+                                        "Component ID: {component_id} ({component_name})"
                                     ))
                                     .id_salt(ui.make_persistent_id(format!(
                                         "component_{system_id}_{component_id}"
@@ -679,8 +681,9 @@ impl App {
                         .default_open(true)
                         .show(ui, |ui| {
                             for (component_id, messages) in &components.components_messages_stats {
+                                let component_name = components_names::get_component_name(*component_id);
                                 let _ =
-                                    CollapsingHeader::new(format!("Component ID: {component_id}"))
+                                    CollapsingHeader::new(format!("Component ID: {component_id} ({component_name})"))
                                         .id_salt(ui.make_persistent_id(format!(
                                             "component_{system_id}_{component_id}"
                                         )))
