@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use super::autopilot::{self, AutoPilotType};
+
 use anyhow::Result;
 use lazy_static::lazy_static;
 use mavlink;
@@ -37,6 +39,9 @@ pub struct Vehicles {
 pub struct Vehicle {
     vehicle_id: u8,
     armed: bool,
+    autopilot: Option<autopilot::AutoPilotType>,
+    vehicle_type: Option<autopilot::VehicleType>,
+    mode: String,
     attitude: Attitude,
     position: Position,
 }
@@ -78,6 +83,17 @@ impl Vehicle {
                 self.armed = heartbeat.base_mode
                     & mavlink::ardupilotmega::MavModeFlag::MAV_MODE_FLAG_SAFETY_ARMED
                     == mavlink::ardupilotmega::MavModeFlag::MAV_MODE_FLAG_SAFETY_ARMED;
+
+                self.autopilot = Some(autopilot::AutoPilotType::from_u8(heartbeat.autopilot as u8));
+                self.vehicle_type = Some(autopilot::VehicleType::from_u8(heartbeat.mavtype as u8));
+
+                if let Some(AutoPilotType::ArduPilotMega) = self.autopilot {
+                    self.mode = autopilot::ardupilot::flight_mode(
+                        self.vehicle_type.expect("Should have vehicle type already"),
+                        heartbeat.base_mode,
+                        heartbeat.custom_mode,
+                    );
+                }
             }
             mavlink::ardupilotmega::MavMessage::ATTITUDE(attitude) => {
                 self.attitude = Attitude {
