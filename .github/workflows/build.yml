@@ -13,7 +13,7 @@ jobs:
 
     - name: Install build dependencies - Rustup
       run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target x86_64-unknown-linux-musl wasm32-unknown-unknown -y
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target x86_64-unknown-linux-musl,wasm32-unknown-unknown -y
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
     - name: Check code style
@@ -86,7 +86,7 @@ jobs:
 
     - name: Install build dependencies - Rustup
       run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target ${{ matrix.TARGET }} wasm32-unknown-unknown -y
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target ${{ matrix.TARGET }},wasm32-unknown-unknown -y
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
     - name: Install build dependencies - Cargo-Binstall
