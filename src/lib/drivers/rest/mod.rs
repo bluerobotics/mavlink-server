@@ -1,3 +1,4 @@
+pub mod autopilot;
 pub mod control;
 pub mod data;
 
