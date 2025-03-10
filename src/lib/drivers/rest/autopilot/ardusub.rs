@@ -1,8 +1,10 @@
 // for ardusub only
 #[repr(u8)]
+#[derive(Debug, Eq, PartialEq, strum_macros::EnumString, strum_macros::Display)]
+#[strum(serialize_all = "kebab-case")]
 pub enum CustomMode {
     // Mode not set by vehicle yet
-    PreFlight = 255,
+    PreFlight = u8::MAX,
     // Manual angle with manual depth/throttle
     Stabilize = 0,
     // Manual body-frame angular rate with manual depth/throttle
@@ -26,6 +28,7 @@ pub enum CustomMode {
     // Manual angle with automatic depth/throttle (from rangefinder altitude)
     SurfTrak = 21,
     // Unknown
+    #[strum(to_string = "Unknown ({0})")]
     Unknown(u32),
 }
 
@@ -45,26 +48,6 @@ impl CustomMode {
             20 => Self::MotorDetect,
             21 => Self::SurfTrak,
             _ => Self::Unknown(value),
-        }
-    }
-}
-
-impl ToString for CustomMode {
-    fn to_string(&self) -> String {
-        match self {
-            Self::PreFlight => "pre-flight".to_string(),
-            Self::Stabilize => "stabilize".to_string(),
-            Self::Acro => "acro".to_string(),
-            Self::AltHold => "alt-hold".to_string(),
-            Self::Auto => "auto".to_string(),
-            Self::Guided => "guided".to_string(),
-            Self::Circle => "circle".to_string(),
-            Self::Surface => "surface".to_string(),
-            Self::PosHold => "poshold".to_string(),
-            Self::Manual => "manual".to_string(),
-            Self::MotorDetect => "motor-detect".to_string(),
-            Self::SurfTrak => "surftrak".to_string(),
-            Self::Unknown(value) => format!("unknown {:#x}", value),
         }
     }
 }

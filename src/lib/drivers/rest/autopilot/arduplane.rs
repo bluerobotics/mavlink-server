@@ -1,7 +1,9 @@
-#[repr(i8)]
+#[repr(u8)]
+#[derive(Debug, Eq, PartialEq, strum_macros::EnumString, strum_macros::Display)]
+#[strum(serialize_all = "kebab-case")]
 pub enum CustomMode {
     // Mode not set by vehicle yet
-    PreFlight = -1,
+    PreFlight = u8::MAX,
     // Manual control
     Manual = 0,
     // Automatic circular flight with automatic throttle
@@ -53,6 +55,7 @@ pub enum CustomMode {
     // Loiter to altitude then QLAND
     LoiterAltQLand = 25,
     // Unknown
+    #[strum(to_string = "Unknown ({0})")]
     Unknown(u32),
 }
 
@@ -86,40 +89,6 @@ impl CustomMode {
             24 => Self::Thermal,
             25 => Self::LoiterAltQLand,
             _ => Self::Unknown(value),
-        }
-    }
-}
-
-impl ToString for CustomMode {
-    fn to_string(&self) -> String {
-        match self {
-            Self::PreFlight => "pre-flight".to_string(),
-            Self::Manual => "manual".to_string(),
-            Self::Circle => "circle".to_string(),
-            Self::Stabilize => "stabilize".to_string(),
-            Self::Training => "training".to_string(),
-            Self::Acro => "acro".to_string(),
-            Self::FlyByWireA => "fbwa".to_string(),
-            Self::FlyByWireB => "fbwb".to_string(),
-            Self::Cruise => "cruise".to_string(),
-            Self::AutoTune => "autotune".to_string(),
-            Self::Auto => "auto".to_string(),
-            Self::Rtl => "rtl".to_string(),
-            Self::Loiter => "loiter".to_string(),
-            Self::Takeoff => "takeoff".to_string(),
-            Self::AvoidAdsb => "avoid-adsb".to_string(),
-            Self::Guided => "guided".to_string(),
-            Self::Initialising => "initialising".to_string(),
-            Self::QStabilize => "qstabilize".to_string(),
-            Self::QHover => "qhover".to_string(),
-            Self::QLoiter => "qloiter".to_string(),
-            Self::QLand => "qland".to_string(),
-            Self::QRtl => "qrtl".to_string(),
-            Self::QAutoTune => "qautotune".to_string(),
-            Self::QAcro => "qacro".to_string(),
-            Self::Thermal => "thermal".to_string(),
-            Self::LoiterAltQLand => "loiter-alt-qland".to_string(),
-            Self::Unknown(value) => format!("unknown {:#x}", value),
         }
     }
 }
