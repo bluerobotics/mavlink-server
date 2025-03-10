@@ -1,7 +1,9 @@
-#[repr(i8)]
+#[repr(u8)]
+#[derive(Debug, Eq, PartialEq, strum_macros::EnumString, strum_macros::Display)]
+#[strum(serialize_all = "kebab-case")]
 pub enum CustomMode {
     // Mode not set by vehicle yet
-    PreFlight = -1,
+    PreFlight = u8::MAX,
     // Manual airframe angle with manual throttle
     Stabilize = 0,
     // Manual body-frame angular rate with manual throttle
@@ -56,6 +58,7 @@ pub enum CustomMode {
     // Flip over after crash
     Turtle = 28,
     // Unknown
+    #[strum(to_string = "Unknown ({0})")]
     Unknown(u32),
 }
 
@@ -90,41 +93,6 @@ impl CustomMode {
             27 => Self::AutoRtl,
             28 => Self::Turtle,
             _ => Self::Unknown(value),
-        }
-    }
-}
-
-impl ToString for CustomMode {
-    fn to_string(&self) -> String {
-        match self {
-            Self::PreFlight => "pre-flight".to_string(),
-            Self::Stabilize => "stabilize".to_string(),
-            Self::Acro => "acro".to_string(),
-            Self::AltHold => "alt-hold".to_string(),
-            Self::Auto => "auto".to_string(),
-            Self::Guided => "guided".to_string(),
-            Self::Loiter => "loiter".to_string(),
-            Self::Rtl => "rtl".to_string(),
-            Self::Circle => "circle".to_string(),
-            Self::Land => "land".to_string(),
-            Self::Drift => "drift".to_string(),
-            Self::Sport => "sport".to_string(),
-            Self::Flip => "flip".to_string(),
-            Self::AutoTune => "autotune".to_string(),
-            Self::PosHold => "poshold".to_string(),
-            Self::Brake => "brake".to_string(),
-            Self::Throw => "throw".to_string(),
-            Self::AvoidAdsb => "avoid-adsb".to_string(),
-            Self::GuidedNoGps => "guided-nogps".to_string(),
-            Self::SmartRtl => "smart-rtl".to_string(),
-            Self::FlowHold => "flowhold".to_string(),
-            Self::Follow => "follow".to_string(),
-            Self::ZigZag => "zigzag".to_string(),
-            Self::SystemId => "systemid".to_string(),
-            Self::AutoRotate => "autorotate".to_string(),
-            Self::AutoRtl => "auto-rtl".to_string(),
-            Self::Turtle => "turtle".to_string(),
-            Self::Unknown(value) => format!("unknown {:#x}", value),
         }
     }
 }
