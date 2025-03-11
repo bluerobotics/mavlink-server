@@ -1,10 +1,10 @@
 use std::net::SocketAddr;
 
-use crate::drivers::rest::control;
+use crate::drivers::rest::{autopilot, control};
 use axum::{
     extract::{
         ws::{self, WebSocket},
-        ConnectInfo, Json, WebSocketUpgrade,
+        ConnectInfo, Json, Query, WebSocketUpgrade,
     },
     http::header,
     response::IntoResponse,
@@ -22,6 +22,18 @@ pub struct ArmPayload {
     force: Option<bool>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+pub struct ThisVehiclePayload {
+    vehicle_id: Option<u8>,
+    component_id: Option<u8>,
+}
+
+pub(crate) async fn parameters() -> impl IntoResponse {
+    let parameters = autopilot::parameters::parameters();
+    let json = serde_json::to_string_pretty(&parameters).unwrap();
+    ([(header::CONTENT_TYPE, "application/json")], json).into_response()
+}
+
 pub(crate) async fn vehicles() -> impl IntoResponse {
     let vehicles = control::vehicles().await;
     let json = serde_json::to_string_pretty(&vehicles).unwrap();
@@ -36,6 +48,19 @@ pub(crate) async fn arm(Json(payload): Json<ArmPayload>) -> impl IntoResponse {
 pub(crate) async fn disarm(Json(payload): Json<ArmPayload>) -> impl IntoResponse {
     debug!("Disarming vehicle: {:#?}", &payload);
     let _ = control::disarm(payload.vehicle_id, payload.component_id, payload.force);
+}
+
+//TODO: Needs to deal with optional arguments for system and component id
+pub(crate) async fn version(Query(payload): Query<ThisVehiclePayload>) -> impl IntoResponse {
+    let version = control::version(payload.vehicle_id, payload.component_id).await;
+    dbg!(&version);
+    let answer = match version {
+        Ok(version) => serde_json::to_string_pretty(&version).unwrap(),
+        Err(err) => {
+            format!("{{\"error\": \"{}\"}}", err)
+        }
+    };
+    ([(header::CONTENT_TYPE, "application/json")], answer).into_response()
 }
 
 #[instrument(level = "debug", skip_all)]
