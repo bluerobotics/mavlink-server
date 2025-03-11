@@ -26,4 +26,6 @@ pub fn router() -> Router {
         .route("/vehicles/ws", get(vehicles::websocket_handler))
         .route("/vehicles/arm", post(vehicles::arm))
         .route("/vehicles/disarm", post(vehicles::disarm))
+        .route("/vehicles/version", get(vehicles::version))
+        .route("/vehicles/available_parameters", get(vehicles::parameters))
 }
