@@ -1,0 +1,3 @@
+[submodule "src/lib/drivers/rest/autopilot/parameters/ardupilot_parameters"]
+	path = src/lib/drivers/rest/autopilot/parameters/ardupilot_parameters
+	url = https://github.com/ArduPilot/ParameterRepository
