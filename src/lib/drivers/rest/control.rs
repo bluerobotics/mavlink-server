@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::autopilot::{self, AutoPilotType};
+use super::autopilot::{self, ardupilot::Capabilities, AutoPilotType};
 
 use anyhow::Result;
 use lazy_static::lazy_static;
@@ -18,6 +18,11 @@ lazy_static! {
 
 lazy_static! {
     static ref BROADCAST: broadcast::Sender<mavlink::ardupilotmega::MavMessage> =
+        broadcast::channel(16).0;
+}
+
+lazy_static! {
+    static ref BROADCAST_INNER: broadcast::Sender<(mavlink::MavHeader, mavlink::ardupilotmega::MavMessage)> =
         broadcast::channel(16).0;
 }
 
@@ -44,6 +49,14 @@ pub struct Vehicle {
     mode: String,
     attitude: Attitude,
     position: Position,
+    version: Option<Version>,
+    parameters: HashMap<String, String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct Version {
+    capabilities: autopilot::ardupilot::Capabilities,
+    version: semver::Version,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -109,6 +122,36 @@ impl Vehicle {
                     altitude: global_position.alt as f32 / 1e3,  //mm
                 };
             }
+            mavlink::ardupilotmega::MavMessage::AUTOPILOT_VERSION(autopilot_version) => {
+                let major = ((autopilot_version.flight_sw_version >> 24) & 0xff) as u64;
+                let minor = ((autopilot_version.flight_sw_version >> 16) & 0xff) as u64;
+                let patch = ((autopilot_version.flight_sw_version >> 8) & 0xff) as u64;
+                self.version = Some(Version {
+                    capabilities: Capabilities::from_bits_truncate(
+                        autopilot_version.capabilities.bits() as u64,
+                    ),
+                    version: semver::Version::new(major, minor, patch),
+                });
+
+                request_parameters(self.vehicle_id, header.component_id);
+                let firmware_type = autopilot::ardupilot::firmware_type(
+                    self.vehicle_type.expect("Should have vehicle type already"),
+                );
+                let version_major_minor = format!("{}.{}", major, minor);
+                let parameters = autopilot::parameters::get_parameters(
+                    firmware_type.to_string(),
+                    version_major_minor,
+                );
+            }
+            mavlink::ardupilotmega::MavMessage::PARAM_VALUE(param_value) => {
+                self.parameters.insert(
+                    String::from_utf8_lossy(&param_value.param_id)
+                        .to_string()
+                        .trim_end_matches(|c| c == '\0')
+                        .to_string(),
+                    param_value.param_value.to_string(),
+                );
+            }
             _ => {
                 vehicle_updated = false;
             }
@@ -118,6 +161,75 @@ impl Vehicle {
             let _ = BROADCAST_VEHICLES.send(self.clone());
         }
     }
+}
+
+fn request_parameters(vehicle_id: u8, component_id: u8) {
+    let message = mavlink::ardupilotmega::MavMessage::PARAM_REQUEST_LIST(
+        mavlink::ardupilotmega::PARAM_REQUEST_LIST_DATA {
+            target_system: vehicle_id,
+            target_component: component_id,
+        },
+    );
+
+    send_mavlink_message(message);
+}
+
+pub async fn version(
+    vehicle_id: Option<u8>,
+    component_id: Option<u8>,
+) -> Result<mavlink::ardupilotmega::MavMessage> {
+    let vehicle_id = vehicle_id.unwrap_or(1); // default system_id
+    let component_id =
+        component_id.unwrap_or(mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_AUTOPILOT1 as u8);
+
+    let message = mavlink::ardupilotmega::MavMessage::COMMAND_LONG(
+        mavlink::ardupilotmega::COMMAND_LONG_DATA {
+            param1: 148.0, // AUTOPILOT_VERSION
+            param2: 0.0,
+            param3: 0.0,
+            param4: 0.0,
+            param5: 0.0,
+            param6: 0.0,
+            param7: 0.0,
+            command: mavlink::ardupilotmega::MavCmd::MAV_CMD_REQUEST_MESSAGE,
+            target_system: vehicle_id,
+            target_component: component_id,
+            confirmation: 0,
+        },
+    );
+
+    send_mavlink_message(message);
+    wait_for_message(vehicle_id, component_id, |message| {
+        matches!(
+            message,
+            mavlink::ardupilotmega::MavMessage::AUTOPILOT_VERSION(_)
+        )
+    })
+    .await
+}
+
+pub async fn wait_for_message<F>(
+    vehicle_id: u8,
+    component_id: u8,
+    condition: F,
+) -> Result<mavlink::ardupilotmega::MavMessage>
+where
+    F: Fn(&mavlink::ardupilotmega::MavMessage) -> bool,
+{
+    let mut receiver = BROADCAST_INNER.subscribe();
+    let receive = async {
+        loop {
+            if let Ok((header, message)) = receiver.recv().await {
+                if (header.system_id == vehicle_id && header.component_id == component_id)
+                    && condition(&message)
+                {
+                    return Ok(message);
+                }
+            }
+        }
+    };
+
+    tokio::time::timeout(std::time::Duration::from_secs(3), receive).await?
 }
 
 pub fn arm(vehicle_id: Option<u8>, component_id: Option<u8>, force: Option<bool>) -> Result<()> {
@@ -184,7 +296,8 @@ pub async fn update((header, message): (mavlink::MavHeader, mavlink::ardupilotme
             vehicle_id: header.system_id,
             ..Default::default()
         });
-    vehicle.update(header, message);
+    vehicle.update(header, message.clone());
+    let _ = BROADCAST_INNER.send((header, message));
 }
 
 pub async fn vehicles() -> Vec<Vehicle> {
