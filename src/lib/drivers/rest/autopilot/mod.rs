@@ -5,6 +5,7 @@ pub mod ardupilot;
 pub mod arduplane;
 pub mod ardurover;
 pub mod ardusub;
+pub mod parameters;
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[repr(u8)]
