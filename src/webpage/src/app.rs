@@ -350,26 +350,26 @@ impl App {
                                 if !value.is_object() {
                                     body.row(15., |mut row| {
                                         row.col(|ui| {
-                                            let label = ui.label(key);
+                                            let _label = ui.label(key);
                                         });
                                         row.col(|ui| {
-                                            let label = ui.label(value.to_string());
+                                            let _label = ui.label(value.to_string());
                                         });
                                     });
                                 } else {
                                     body.row(15., |mut row| {
                                         row.col(|ui| {
-                                            let label = ui.label(key);
+                                            let _label = ui.label(key);
                                         });
                                     });
                                     for (key, value) in value.as_object().unwrap() {
                                         body.row(10., |mut row| {
                                             row.col(|ui| {
-                                                let label = ui.label(format!("\t{key}"));
+                                                let _label = ui.label(format!("\t{key}"));
                                             });
 
                                             row.col(|ui| {
-                                                let label = ui.label(format!("\t{value}"));
+                                                let _label = ui.label(format!("\t{value}"));
                                             });
                                         });
                                     }
