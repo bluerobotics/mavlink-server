@@ -344,6 +344,9 @@ impl App {
                     .body(|mut body| {
                         if let Some(values) = self.vehicles.as_object() {
                             for (key, value) in values {
+                                if key == "parameters" {
+                                    continue;
+                                }
                                 if !value.is_object() {
                                     body.row(15., |mut row| {
                                         row.col(|ui| {
@@ -374,6 +377,34 @@ impl App {
                             }
                         }
                     });
+
+                if let Some(parameters) = self.vehicles.get("parameters") {
+                    let id_salt = ui.make_persistent_id(format!("vehicle_table_control_parameters{system_id}"));
+                    TableBuilder::new(ui)
+                        .id_salt(id_salt)
+                        .column(Column::auto().resizable(true))
+                        .column(Column::remainder())
+                        .header(20.0, |mut header| {
+                            header.col(|ui| {
+                                ui.label("Name");
+                            });
+                            header.col(|ui| {
+                                ui.label("Value");
+                            });
+                        })
+                        .body(|mut body| {
+                            for (key, value) in parameters.as_object().unwrap() {
+                                body.row(20.0, |mut row| {
+                                    row.col(|ui| {
+                                        ui.label(key);
+                                });
+                                row.col(|ui| {
+                                        ui.label(value["value"].to_string());
+                                    });
+                                });
+                            }
+                        });
+                }
             });
         });
     }
