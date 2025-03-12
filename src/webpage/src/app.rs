@@ -1213,7 +1213,7 @@ where
     T: Copy + std::fmt::Debug,
 {
     eframe::egui::show_tooltip(ui.ctx(), ui.layer_id(), ui.id(), |ui| {
-        let points: PlotPoints = field_info
+        let points: PlotPoints<'_> = field_info
             .history
             .iter()
             .map(|(time, value)| {
