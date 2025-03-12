@@ -61,6 +61,7 @@ zenoh = "1.0.1"
 ringbuffer = "0.15.0"
 strum = "0.26"
 strum_macros = "0.26"
+bitflags = { version = "2.9.0", features = ["serde"] }
 
 [dev-dependencies]
 criterion = "0.5"
