@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::autopilot::{self, ardupilot::Capabilities, AutoPilotType};
+use super::autopilot::{self, ardupilot::Capabilities, AutoPilotType, Parameter};
 
 use anyhow::Result;
 use lazy_static::lazy_static;
@@ -50,7 +50,7 @@ pub struct Vehicle {
     attitude: Attitude,
     position: Position,
     version: Option<Version>,
-    parameters: HashMap<String, String>,
+    parameters: HashMap<String, Parameter>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -145,11 +145,8 @@ impl Vehicle {
             }
             mavlink::ardupilotmega::MavMessage::PARAM_VALUE(param_value) => {
                 self.parameters.insert(
-                    String::from_utf8_lossy(&param_value.param_id)
-                        .to_string()
-                        .trim_end_matches(|c| c == '\0')
-                        .to_string(),
-                    param_value.param_value.to_string(),
+                    autopilot::Parameter::string_from_param_id(&param_value.param_id),
+                    autopilot::Parameter::from_param_value(param_value),
                 );
             }
             _ => {
