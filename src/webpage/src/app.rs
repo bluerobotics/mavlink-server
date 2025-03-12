@@ -330,7 +330,7 @@ impl App {
             }
 
             let system_id = self.vehicles["vehicle_id"].as_u64().unwrap_or(0) as u8;
-            let mut message_header = CollapsingHeader::new(format!("Vehicle: {system_id}",))
+            let message_header = CollapsingHeader::new(format!("Vehicle: {system_id}",))
                 .default_open(true)
                 .id_salt(ui.make_persistent_id(format!("vehicle_control_{system_id}")));
 
