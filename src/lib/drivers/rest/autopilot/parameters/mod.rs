@@ -77,6 +77,8 @@ pub struct Parameter {
     pub display_name: String,
     #[serde(rename = "Increment", default, deserialize_with = "str_to_f64_opt")]
     pub increment: Option<f64>,
+    #[serde(rename = "RebootRequired", default, deserialize_with = "str_to_bool")]
+    pub reboot_required: bool,
     #[serde(rename = "Range", default)]
     pub range: Option<Range>,
     #[serde(rename = "Units", default)]
@@ -95,6 +97,20 @@ pub struct Range {
     pub high: f64,
     #[serde(deserialize_with = "str_to_f64")]
     pub low: f64,
+}
+
+fn str_to_bool<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    match serde_json::Value::deserialize(deserializer)? {
+        serde_json::Value::String(s) => s.to_lowercase().parse().map_err(serde::de::Error::custom),
+        serde_json::Value::Bool(b) => Ok(b),
+        other => Err(serde::de::Error::custom(format!(
+            "Unexpected type: {:?}",
+            other
+        ))),
+    }
 }
 
 fn str_to_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
