@@ -139,8 +139,3 @@ where
         _ => Ok(None),
     }
 }
-
-// Use it:
-fn parse_parameters(json_content: &str) -> HashMap<String, HashMap<String, Parameter>> {
-    serde_json::from_str(json_content).unwrap()
-}
