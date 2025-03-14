@@ -74,7 +74,7 @@ pub struct Position {
 }
 
 impl Vehicle {
-    pub fn update(
+    pub async fn update(
         &mut self,
         header: mavlink::MavHeader,
         message: mavlink::ardupilotmega::MavMessage,
@@ -106,6 +106,15 @@ impl Vehicle {
                         heartbeat.base_mode,
                         heartbeat.custom_mode,
                     );
+                }
+
+                // Request version to take care of initial values
+                if self.version.is_none() {
+                    if let Err(error) =
+                        version(Some(self.vehicle_id), Some(header.component_id)).await
+                    {
+                        error!("Failed requesting version: {error:?}");
+                    }
                 }
             }
             mavlink::ardupilotmega::MavMessage::ATTITUDE(attitude) => {
@@ -293,7 +302,7 @@ pub async fn update((header, message): (mavlink::MavHeader, mavlink::ardupilotme
             vehicle_id: header.system_id,
             ..Default::default()
         });
-    vehicle.update(header, message.clone());
+    vehicle.update(header, message.clone()).await;
     let _ = BROADCAST_INNER.send((header, message));
 }
 
