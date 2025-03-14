@@ -1,5 +1,3 @@
-use indexmap::IndexMap;
-
 pub fn get_component_name(id: u8) -> &'static str {
     match id {
         0 => "MAV_COMP_ID_ALL",

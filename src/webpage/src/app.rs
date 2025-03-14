@@ -330,7 +330,7 @@ impl App {
             }
 
             let system_id = self.vehicles["vehicle_id"].as_u64().unwrap_or(0) as u8;
-            let mut message_header = CollapsingHeader::new(format!("Vehicle: {system_id}",))
+            let message_header = CollapsingHeader::new(format!("Vehicle: {system_id}",))
                 .default_open(true)
                 .id_salt(ui.make_persistent_id(format!("vehicle_control_{system_id}")));
 
@@ -344,29 +344,32 @@ impl App {
                     .body(|mut body| {
                         if let Some(values) = self.vehicles.as_object() {
                             for (key, value) in values {
+                                if key == "parameters" {
+                                    continue;
+                                }
                                 if !value.is_object() {
                                     body.row(15., |mut row| {
                                         row.col(|ui| {
-                                            let label = ui.label(key);
+                                            let _label = ui.label(key);
                                         });
                                         row.col(|ui| {
-                                            let label = ui.label(value.to_string());
+                                            let _label = ui.label(value.to_string());
                                         });
                                     });
                                 } else {
                                     body.row(15., |mut row| {
                                         row.col(|ui| {
-                                            let label = ui.label(key);
+                                            let _label = ui.label(key);
                                         });
                                     });
                                     for (key, value) in value.as_object().unwrap() {
                                         body.row(10., |mut row| {
                                             row.col(|ui| {
-                                                let label = ui.label(format!("\t{key}"));
+                                                let _label = ui.label(format!("\t{key}"));
                                             });
 
                                             row.col(|ui| {
-                                                let label = ui.label(format!("\t{value}"));
+                                                let _label = ui.label(format!("\t{value}"));
                                             });
                                         });
                                     }
@@ -374,6 +377,34 @@ impl App {
                             }
                         }
                     });
+
+                if let Some(parameters) = self.vehicles.get("parameters") {
+                    let id_salt = ui.make_persistent_id(format!("vehicle_table_control_parameters{system_id}"));
+                    TableBuilder::new(ui)
+                        .id_salt(id_salt)
+                        .column(Column::auto().resizable(true))
+                        .column(Column::remainder())
+                        .header(20.0, |mut header| {
+                            header.col(|ui| {
+                                ui.label("Name");
+                            });
+                            header.col(|ui| {
+                                ui.label("Value");
+                            });
+                        })
+                        .body(|mut body| {
+                            for (key, value) in parameters.as_object().unwrap() {
+                                body.row(20.0, |mut row| {
+                                    row.col(|ui| {
+                                        ui.label(key);
+                                });
+                                row.col(|ui| {
+                                        ui.label(value["value"].to_string());
+                                    });
+                                });
+                            }
+                        });
+                }
             });
         });
     }
@@ -1182,7 +1213,7 @@ where
     T: Copy + std::fmt::Debug,
 {
     eframe::egui::show_tooltip(ui.ctx(), ui.layer_id(), ui.id(), |ui| {
-        let points: PlotPoints = field_info
+        let points: PlotPoints<'_> = field_info
             .history
             .iter()
             .map(|(time, value)| {
