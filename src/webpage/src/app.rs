@@ -329,6 +329,10 @@ impl App {
                 });
             }
 
+            if !self.vehicles.is_object() {
+                return;
+            }
+
             let system_id = self.vehicles["vehicle_id"].as_u64().unwrap_or(0) as u8;
             let message_header = CollapsingHeader::new(format!("Vehicle: {system_id}",))
                 .default_open(true)
