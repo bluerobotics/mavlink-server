@@ -135,22 +135,44 @@ impl Vehicle {
                 let major = ((autopilot_version.flight_sw_version >> 24) & 0xff) as u64;
                 let minor = ((autopilot_version.flight_sw_version >> 16) & 0xff) as u64;
                 let patch = ((autopilot_version.flight_sw_version >> 8) & 0xff) as u64;
-                self.version = Some(Version {
+                let version = Some(Version {
                     capabilities: Capabilities::from_bits_truncate(
                         autopilot_version.capabilities.bits() as u64,
                     ),
                     version: semver::Version::new(major, minor, patch),
                 });
 
-                request_parameters(self.vehicle_id, header.component_id);
                 let firmware_type = autopilot::ardupilot::firmware_type(
                     self.vehicle_type.expect("Should have vehicle type already"),
                 );
                 let version_major_minor = format!("{}.{}", major, minor);
-                let parameters = autopilot::parameters::get_parameters(
-                    firmware_type.to_string(),
-                    version_major_minor,
-                );
+
+                // First time requesting parameters
+                if self.version.is_none() {
+                    self.version = version;
+                    self.firmware_type = Some(firmware_type.clone());
+
+                    self.parameters_metadata = autopilot::parameters::get_parameters(
+                        firmware_type.to_string(),
+                        version_major_minor,
+                    );
+                    request_parameters(self.vehicle_id, header.component_id);
+                } else if let Some(version) = version {
+                    // Version or vehicle type changed
+                    let self_version = self.version.as_ref().unwrap();
+                    if self_version.version != version.version
+                        || self.firmware_type != Some(firmware_type.clone())
+                    {
+                        self.version = Some(version);
+                        self.firmware_type = Some(firmware_type.clone());
+
+                        self.parameters_metadata = autopilot::parameters::get_parameters(
+                            firmware_type.to_string(),
+                            version_major_minor,
+                        );
+                        request_parameters(self.vehicle_id, header.component_id);
+                    }
+                }
             }
             mavlink::ardupilotmega::MavMessage::PARAM_VALUE(param_value) => {
                 self.parameters.insert(
