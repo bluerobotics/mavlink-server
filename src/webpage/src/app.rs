@@ -383,31 +383,41 @@ impl App {
                     });
 
                 if let Some(parameters) = self.vehicles.get("parameters") {
-                    let id_salt = ui.make_persistent_id(format!("vehicle_table_control_parameters{system_id}"));
-                    TableBuilder::new(ui)
-                        .id_salt(id_salt)
-                        .column(Column::auto().resizable(true))
-                        .column(Column::remainder())
-                        .header(20.0, |mut header| {
-                            header.col(|ui| {
-                                ui.label("Name");
-                            });
-                            header.col(|ui| {
-                                ui.label("Value");
-                            });
-                        })
-                        .body(|mut body| {
-                            for (key, value) in parameters.as_object().unwrap() {
-                                body.row(20.0, |mut row| {
-                                    row.col(|ui| {
-                                        ui.label(key);
+                    if parameters.is_object(){
+                        let id_salt = ui.make_persistent_id(format!("vehicle_table_control_parameters{system_id}"));
+                        TableBuilder::new(ui)
+                            .id_salt(id_salt)
+                            .column(Column::auto_with_initial_suggestion(200.0).resizable(true))
+                            .column(Column::auto_with_initial_suggestion(200.0).resizable(true))
+                            .column(Column::remainder())
+                            .header(20.0, |mut header| {
+                                header.col(|ui| {
+                                    ui.label("Name");
                                 });
-                                row.col(|ui| {
-                                        ui.label(value["value"].to_string());
+                                header.col(|ui| {
+                                    ui.label("Value");
+                                });
+                                header.col(|ui| {
+                                    ui.label("Description");
+                                });
+                            })
+                            .body(|mut body| {
+                                for (key, value) in parameters.as_object().unwrap() {
+                                    body.row(20.0, |mut row| {
+                                        row.col(|ui| {
+                                            ui.label(key);
                                     });
-                                });
-                            }
-                        });
+                                    row.col(|ui| {
+                                            ui.label(value["parameter"]["value"].to_string());
+                                        });
+                                    row.col(|ui| {
+                                            ui.label(value["metadata"]["description"].to_string());
+                                        });
+                                    });
+
+                                }
+                            });
+                    }
                 }
             });
         });
