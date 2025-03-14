@@ -1,7 +1,7 @@
 use super::{arducopter, arduplane, ardurover, ardusub, VehicleType};
 use serde::Serialize;
 
-#[derive(Debug, PartialEq, strum_macros::EnumString, strum_macros::Display)]
+#[derive(Clone, Debug, PartialEq, strum_macros::EnumString, strum_macros::Display)]
 pub enum FirmwareType {
     #[strum(serialize = "Copter")]
     Copter,
