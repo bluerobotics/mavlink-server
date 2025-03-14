@@ -71,23 +71,31 @@ pub fn get_parameters(vehicle_type: String, version: String) -> HashMap<String, 
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Parameter {
-    #[serde(rename = "Description")]
+    #[serde(rename(serialize = "description", deserialize = "Description"))]
     pub description: String,
-    #[serde(rename = "DisplayName")]
+    #[serde(rename(serialize = "display_name", deserialize = "DisplayName"))]
     pub display_name: String,
-    #[serde(rename = "Increment", default, deserialize_with = "str_to_f64_opt")]
+    #[serde(
+        rename(serialize = "increment", deserialize = "Increment"),
+        default,
+        deserialize_with = "str_to_f64_opt"
+    )]
     pub increment: Option<f64>,
-    #[serde(rename = "RebootRequired", default, deserialize_with = "str_to_bool")]
+    #[serde(
+        rename(serialize = "reboot_required", deserialize = "RebootRequired"),
+        default,
+        deserialize_with = "str_to_bool"
+    )]
     pub reboot_required: bool,
-    #[serde(rename = "Range", default)]
+    #[serde(rename(serialize = "range", deserialize = "Range"), default)]
     pub range: Option<Range>,
-    #[serde(rename = "Units", default)]
+    #[serde(rename(serialize = "units", deserialize = "Units"), default)]
     pub units: Option<String>,
-    #[serde(rename = "User", default)]
+    #[serde(rename(serialize = "user_level", deserialize = "User"), default)]
     pub user_level: String,
-    #[serde(rename = "Values", default)]
+    #[serde(rename(serialize = "values", deserialize = "Values"), default)]
     pub values: Option<HashMap<String, String>>,
-    #[serde(rename = "Bitmask", default)]
+    #[serde(rename(serialize = "bitmask", deserialize = "Bitmask"), default)]
     pub bitmask: Option<HashMap<String, String>>,
 }
 
