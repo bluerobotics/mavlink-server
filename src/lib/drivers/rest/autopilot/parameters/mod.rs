@@ -1,5 +1,5 @@
 use include_dir::{include_dir, Dir};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 static ASSETS_DIR: Dir = include_dir!(
@@ -69,7 +69,7 @@ pub fn get_parameters(vehicle_type: String, version: String) -> HashMap<String, 
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Parameter {
     #[serde(rename = "Description")]
     pub description: String,
@@ -89,7 +89,7 @@ pub struct Parameter {
     pub bitmask: Option<HashMap<String, String>>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Range {
     #[serde(deserialize_with = "str_to_f64")]
     pub high: f64,
