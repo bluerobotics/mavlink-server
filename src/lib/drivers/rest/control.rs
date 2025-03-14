@@ -1,7 +1,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::autopilot::{self, ardupilot::Capabilities, AutoPilotType, Parameter};
+use super::autopilot::{
+    self,
+    ardupilot::{Capabilities, FirmwareType},
+    parameters::Parameter as ParameterMetadata,
+    AutoPilotType, Parameter,
+};
 
 use anyhow::Result;
 use lazy_static::lazy_static;
@@ -50,7 +55,19 @@ pub struct Vehicle {
     attitude: Attitude,
     position: Position,
     version: Option<Version>,
-    parameters: HashMap<String, Parameter>,
+    parameters: HashMap<String, ParameterData>,
+
+    // Inner logic control
+    #[serde(skip_serializing)]
+    parameters_metadata: HashMap<String, ParameterMetadata>,
+    #[serde(skip_serializing)]
+    firmware_type: Option<FirmwareType>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ParameterData {
+    parameter: Parameter,
+    metadata: Option<ParameterMetadata>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -175,9 +192,14 @@ impl Vehicle {
                 }
             }
             mavlink::ardupilotmega::MavMessage::PARAM_VALUE(param_value) => {
+                let parameter_name =
+                    autopilot::Parameter::string_from_param_id(&param_value.param_id);
                 self.parameters.insert(
-                    autopilot::Parameter::string_from_param_id(&param_value.param_id),
-                    autopilot::Parameter::from_param_value(param_value),
+                    parameter_name.clone(),
+                    ParameterData {
+                        parameter: autopilot::Parameter::from_param_value(param_value),
+                        metadata: self.parameters_metadata.get(&parameter_name).cloned(),
+                    },
                 );
             }
             _ => {
