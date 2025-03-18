@@ -32,4 +32,8 @@ pub fn router() -> Router {
             get(vehicles::available_parameters),
         )
         .route("/vehicles/parameters", get(vehicles::parameters))
+        .route(
+            "/vehicles/parameters/ws",
+            get(vehicles::parameters_websocket_handler),
+        )
 }

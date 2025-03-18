@@ -120,3 +120,67 @@ async fn websocket_connection(socket: WebSocket, addr: SocketAddr) {
         warn!("Sender task finished with error: {error:?}");
     }
 }
+
+#[instrument(level = "debug", skip_all)]
+pub(crate) async fn parameters_websocket_handler(
+    ws: WebSocketUpgrade,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> Response {
+    ws.on_upgrade(move |socket| parameters_websocket_connection(socket, addr))
+}
+
+#[instrument(level = "debug", skip(socket))]
+async fn parameters_websocket_connection(socket: WebSocket, addr: SocketAddr) {
+    let identifier = Uuid::new_v4();
+    debug!("WS client connected with ID: {identifier}");
+
+    let mut parameters_receiver = control::subscribe_parameters();
+
+    let (mut sender, mut receiver) = socket.split();
+
+    let send_task = tokio::spawn(async move {
+        let parameters = control::parameters().await;
+        if sender
+            .send(ws::Message::Text(
+                serde_json::to_string_pretty(&parameters).unwrap().into(),
+            ))
+            .await
+            .is_err()
+        {
+            error!("Failed to send initial parameters to WS client");
+            return;
+        }
+
+        while let Ok(parameters) = parameters_receiver.recv().await {
+            if sender
+                .send(ws::Message::Text(
+                    serde_json::to_string_pretty(&parameters).unwrap().into(),
+                ))
+                .await
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
+
+    // Handle incoming messages
+    while let Some(Ok(message)) = receiver.next().await {
+        match message {
+            ws::Message::Text(text) => {
+                trace!("WS client received from {identifier}: {text}");
+            }
+            ws::Message::Close(frame) => {
+                debug!("WS client {identifier} disconnected: {frame:?}");
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    // We should be disconnected now, let's remove it
+    debug!("WS client {identifier} removed");
+    if let Err(error) = send_task.await {
+        warn!("Sender task finished with error: {error:?}");
+    }
+}
