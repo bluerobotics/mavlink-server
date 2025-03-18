@@ -10,7 +10,12 @@ static ASSETS_DIR: Dir = include_dir!(
 pub fn parameters() -> HashMap<String, Vec<String>> {
     let mut parameters: HashMap<String, Vec<String>> = HashMap::new();
     for dir in ASSETS_DIR.dirs() {
-        let directory = dir.path().file_name().unwrap().to_str().unwrap();
+        let directory = dir
+            .path()
+            .file_name()
+            .expect("Files should exist in compile time")
+            .to_str()
+            .unwrap();
 
         if !directory.contains("-") {
             continue;
