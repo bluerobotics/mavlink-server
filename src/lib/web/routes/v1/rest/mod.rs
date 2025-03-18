@@ -27,5 +27,9 @@ pub fn router() -> Router {
         .route("/vehicles/arm", post(vehicles::arm))
         .route("/vehicles/disarm", post(vehicles::disarm))
         .route("/vehicles/version", get(vehicles::version))
-        .route("/vehicles/available_parameters", get(vehicles::parameters))
+        .route(
+            "/vehicles/available_parameters",
+            get(vehicles::available_parameters),
+        )
+        .route("/vehicles/parameters", get(vehicles::parameters))
 }
