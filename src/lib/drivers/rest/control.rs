@@ -59,8 +59,13 @@ pub struct Vehicle {
 
     // Inner logic control
     #[serde(skip_serializing)]
+    context: VehicleContext,
+}
+
+
+#[derive(Clone, Debug, Default)]
+pub struct VehicleContext {
     parameters_metadata: HashMap<String, ParameterMetadata>,
-    #[serde(skip_serializing)]
     firmware_type: Option<FirmwareType>,
 }
 
@@ -167,9 +172,9 @@ impl Vehicle {
                 // First time requesting parameters
                 if self.version.is_none() {
                     self.version = version;
-                    self.firmware_type = Some(firmware_type.clone());
+                    self.context.firmware_type = Some(firmware_type.clone());
 
-                    self.parameters_metadata = autopilot::parameters::get_parameters(
+                    self.context.parameters_metadata = autopilot::parameters::get_parameters(
                         firmware_type.to_string(),
                         version_major_minor,
                     );
@@ -178,12 +183,12 @@ impl Vehicle {
                     // Version or vehicle type changed
                     let self_version = self.version.as_ref().unwrap();
                     if self_version.version != version.version
-                        || self.firmware_type != Some(firmware_type.clone())
+                        || self.context.firmware_type != Some(firmware_type.clone())
                     {
                         self.version = Some(version);
-                        self.firmware_type = Some(firmware_type.clone());
+                        self.context.firmware_type = Some(firmware_type.clone());
 
-                        self.parameters_metadata = autopilot::parameters::get_parameters(
+                        self.context.parameters_metadata = autopilot::parameters::get_parameters(
                             firmware_type.to_string(),
                             version_major_minor,
                         );
@@ -198,7 +203,11 @@ impl Vehicle {
                     parameter_name.clone(),
                     ParameterData {
                         parameter: autopilot::Parameter::from_param_value(param_value),
-                        metadata: self.parameters_metadata.get(&parameter_name).cloned(),
+                        metadata: self
+                            .context
+                            .parameters_metadata
+                            .get(&parameter_name)
+                            .cloned(),
                     },
                 );
             }
