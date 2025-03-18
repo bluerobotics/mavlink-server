@@ -29,6 +29,12 @@ pub struct ThisVehiclePayload {
 }
 
 pub(crate) async fn parameters() -> impl IntoResponse {
+    let parameters = control::parameters().await;
+    let json = serde_json::to_string_pretty(&parameters).unwrap();
+    ([(header::CONTENT_TYPE, "application/json")], json).into_response()
+}
+
+pub(crate) async fn available_parameters() -> impl IntoResponse {
     let parameters = autopilot::parameters::parameters();
     let json = serde_json::to_string_pretty(&parameters).unwrap();
     ([(header::CONTENT_TYPE, "application/json")], json).into_response()
