@@ -36,6 +36,11 @@ lazy_static! {
     static ref BROADCAST_VEHICLES: broadcast::Sender<Vehicle> = broadcast::channel(16).0;
 }
 
+lazy_static! {
+    static ref BROADCAST_VEHICLES_PARAMETERS: broadcast::Sender<HashMap<u8, HashMap<String, ParameterMetadata>>> =
+        broadcast::channel(16).0;
+}
+
 #[derive(Debug, Default)]
 struct Data {
     vehicles: Arc<RwLock<Vehicles>>,
@@ -222,6 +227,20 @@ impl Vehicle {
                             .cloned(),
                     },
                 );
+
+                // We update only a single parameter via websocket
+                let mut parameter = HashMap::new();
+                let mut vehicle = HashMap::new();
+                parameter.insert(
+                    parameter_name.clone(),
+                    self.context
+                        .parameters_metadata
+                        .get(&parameter_name)
+                        .cloned()
+                        .unwrap(),
+                );
+                vehicle.insert(self.vehicle_id, parameter);
+                let _ = BROADCAST_VEHICLES_PARAMETERS.send(vehicle);
             }
             _ => {
                 vehicle_updated = false;
@@ -360,6 +379,11 @@ pub fn subscribe_mavlink_message() -> broadcast::Receiver<mavlink::ardupilotmega
 
 pub fn subscribe_vehicles() -> broadcast::Receiver<Vehicle> {
     BROADCAST_VEHICLES.subscribe()
+}
+
+pub fn subscribe_parameters() -> broadcast::Receiver<HashMap<u8, HashMap<String, ParameterMetadata>>>
+{
+    BROADCAST_VEHICLES_PARAMETERS.subscribe()
 }
 
 pub async fn update((header, message): (mavlink::MavHeader, mavlink::ardupilotmega::MavMessage)) {
