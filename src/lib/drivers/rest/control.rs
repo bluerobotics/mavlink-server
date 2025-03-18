@@ -379,3 +379,12 @@ pub async fn vehicles() -> Vec<Vehicle> {
     let vehicles = DATA.vehicles.read().await;
     vehicles.vehicles.values().cloned().collect()
 }
+
+pub async fn parameters() -> HashMap<u8, HashMap<String, ParameterMetadata>> {
+    let vehicles = DATA.vehicles.read().await;
+    vehicles
+        .vehicles
+        .iter()
+        .map(|(vehicle_id, vehicle)| (*vehicle_id, vehicle.context.parameters_metadata.clone()))
+        .collect()
+}
