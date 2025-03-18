@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
 use super::autopilot::{
     self,
@@ -61,12 +62,23 @@ pub struct Vehicle {
     context: VehicleContext,
 }
 
-
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct VehicleContext {
     parameters: HashMap<String, ParameterData>,
     parameters_metadata: HashMap<String, ParameterMetadata>,
     firmware_type: Option<FirmwareType>,
+    last_update: Instant,
+}
+
+impl Default for VehicleContext {
+    fn default() -> Self {
+        Self {
+            parameters: Default::default(),
+            parameters_metadata: Default::default(),
+            firmware_type: Default::default(),
+            last_update: Instant::now(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -217,7 +229,11 @@ impl Vehicle {
         }
 
         if vehicle_updated {
-            let _ = BROADCAST_VEHICLES.send(self.clone());
+            // Limit update to 16Hz
+            if self.context.last_update.elapsed() > std::time::Duration::from_millis(1000 / 16) {
+                let _ = BROADCAST_VEHICLES.send(self.clone());
+                self.context.last_update = Instant::now();
+            }
         }
     }
 }
