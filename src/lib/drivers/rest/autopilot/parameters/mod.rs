@@ -40,10 +40,11 @@ pub fn parameters() -> HashMap<String, Vec<String>> {
 pub fn get_parameters(vehicle_type: String, version: String) -> HashMap<String, Parameter> {
     let file = ASSETS_DIR
         .get_dir(format!("{}-{}", vehicle_type, version))
-        .unwrap()
-        .files()
-        .filter(|file| file.path().extension().unwrap_or_default() == "json")
-        .next();
+        .and_then(|dir| {
+            dir.files()
+                .filter(|file| file.path().extension().unwrap_or_default() == "json")
+                .next()
+        });
 
     if let Some(file) = file {
         let content = file.contents_utf8().unwrap();
