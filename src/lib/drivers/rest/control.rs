@@ -55,7 +55,6 @@ pub struct Vehicle {
     attitude: Attitude,
     position: Position,
     version: Option<Version>,
-    parameters: HashMap<String, ParameterData>,
 
     // Inner logic control
     #[serde(skip_serializing)]
@@ -65,6 +64,7 @@ pub struct Vehicle {
 
 #[derive(Clone, Debug, Default)]
 pub struct VehicleContext {
+    parameters: HashMap<String, ParameterData>,
     parameters_metadata: HashMap<String, ParameterMetadata>,
     firmware_type: Option<FirmwareType>,
 }
@@ -199,7 +199,7 @@ impl Vehicle {
             mavlink::ardupilotmega::MavMessage::PARAM_VALUE(param_value) => {
                 let parameter_name =
                     autopilot::Parameter::string_from_param_id(&param_value.param_id);
-                self.parameters.insert(
+                self.context.parameters.insert(
                     parameter_name.clone(),
                     ParameterData {
                         parameter: autopilot::Parameter::from_param_value(param_value),
