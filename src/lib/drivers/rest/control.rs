@@ -271,7 +271,7 @@ fn request_parameters(vehicle_id: u8, component_id: u8) {
 pub async fn version(
     vehicle_id: Option<u8>,
     component_id: Option<u8>,
-) -> Result<mavlink::ardupilotmega::MavMessage> {
+) -> Result<mavlink::ardupilotmega::MavMessage, String> {
     let vehicle_id = vehicle_id.unwrap_or(1); // default system_id
     let component_id =
         component_id.unwrap_or(mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_AUTOPILOT1 as u8);
@@ -300,6 +300,8 @@ pub async fn version(
         )
     })
     .await
+    // We are returning the anyhow error as a simple string to workaround a panic that was happening when propagating the error.
+    .map_err(|error| error.to_string())
 }
 
 pub async fn wait_for_message<F>(
