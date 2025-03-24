@@ -264,6 +264,37 @@ fn request_parameters(vehicle_id: u8, component_id: u8) {
     send_mavlink_message(message);
 }
 
+pub async fn set_parameter(
+    vehicle_id: Option<u8>,
+    component_id: Option<u8>,
+    parameter_name: String,
+    value: f64,
+) -> Result<mavlink::ardupilotmega::MavMessage, String> {
+    let vehicle_id = vehicle_id.unwrap_or(1); // default system_id
+    let component_id =
+        component_id.unwrap_or(mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_AUTOPILOT1 as u8);
+
+    let message =
+        mavlink::ardupilotmega::MavMessage::PARAM_SET(mavlink::ardupilotmega::PARAM_SET_DATA {
+            param_value: value as f32,
+            target_system: vehicle_id,
+            target_component: component_id,
+            param_id: Parameter::param_id_from_string(&parameter_name),
+            param_type: mavlink::ardupilotmega::MavParamType::MAV_PARAM_TYPE_REAL64,
+        });
+
+    send_mavlink_message(message);
+    wait_for_message(vehicle_id, component_id, |message| {
+        if let mavlink::ardupilotmega::MavMessage::PARAM_VALUE(param_value) = message {
+            Parameter::string_from_param_id(&param_value.param_id) == parameter_name
+        } else {
+            false
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
 pub async fn version(
     vehicle_id: Option<u8>,
     component_id: Option<u8>,
