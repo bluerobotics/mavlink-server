@@ -28,6 +28,14 @@ pub struct ThisVehiclePayload {
     component_id: Option<u8>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+pub struct SetParameterPayload {
+    vehicle_id: Option<u8>,
+    component_id: Option<u8>,
+    parameter_name: String,
+    value: f64,
+}
+
 pub(crate) async fn parameters() -> impl IntoResponse {
     let parameters = control::parameters().await;
     let json = serde_json::to_string_pretty(&parameters).unwrap();
@@ -62,6 +70,23 @@ pub(crate) async fn version(Query(payload): Query<ThisVehiclePayload>) -> impl I
     dbg!(&version);
     let answer = match version {
         Ok(version) => serde_json::to_string_pretty(&version).unwrap(),
+        Err(err) => {
+            format!("{{\"error\": \"{}\"}}", err)
+        }
+    };
+    ([(header::CONTENT_TYPE, "application/json")], answer).into_response()
+}
+
+pub(crate) async fn set_parameter(Json(payload): Json<SetParameterPayload>) -> impl IntoResponse {
+    let result = control::set_parameter(
+        payload.vehicle_id,
+        payload.component_id,
+        payload.parameter_name,
+        payload.value,
+    )
+    .await;
+    let answer = match result {
+        Ok(_) => "Parameter set successfully".into(),
         Err(err) => {
             format!("{{\"error\": \"{}\"}}", err)
         }
