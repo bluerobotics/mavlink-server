@@ -31,6 +31,7 @@ const MAVLINK_HELPER: &str = "rest/helper";
 const MAVLINK_POST: &str = "rest/mavlink";
 const CONTROL_VEHICLES: &str = "rest/vehicles";
 const CONTROL_VEHICLES_WEBSOCKET_PATH: &str = "rest/vehicles/ws";
+const CONTROL_PARAMETERS_WEBSOCKET_PATH: &str = "rest/vehicles/parameters/ws";
 const HUB_MESSAGES_STATS_WEBSOCKET_PATH: &str = "stats/messages/ws";
 const HUB_STATS_WEBSOCKET_PATH: &str = "stats/hub/ws";
 const DRIVERS_STATS_WEBSOCKET_PATH: &str = "stats/drivers/ws";
@@ -62,9 +63,12 @@ pub struct App {
     hub_stats_sender: WsSender,
     drivers_stats_receiver: WsReceiver,
     drivers_stats_sender: WsSender,
+    parameters_receiver: WsReceiver,
+    parameters_sender: WsSender,
     /// Realtime messages, grouped by Vehicle ID and Component ID
     vehicles_mavlink: VehiclesMessages,
     vehicles: serde_json::Value,
+    parameters: BTreeMap<String, serde_json::Value>,
     /// Hub messages statistics, grouped by Vehicle ID and Component ID
     hub_messages_stats: HubMessagesStatsHistorical,
     /// Hub statistics
@@ -102,6 +106,9 @@ impl Default for App {
         let (vehicles_sender, vehicles_receiver) =
             connect_websocket(CONTROL_VEHICLES_WEBSOCKET_PATH).unwrap();
 
+        let (parameters_sender, parameters_receiver) =
+            connect_websocket(CONTROL_PARAMETERS_WEBSOCKET_PATH).unwrap();
+
         let mut dock_state = DockState::new(vec![Tab::MessagesInspector]);
 
         let [left, right] =
@@ -128,8 +135,11 @@ impl Default for App {
             hub_stats_sender,
             drivers_stats_receiver,
             drivers_stats_sender,
+            parameters_receiver,
+            parameters_sender,
             vehicles_mavlink: Default::default(),
             vehicles: Default::default(),
+            parameters: Default::default(),
             hub_messages_stats: Default::default(),
             hub_stats: Default::default(),
             drivers_stats: Default::default(),
@@ -382,43 +392,39 @@ impl App {
                         }
                     });
 
-                if let Some(parameters) = self.vehicles.get("parameters") {
-                    if parameters.is_object(){
-                        let id_salt = ui.make_persistent_id(format!("vehicle_table_control_parameters{system_id}"));
-                        TableBuilder::new(ui)
-                            .id_salt(id_salt)
-                            .column(Column::auto_with_initial_suggestion(200.0).resizable(true))
-                            .column(Column::auto_with_initial_suggestion(200.0).resizable(true))
-                            .column(Column::remainder())
-                            .header(20.0, |mut header| {
-                                header.col(|ui| {
-                                    ui.label("Name");
+                let id_salt =
+                    ui.make_persistent_id(format!("vehicle_table_control_parameters{system_id}"));
+                TableBuilder::new(ui)
+                    .id_salt(id_salt)
+                    .column(Column::auto_with_initial_suggestion(200.0).resizable(true))
+                    .column(Column::auto_with_initial_suggestion(200.0).resizable(true))
+                    .column(Column::remainder())
+                    .header(20.0, |mut header| {
+                        header.col(|ui| {
+                            ui.label("Name");
+                        });
+                        header.col(|ui| {
+                            ui.label("Value");
+                        });
+                        header.col(|ui| {
+                            ui.label("Description");
+                        });
+                    })
+                    .body(|mut body| {
+                        for (key, value) in self.parameters.iter() {
+                            body.row(20.0, |mut row| {
+                                row.col(|ui| {
+                                    ui.label(key);
                                 });
-                                header.col(|ui| {
-                                    ui.label("Value");
+                                row.col(|ui| {
+                                    ui.label(value["parameter"]["value"].to_string());
                                 });
-                                header.col(|ui| {
-                                    ui.label("Description");
+                                row.col(|ui| {
+                                    ui.label(value["metadata"]["description"].to_string());
                                 });
-                            })
-                            .body(|mut body| {
-                                for (key, value) in parameters.as_object().unwrap() {
-                                    body.row(20.0, |mut row| {
-                                        row.col(|ui| {
-                                            ui.label(key);
-                                    });
-                                    row.col(|ui| {
-                                            ui.label(value["parameter"]["value"].to_string());
-                                        });
-                                    row.col(|ui| {
-                                            ui.label(value["metadata"]["description"].to_string());
-                                        });
-                                    });
-
-                                }
                             });
-                    }
-                }
+                        }
+                    });
             });
         });
     }
@@ -561,6 +567,55 @@ impl App {
                 }
                 something @ Some(_) => {
                     log::trace!("Vehicles WebSocket got an unexpected event: {something:#?}");
+                }
+                None => break,
+            }
+        }
+    }
+
+    fn deal_with_parameters_message(&mut self, message: String) {
+        let Ok(message_json) = serde_json::from_str::<serde_json::Value>(&message) else {
+            log::error!("Failed to parse Vehicles message: {message}");
+            return;
+        };
+
+        // We only deal with a single vehicle for now
+        if !message_json.as_object().unwrap().contains_key("1") {
+            return;
+        }
+        let parameter = message_json["1"].as_object().unwrap();
+        for (key, value) in parameter {
+            self.parameters.insert(key.to_string(), value.clone());
+        }
+    }
+
+    fn process_parameters_websocket(&mut self) {
+        use ewebsock::{WsEvent, WsMessage};
+
+        loop {
+            match self.parameters_receiver.try_recv() {
+                Some(WsEvent::Message(WsMessage::Text(message))) => {
+                    self.deal_with_parameters_message(message)
+                }
+                Some(WsEvent::Closed) => {
+                    log::error!("Parameters WebSocket closed");
+                    (self.parameters_sender, self.parameters_receiver) =
+                        connect_websocket(CONTROL_VEHICLES_WEBSOCKET_PATH).unwrap();
+
+                    break;
+                }
+                Some(WsEvent::Error(message)) => {
+                    log::error!("Parameters WebSocket error: {message}");
+                    (self.parameters_sender, self.parameters_receiver) =
+                        connect_websocket(CONTROL_PARAMETERS_WEBSOCKET_PATH).unwrap();
+
+                    break;
+                }
+                Some(WsEvent::Opened) => {
+                    log::info!("Parameters WebSocket opened");
+                }
+                something @ Some(_) => {
+                    log::trace!("Parameters WebSocket got an unexpected event: {something:#?}");
                 }
                 None => break,
             }
@@ -1195,6 +1250,7 @@ impl eframe::App for App {
         self.now = Utc::now();
         self.process_mavlink_websocket();
         self.process_vehicles_websocket();
+        self.process_parameters_websocket();
         self.process_hub_messages_stats_websocket();
         self.process_hub_stats_websocket();
         self.process_drivers_stats_websocket();
