@@ -37,7 +37,7 @@ lazy_static! {
 }
 
 lazy_static! {
-    static ref BROADCAST_VEHICLES_PARAMETERS: broadcast::Sender<HashMap<u8, HashMap<String, ParameterMetadata>>> =
+    static ref BROADCAST_VEHICLES_PARAMETERS: broadcast::Sender<HashMap<u8, HashMap<String, ParameterData>>> =
         broadcast::channel(16).0;
 }
 
@@ -230,7 +230,7 @@ impl Vehicle {
                 parameter.insert(
                     parameter_name.clone(),
                     self.context
-                        .parameters_metadata
+                        .parameters
                         .get(&parameter_name)
                         .cloned()
                         .unwrap(),
@@ -383,8 +383,7 @@ pub fn subscribe_vehicles() -> broadcast::Receiver<Vehicle> {
     BROADCAST_VEHICLES.subscribe()
 }
 
-pub fn subscribe_parameters() -> broadcast::Receiver<HashMap<u8, HashMap<String, ParameterMetadata>>>
-{
+pub fn subscribe_parameters() -> broadcast::Receiver<HashMap<u8, HashMap<String, ParameterData>>> {
     BROADCAST_VEHICLES_PARAMETERS.subscribe()
 }
 
@@ -406,11 +405,11 @@ pub async fn vehicles() -> Vec<Vehicle> {
     vehicles.vehicles.values().cloned().collect()
 }
 
-pub async fn parameters() -> HashMap<u8, HashMap<String, ParameterMetadata>> {
+pub async fn parameters() -> HashMap<u8, HashMap<String, ParameterData>> {
     let vehicles = DATA.vehicles.read().await;
     vehicles
         .vehicles
         .iter()
-        .map(|(vehicle_id, vehicle)| (*vehicle_id, vehicle.context.parameters_metadata.clone()))
+        .map(|(vehicle_id, vehicle)| (*vehicle_id, vehicle.context.parameters.clone()))
         .collect()
 }
