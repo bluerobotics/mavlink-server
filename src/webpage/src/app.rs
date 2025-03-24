@@ -84,6 +84,10 @@ pub struct App {
     stats_frequency: Arc<Mutex<f32>>,
     dock_state: Option<DockState<Tab>>,
     show_screen: Screens,
+    parameter_editor_open: bool,
+    parameter_editor_parameter_name: String,
+    parameter_editor_new_value: String,
+    parameter_editor_search_query: String,
 }
 
 impl Default for App {
@@ -152,6 +156,10 @@ impl Default for App {
             stats_frequency,
             dock_state: Some(dock_state),
             show_screen: Screens::Main,
+            parameter_editor_open: false,
+            parameter_editor_parameter_name: String::new(),
+            parameter_editor_new_value: String::new(),
+            parameter_editor_search_query: String::new(),
         }
     }
 }
@@ -392,6 +400,10 @@ impl App {
                         }
                     });
 
+                ui.horizontal_top(|ui| {
+                    ui.strong("Search parameter:");
+                    ui.text_edit_singleline(&mut self.parameter_editor_search_query);
+                });
                 let id_salt =
                     ui.make_persistent_id(format!("vehicle_table_control_parameters{system_id}"));
                 TableBuilder::new(ui)
@@ -410,18 +422,60 @@ impl App {
                             ui.label("Description");
                         });
                     })
-                    .body(|mut body| {
-                        for (key, value) in self.parameters.iter() {
-                            body.row(20.0, |mut row| {
-                                row.col(|ui| {
-                                    ui.label(key);
-                                });
-                                row.col(|ui| {
-                                    ui.label(value["parameter"]["value"].to_string());
-                                });
-                                row.col(|ui| {
-                                    ui.label(value["metadata"]["description"].to_string());
-                                });
+                    .body(|body| {
+                        let filtered_params: Vec<_> = self.parameters.iter()
+                            .filter(|(key, _)| {
+                                self.parameter_editor_search_query.is_empty() ||
+                                key.to_lowercase().contains(&self.parameter_editor_search_query.to_lowercase())
+                            })
+                            .collect();
+
+                        body.rows(20.0, filtered_params.len(), |mut row| {
+                            let (key, value) = filtered_params[row.index()];
+                            row.col(|ui| {
+                                if ui.button(key).clicked() {
+                                    self.parameter_editor_open = true;
+                                    self.parameter_editor_parameter_name = key.clone();
+                                    self.parameter_editor_new_value = value["parameter"]["value"].to_string();
+                                }
+                            });
+                            row.col(|ui| {
+                                ui.label(value["parameter"]["value"].to_string());
+                            });
+                            row.col(|ui| {
+                                ui.label(value["metadata"]["description"].to_string());
+                            });
+                        });
+                    });
+
+                egui::Window::new("Parameter Editor")
+                    .open(&mut self.parameter_editor_open)
+                    .show(ctx, |ui| {
+                        ui.label(format!("Name: {}", self.parameter_editor_parameter_name));
+                        let parameter = &self.parameters[&self.parameter_editor_parameter_name];
+                        ui.label(format!("Current value: {}", parameter["parameter"]["value"].to_string()));
+                        ui.separator();
+                        ui.label(format!("Type: {}", parameter["parameter"]["param_type"].to_string()));
+                        ui.label(format!("Increment: {}", parameter["metadata"]["increment"].to_string()));
+                        ui.label(format!("Reboot required: {}", parameter["metadata"]["reboot_required"].to_string()));
+                        ui.label(format!("Max/Min: {} / {}", parameter["metadata"]["range"]["high"].to_string(), parameter["metadata"]["range"]["low"].to_string()));
+                        ui.label(format!("Units: {}", parameter["metadata"]["unit"].to_string()));
+                        ui.label(format!("User level: {}", parameter["metadata"]["user_level"].to_string()));
+                        ui.separator();
+                        ui.text_edit_singleline(&mut self.parameter_editor_new_value);
+                        if ui.button("Apply").clicked() {
+                            let mut request = Request::post(
+                                "/rest/vehicles/set_parameter",
+                                serde_json::json!({
+                                    "vehicle_id": 1,
+                                    "component_id": 1,
+                                    "parameter_name": self.parameter_editor_parameter_name,
+                                    "value": self.parameter_editor_new_value.parse::<f64>().unwrap_or(0.0)
+                                }).to_string().into_bytes(),
+                            );
+                            request.headers.insert("Content-Type", "application/json");
+                            ehttp::fetch(request, |res| {
+                                log::info!("Apply parameter response: {res:?}");
                             });
                         }
                     });
