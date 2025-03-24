@@ -149,11 +149,7 @@ impl Vehicle {
 
                 // Request version to take care of initial values
                 if self.version.is_none() {
-                    if let Err(error) =
-                        version(Some(self.vehicle_id), Some(header.component_id)).await
-                    {
-                        error!("Failed requesting version: {error:?}");
-                    }
+                    send_version_request(self.vehicle_id, header.component_id);
                 }
             }
             mavlink::ardupilotmega::MavMessage::ATTITUDE(attitude) => {
@@ -276,6 +272,19 @@ pub async fn version(
     let component_id =
         component_id.unwrap_or(mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_AUTOPILOT1 as u8);
 
+    send_version_request(vehicle_id, component_id);
+    wait_for_message(vehicle_id, component_id, |message| {
+        matches!(
+            message,
+            mavlink::ardupilotmega::MavMessage::AUTOPILOT_VERSION(_)
+        )
+    })
+    .await
+    // We are returning the anyhow error as a simple string to workaround a panic that was happening when propagating the error.
+    .map_err(|error| error.to_string())
+}
+
+pub fn send_version_request(vehicle_id: u8, component_id: u8) {
     let message = mavlink::ardupilotmega::MavMessage::COMMAND_LONG(
         mavlink::ardupilotmega::COMMAND_LONG_DATA {
             param1: 148.0, // AUTOPILOT_VERSION
@@ -293,15 +302,6 @@ pub async fn version(
     );
 
     send_mavlink_message(message);
-    wait_for_message(vehicle_id, component_id, |message| {
-        matches!(
-            message,
-            mavlink::ardupilotmega::MavMessage::AUTOPILOT_VERSION(_)
-        )
-    })
-    .await
-    // We are returning the anyhow error as a simple string to workaround a panic that was happening when propagating the error.
-    .map_err(|error| error.to_string())
 }
 
 pub async fn wait_for_message<F>(
