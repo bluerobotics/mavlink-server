@@ -36,4 +36,5 @@ pub fn router() -> Router {
             "/vehicles/parameters/ws",
             get(vehicles::parameters_websocket_handler),
         )
+        .route("/vehicles/set_parameter", post(vehicles::set_parameter))
 }
