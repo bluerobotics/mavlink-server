@@ -78,6 +78,14 @@ impl Parameter {
             .to_string()
     }
 
+    pub fn param_id_from_string(param_name: &str) -> [u8; 16] {
+        let mut buffer = [0u8; 16];
+        let bytes = param_name.as_bytes();
+        let len = bytes.len().min(16);
+        buffer[..len].copy_from_slice(&bytes[..len]);
+        buffer
+    }
+
     pub fn from_param_value(param_value: mavlink::ardupilotmega::PARAM_VALUE_DATA) -> Self {
         Self {
             name: Self::string_from_param_id(&param_value.param_id),
