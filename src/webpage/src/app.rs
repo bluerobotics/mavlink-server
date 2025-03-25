@@ -883,7 +883,7 @@ fn connect_websocket(path: &str) -> Result<(WsSender, WsReceiver), String> {
     connect(url, ewebsock::Options::default())
 }
 
-fn add_label_and_plot_all_stats(
+pub fn add_label_and_plot_all_stats(
     body: &mut TableBody<'_>,
     now: DateTime<Utc>,
     message_stats: &StatsInner<ByteStatsHistorical, MessageStatsHistorical, DelayStatsHistorical>,
