@@ -1,7 +1,9 @@
 # MAVLink-Server
 
 <div align="center">
-  <img style="width: 35%" src="./docs/all-the-things.png"><br>
+
+![](./docs/preview.png)
+
 </div>
 <br>
 
@@ -12,6 +14,20 @@
 </h4>
 
 [![Test and Build](https://github.com/bluerobotics/mavlink-server/actions/workflows/build.yml/badge.svg)](https://github.com/bluerobotics/mavlink-server/actions/workflows/build.yml)
+
+## Features
+- Web Interface via default web server ([0.0.0.0:8080](0.0.0.0:8080))
+- Software and Vehicle control via REST API
+
+#### Supported Endpoints
+- TLog
+- Serial
+- TCP
+- UDP
+- Fake
+- Zenoh
+- WebSocket
+- Rest (Compatible with [mavlink2rest](https://github.com/mavlink/mavlink2rest))
 
 ## Installation
 
