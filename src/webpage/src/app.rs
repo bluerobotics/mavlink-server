@@ -23,6 +23,7 @@ use crate::{
     },
     tabs::{control::ControlTab, helper::HelperTab},
     widgets::driver_stats::DriverStatsWidget,
+    widgets::hub_stats::HubStatsWidget,
 };
 
 const MAVLINK_MESSAGES_WEBSOCKET_PATH: &str = "rest/ws";
@@ -730,27 +731,7 @@ impl App {
     }
 
     fn create_hub_stats_ui(&self, ui: &mut eframe::egui::Ui) {
-        eframe::egui::ScrollArea::vertical()
-            .id_salt("scrollhub_stats")
-            .auto_shrink(false)
-            .show(ui, |ui| {
-                let hub_stats = &self.hub_stats.stats;
-
-                CollapsingHeader::new("Hub Stats")
-                    .id_salt(ui.make_persistent_id("hub_stats"))
-                    .default_open(true)
-                    .show(ui, |ui| {
-                        let salt = ui.make_persistent_id("hub_stats_table");
-                        TableBuilder::new(ui)
-                            .id_salt(salt)
-                            .striped(true)
-                            .column(Column::auto().at_least(100.))
-                            .column(Column::remainder().at_least(150.))
-                            .body(|mut body| {
-                                add_label_and_plot_all_stats(&mut body, self.now, hub_stats);
-                            });
-                    });
-            });
+        HubStatsWidget::new(self.now, &self.hub_stats).show(ui);
     }
 
     fn create_drivers_stats_ui(&self, ui: &mut eframe::egui::Ui) {
