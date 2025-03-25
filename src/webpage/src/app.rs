@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, sync::{Arc, RwLock}};
 
 use chrono::prelude::*;
 use eframe::egui::Context;
@@ -50,19 +50,19 @@ enum Tab {
 
 pub struct App {
     now: DateTime<Utc>,
-    mavlink_receiver: WsReceiver,
-    mavlink_sender: WsSender,
-    vehicles_receiver: WsReceiver,
+    mavlink_receiver: Arc<RwLock<WsReceiver>>,
+    mavlink_sender: Arc<RwLock<WsSender>>,
+    vehicles_receiver: Arc<RwLock<WsReceiver>>,
     /// We are not using this, but it's needed to keep the connection alive
-    vehicles_sender: WsSender,
-    hub_messages_stats_receiver: WsReceiver,
-    hub_messages_stats_sender: WsSender,
-    hub_stats_receiver: WsReceiver,
-    hub_stats_sender: WsSender,
-    drivers_stats_receiver: WsReceiver,
-    drivers_stats_sender: WsSender,
-    parameters_receiver: WsReceiver,
-    parameters_sender: WsSender,
+    vehicles_sender: Arc<RwLock<WsSender>>,
+    hub_messages_stats_receiver: Arc<RwLock<WsReceiver>>,
+    hub_messages_stats_sender: Arc<RwLock<WsSender>>,
+    hub_stats_receiver: Arc<RwLock<WsReceiver>>,
+    hub_stats_sender: Arc<RwLock<WsSender>>,
+    drivers_stats_receiver: Arc<RwLock<WsReceiver>>,
+    drivers_stats_sender: Arc<RwLock<WsSender>>,
+    parameters_receiver: Arc<RwLock<WsReceiver>>,
+    parameters_sender: Arc<RwLock<WsSender>>,
     /// Realtime messages, grouped by Vehicle ID and Component ID
     vehicles_mavlink: VehiclesMessages,
     vehicles: serde_json::Value,
@@ -122,18 +122,18 @@ impl Default for App {
 
         Self {
             now: Utc::now(),
-            mavlink_receiver,
-            mavlink_sender,
-            vehicles_receiver,
-            vehicles_sender,
-            hub_messages_stats_receiver,
-            hub_messages_stats_sender,
-            hub_stats_receiver,
-            hub_stats_sender,
-            drivers_stats_receiver,
-            drivers_stats_sender,
-            parameters_receiver,
-            parameters_sender,
+            mavlink_receiver: Arc::new(RwLock::new(mavlink_receiver)),
+            mavlink_sender: Arc::new(RwLock::new(mavlink_sender)),
+            vehicles_receiver: Arc::new(RwLock::new(vehicles_receiver)),
+            vehicles_sender: Arc::new(RwLock::new(vehicles_sender)),
+            hub_messages_stats_receiver: Arc::new(RwLock::new(hub_messages_stats_receiver)),
+            hub_messages_stats_sender: Arc::new(RwLock::new(hub_messages_stats_sender)),
+            hub_stats_receiver: Arc::new(RwLock::new(hub_stats_receiver)),
+            hub_stats_sender: Arc::new(RwLock::new(hub_stats_sender)),
+            drivers_stats_receiver: Arc::new(RwLock::new(drivers_stats_receiver)),
+            drivers_stats_sender: Arc::new(RwLock::new(drivers_stats_sender)),
+            parameters_receiver: Arc::new(RwLock::new(parameters_receiver)),
+            parameters_sender: Arc::new(RwLock::new(parameters_sender)),
             vehicles_mavlink: Default::default(),
             vehicles: Default::default(),
             parameters: Default::default(),
@@ -292,192 +292,86 @@ impl App {
         }
     }
 
-    fn process_mavlink_websocket(&mut self) {
-        loop {
-            match self.mavlink_receiver.try_recv() {
-                Some(WsEvent::Message(WsMessage::Text(message))) => {
-                    self.deal_with_mavlink_message(message)
-                }
-                Some(WsEvent::Closed) => {
-                    log::error!("MAVLink WebSocket closed");
-                    (self.mavlink_sender, self.mavlink_receiver) =
-                        connect_websocket(MAVLINK_MESSAGES_WEBSOCKET_PATH).unwrap();
+    fn process_websockets(&mut self) {
+        self.process_websocket(
+            self.mavlink_receiver.clone(),
+            self.mavlink_sender.clone(),
+            MAVLINK_MESSAGES_WEBSOCKET_PATH,
+            "MAVLink",
+            Self::deal_with_mavlink_message,
+        );
 
-                    break;
-                }
-                Some(WsEvent::Error(message)) => {
-                    log::error!("MAVLink WebSocket error: {message}");
-                    (self.mavlink_sender, self.mavlink_receiver) =
-                        connect_websocket(MAVLINK_MESSAGES_WEBSOCKET_PATH).unwrap();
+        self.process_websocket(
+            self.vehicles_receiver.clone(),
+            self.vehicles_sender.clone(),
+            CONTROL_VEHICLES_WEBSOCKET_PATH,
+            "Vehicles",
+            Self::deal_with_vehicles_message,
+        );
 
-                    break;
-                }
-                Some(WsEvent::Opened) => {
-                    log::info!("MAVLink WebSocket opened");
-                }
-                something @ Some(_) => {
-                    log::trace!("MAVLink WebSocket got an unexpected event: {something:#?}");
-                }
-                None => break,
-            }
-        }
+        self.process_websocket(
+            self.parameters_receiver.clone(),
+            self.parameters_sender.clone(),
+            CONTROL_PARAMETERS_WEBSOCKET_PATH,
+            "Parameters",
+            Self::deal_with_parameters_message,
+        );
+
+        self.process_websocket(
+            self.hub_messages_stats_receiver.clone(),
+            self.hub_messages_stats_sender.clone(),
+            HUB_MESSAGES_STATS_WEBSOCKET_PATH,
+            "Hub Messages Stats",
+            Self::deal_with_hub_messages_stats_message,
+        );
+
+        self.process_websocket(
+            self.hub_stats_receiver.clone(),
+            self.hub_stats_sender.clone(),
+            HUB_STATS_WEBSOCKET_PATH,
+            "Hub Stats",
+            Self::deal_with_hub_stats_message,
+        );
+
+        self.process_websocket(
+            self.drivers_stats_receiver.clone(),
+            self.drivers_stats_sender.clone(),
+            DRIVERS_STATS_WEBSOCKET_PATH,
+            "Drivers Stats",
+            Self::deal_with_drivers_stats_message,
+        );
     }
 
-    fn process_vehicles_websocket(&mut self) {
+    fn process_websocket(
+        &mut self,
+        receiver: Arc<RwLock<WsReceiver>>,
+        sender: Arc<RwLock<WsSender>>,
+        path: &str,
+        name: &str,
+        message_handler: impl Fn(&mut Self, String),
+    ) {
+        let mut receiver = receiver.write().unwrap();
+        let mut sender = sender.write().unwrap();
         loop {
-            match self.vehicles_receiver.try_recv() {
+            match receiver.try_recv() {
                 Some(WsEvent::Message(WsMessage::Text(message))) => {
-                    self.deal_with_vehicles_message(message)
+                    message_handler(self, message)
                 }
                 Some(WsEvent::Closed) => {
-                    log::error!("Vehicles WebSocket closed");
-                    (self.vehicles_sender, self.vehicles_receiver) =
-                        connect_websocket(CONTROL_VEHICLES_WEBSOCKET_PATH).unwrap();
-
+                    log::error!("{name} WebSocket closed");
+                    (*sender, *receiver) = connect_websocket(path).unwrap();
                     break;
                 }
                 Some(WsEvent::Error(message)) => {
-                    log::error!("Vehicles WebSocket error: {message}");
-                    (self.vehicles_sender, self.vehicles_receiver) =
-                        connect_websocket(CONTROL_VEHICLES_WEBSOCKET_PATH).unwrap();
-
+                    log::error!("{name} WebSocket error: {message}");
+                    (*sender, *receiver) = connect_websocket(path).unwrap();
                     break;
                 }
                 Some(WsEvent::Opened) => {
-                    log::info!("Vehicles WebSocket opened");
+                    log::info!("{name} WebSocket opened");
                 }
                 something @ Some(_) => {
-                    log::trace!("Vehicles WebSocket got an unexpected event: {something:#?}");
-                }
-                None => break,
-            }
-        }
-    }
-
-    fn process_parameters_websocket(&mut self) {
-        loop {
-            match self.parameters_receiver.try_recv() {
-                Some(WsEvent::Message(WsMessage::Text(message))) => {
-                    self.deal_with_parameters_message(message)
-                }
-                Some(WsEvent::Closed) => {
-                    log::error!("Parameters WebSocket closed");
-                    (self.parameters_sender, self.parameters_receiver) =
-                        connect_websocket(CONTROL_VEHICLES_WEBSOCKET_PATH).unwrap();
-
-                    break;
-                }
-                Some(WsEvent::Error(message)) => {
-                    log::error!("Parameters WebSocket error: {message}");
-                    (self.parameters_sender, self.parameters_receiver) =
-                        connect_websocket(CONTROL_PARAMETERS_WEBSOCKET_PATH).unwrap();
-
-                    break;
-                }
-                Some(WsEvent::Opened) => {
-                    log::info!("Parameters WebSocket opened");
-                }
-                something @ Some(_) => {
-                    log::trace!("Parameters WebSocket got an unexpected event: {something:#?}");
-                }
-                None => break,
-            }
-        }
-    }
-
-    fn process_hub_messages_stats_websocket(&mut self) {
-        loop {
-            match self.hub_messages_stats_receiver.try_recv() {
-                Some(WsEvent::Message(WsMessage::Text(message))) => {
-                    self.deal_with_hub_messages_stats_message(message)
-                }
-                Some(WsEvent::Closed) => {
-                    log::error!("Hub Messages Stats WebSocket closed");
-                    (
-                        self.hub_messages_stats_sender,
-                        self.hub_messages_stats_receiver,
-                    ) = connect_websocket(HUB_MESSAGES_STATS_WEBSOCKET_PATH).unwrap();
-
-                    break;
-                }
-                Some(WsEvent::Error(message)) => {
-                    log::error!("Hub Messages Stats WebSocket error: {message}");
-                    (
-                        self.hub_messages_stats_sender,
-                        self.hub_messages_stats_receiver,
-                    ) = connect_websocket(HUB_MESSAGES_STATS_WEBSOCKET_PATH).unwrap();
-
-                    break;
-                }
-                Some(WsEvent::Opened) => {
-                    log::info!("Hub Messages Stats WebSocket opened");
-                }
-                something @ Some(_) => {
-                    log::trace!(
-                        "Hub Messages Stats WebSocket got an unexpected event: {something:#?}"
-                    );
-                }
-                None => break,
-            }
-        }
-    }
-
-    fn process_hub_stats_websocket(&mut self) {
-        loop {
-            match self.hub_stats_receiver.try_recv() {
-                Some(WsEvent::Message(WsMessage::Text(message))) => {
-                    self.deal_with_hub_stats_message(message)
-                }
-                Some(WsEvent::Closed) => {
-                    log::error!("Hub Stats WebSocket closed");
-                    (self.hub_stats_sender, self.hub_stats_receiver) =
-                        connect_websocket(HUB_STATS_WEBSOCKET_PATH).unwrap();
-
-                    break;
-                }
-                Some(WsEvent::Error(message)) => {
-                    log::error!("Hub Stats WebSocket error: {message}");
-                    (self.hub_stats_sender, self.hub_stats_receiver) =
-                        connect_websocket(HUB_STATS_WEBSOCKET_PATH).unwrap();
-
-                    break;
-                }
-                Some(WsEvent::Opened) => {
-                    log::info!("Hub Stats WebSocket opened");
-                }
-                something @ Some(_) => {
-                    log::trace!("Hub Stats WebSocket got an unexpected event: {something:#?}");
-                }
-                None => break,
-            }
-        }
-    }
-
-    fn process_drivers_stats_websocket(&mut self) {
-        loop {
-            match self.drivers_stats_receiver.try_recv() {
-                Some(WsEvent::Message(WsMessage::Text(message))) => {
-                    self.deal_with_drivers_stats_message(message)
-                }
-                Some(WsEvent::Closed) => {
-                    log::error!("Drivers Stats WebSocket closed");
-                    (self.drivers_stats_sender, self.drivers_stats_receiver) =
-                        connect_websocket(DRIVERS_STATS_WEBSOCKET_PATH).unwrap();
-
-                    break;
-                }
-                Some(WsEvent::Error(message)) => {
-                    log::error!("Drivers Stats WebSocket error: {message}");
-                    (self.drivers_stats_sender, self.drivers_stats_receiver) =
-                        connect_websocket(DRIVERS_STATS_WEBSOCKET_PATH).unwrap();
-
-                    break;
-                }
-                Some(WsEvent::Opened) => {
-                    log::info!("Drivers Stats WebSocket opened");
-                }
-                something @ Some(_) => {
-                    log::trace!("Drivers Stats WebSocket got an unexpected event: {something:#?}");
+                    log::trace!("{name} WebSocket got an unexpected event: {something:#?}");
                 }
                 None => break,
             }
@@ -752,12 +646,7 @@ impl<'a> TabViewer for OurTabViewer<'a> {
 impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.now = Utc::now();
-        self.process_mavlink_websocket();
-        self.process_vehicles_websocket();
-        self.process_parameters_websocket();
-        self.process_hub_messages_stats_websocket();
-        self.process_hub_stats_websocket();
-        self.process_drivers_stats_websocket();
+        self.process_websockets();
 
         self.top_bar(ctx);
 
