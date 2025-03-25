@@ -56,12 +56,14 @@ impl HubMessagesStatsHistorical {
         }
 
         self.systems_messages_stats.sort_keys();
-        self.systems_messages_stats.values_mut().for_each(|system_stats| {
-            system_stats.components_messages_stats.sort_keys();
-            system_stats
-                .components_messages_stats
-                .values_mut()
-                .for_each(|component_stats| component_stats.messages_stats.sort_keys());
-        });
+        self.systems_messages_stats
+            .values_mut()
+            .for_each(|system_stats| {
+                system_stats.components_messages_stats.sort_keys();
+                system_stats
+                    .components_messages_stats
+                    .values_mut()
+                    .for_each(|component_stats| component_stats.messages_stats.sort_keys());
+            });
     }
 }
