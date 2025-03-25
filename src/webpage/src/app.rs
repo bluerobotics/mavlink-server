@@ -24,6 +24,7 @@ use crate::{
     tabs::{control::ControlTab, helper::HelperTab},
     widgets::driver_stats::DriverStatsWidget,
     widgets::hub_stats::HubStatsWidget,
+    widgets::message_stats::MessageStatsWidget,
 };
 
 const MAVLINK_MESSAGES_WEBSOCKET_PATH: &str = "rest/ws";
@@ -678,56 +679,7 @@ impl App {
     }
 
     fn create_hub_messages_stats_ui(&self, ui: &mut eframe::egui::Ui) {
-        eframe::egui::ScrollArea::vertical()
-            .id_salt(ui.make_persistent_id("scroll_messages_stats"))
-            .show(ui, |ui| {
-                for (system_id, components) in &self.hub_messages_stats.systems_messages_stats {
-                    let _ = CollapsingHeader::new(format!("Vehicle ID: {system_id}"))
-                        .id_salt(ui.make_persistent_id(format!("vehicle_{system_id}")))
-                        .default_open(true)
-                        .show(ui, |ui| {
-                            for (component_id, messages) in &components.components_messages_stats {
-                                let component_name = components_names::get_component_name(*component_id);
-                                let _ =
-                                    CollapsingHeader::new(format!("Component ID: {component_id} ({component_name})"))
-                                        .id_salt(ui.make_persistent_id(format!(
-                                            "component_{system_id}_{component_id}"
-                                        )))
-                                        .default_open(true)
-                                        .show(ui, |ui| {
-                                            for (message_id, message_stats) in
-                                                &messages.messages_stats
-                                            {
-                                                let _ = CollapsingHeader::new(format!(
-                                                    "Message ID: {message_id}"
-                                                ))
-                                                .id_salt(ui.make_persistent_id(format!(
-                                                    "message_{system_id}_{component_id}_{message_id}"
-                                                )))
-                                                .default_open(true)
-                                                .show(ui, |ui: &mut egui::Ui| {
-                                                    let id_salt = ui.make_persistent_id(format!(
-                                                        "messages_table_{system_id}_{component_id}_{message_id}"
-                                                    ));
-                                                    TableBuilder::new(ui)
-                                                        .id_salt(id_salt)
-                                                        .striped(true)
-                                                        .column(Column::auto().at_least(100.))
-                                                        .column(Column::remainder().at_least(150.))
-                                                        .body(|mut body| {
-                                                            add_label_and_plot_all_stats(
-                                                                &mut body,
-                                                                self.now,
-                                                                message_stats,
-                                                            );
-                                                        });
-                                                });
-                                            }
-                                        });
-                            }
-                        });
-                }
-            });
+        MessageStatsWidget::new(self.now, &self.hub_messages_stats).show(ui);
     }
 
     fn create_hub_stats_ui(&self, ui: &mut eframe::egui::Ui) {
