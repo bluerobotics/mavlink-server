@@ -22,6 +22,7 @@ use crate::{
         ByteStatsHistorical, DelayStatsHistorical, MessageStatsHistorical, StatsInner,
     },
     tabs::{control::ControlTab, helper::HelperTab},
+    widgets::driver_stats::DriverStatsWidget,
 };
 
 const MAVLINK_MESSAGES_WEBSOCKET_PATH: &str = "rest/ws";
@@ -753,113 +754,7 @@ impl App {
     }
 
     fn create_drivers_stats_ui(&self, ui: &mut eframe::egui::Ui) {
-        eframe::egui::ScrollArea::vertical()
-            .id_salt("scrolldrivers_stats")
-            .show(ui, |ui| {
-                let drivers_stats = &self.drivers_stats.drivers_stats;
-
-                for (driver_uuid, driver_stats) in drivers_stats {
-                    let driver_name = &driver_stats.name;
-                    let driver_type = &driver_stats.driver_type;
-
-                    let drivers_stats_id_str = format!("driver_stats_{driver_uuid}");
-                    let drivers_stats_id_hash = ui.make_persistent_id(&drivers_stats_id_str);
-
-                    let _ = CollapsingHeader::new(format!("Driver Stats: {driver_name}"))
-                        .id_salt(drivers_stats_id_hash)
-                        .default_open(true)
-                        .show(ui, |ui| {
-                            let stats = &driver_stats.stats;
-
-                            let salt = ui.make_persistent_id(format!(
-                                "driver_stats_info_table_{driver_uuid}"
-                            ));
-                            TableBuilder::new(ui)
-                                .id_salt(salt)
-                                .striped(true)
-                                .column(Column::auto().at_least(120.))
-                                .column(Column::remainder().at_least(150.))
-                                .body(|mut body| {
-                                    body.row(15., |mut row| {
-                                        row.col(|ui| {
-                                            ui.label("Name");
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(driver_name);
-                                        });
-                                    });
-
-                                    body.row(15., |mut row| {
-                                        row.col(|ui| {
-                                            ui.label("Type");
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(driver_type);
-                                        });
-                                    });
-
-                                    body.row(15., |mut row| {
-                                        row.col(|ui| {
-                                            ui.label("UUID");
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(driver_uuid.to_string());
-                                        });
-                                    });
-                                });
-
-                            let _ = CollapsingHeader::new("Input")
-                                .id_salt(ui.make_persistent_id(format!(
-                                    "driver_stats_input_{driver_uuid}"
-                                )))
-                                .default_open(true)
-                                .show(ui, |ui| {
-                                    let id_salt = ui.make_persistent_id(format!(
-                                        "driver_stats_input_table_{driver_uuid}"
-                                    ));
-                                    if let Some(input_stats) = &stats.input {
-                                        TableBuilder::new(ui)
-                                            .id_salt(id_salt)
-                                            .striped(true)
-                                            .column(Column::auto().at_least(100.))
-                                            .column(Column::remainder().at_least(150.))
-                                            .body(|mut body| {
-                                                add_label_and_plot_all_stats(
-                                                    &mut body,
-                                                    self.now,
-                                                    input_stats,
-                                                );
-                                            });
-                                    }
-                                });
-
-                            let _ = CollapsingHeader::new("Output")
-                                .id_salt(ui.make_persistent_id(format!(
-                                    "driver_stats_output_{driver_uuid}"
-                                )))
-                                .default_open(true)
-                                .show(ui, |ui| {
-                                    if let Some(output_stats) = &stats.output {
-                                        let id_salt = ui.make_persistent_id(format!(
-                                            "driver_stats_output_table_{driver_uuid}"
-                                        ));
-                                        TableBuilder::new(ui)
-                                            .id_salt(id_salt)
-                                            .striped(true)
-                                            .column(Column::auto().at_least(100.))
-                                            .column(Column::remainder().at_least(150.))
-                                            .body(|mut body| {
-                                                add_label_and_plot_all_stats(
-                                                    &mut body,
-                                                    self.now,
-                                                    output_stats,
-                                                );
-                                            });
-                                    }
-                                });
-                        });
-                }
-            });
+        DriverStatsWidget::new(self.now, &self.drivers_stats).show(ui);
     }
 }
 

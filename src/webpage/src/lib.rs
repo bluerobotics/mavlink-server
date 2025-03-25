@@ -6,4 +6,5 @@ mod messages_names;
 mod components_names;
 mod stats;
 mod tabs;
+mod widgets;
 pub use app::App;
