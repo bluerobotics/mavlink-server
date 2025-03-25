@@ -325,14 +325,6 @@ impl App {
         }
     }
 
-    fn deal_with_vehicles_message(&mut self, message: String) {
-        let Ok(message_json) = serde_json::from_str::<serde_json::Value>(&message) else {
-            log::error!("Failed to parse Vehicles message: {message}");
-            return;
-        };
-        self.vehicles = message_json;
-    }
-
     fn process_vehicles_websocket(&mut self) {
         use ewebsock::{WsEvent, WsMessage};
 
@@ -363,22 +355,6 @@ impl App {
                 }
                 None => break,
             }
-        }
-    }
-
-    fn deal_with_parameters_message(&mut self, message: String) {
-        let Ok(message_json) = serde_json::from_str::<serde_json::Value>(&message) else {
-            log::error!("Failed to parse Vehicles message: {message}");
-            return;
-        };
-
-        // We only deal with a single vehicle for now
-        if !message_json.as_object().unwrap().contains_key("1") {
-            return;
-        }
-        let parameter = message_json["1"].as_object().unwrap();
-        for (key, value) in parameter {
-            self.parameters.insert(key.to_string(), value.clone());
         }
     }
 
@@ -454,21 +430,6 @@ impl App {
         }
     }
 
-    fn deal_with_hub_messages_stats_message(&mut self, message: String) {
-        let hub_messages_stats_sample =
-            match serde_json::from_str::<HubMessagesStatsSample>(&message) {
-                Ok(stats) => stats,
-                Err(error) => {
-                    log::error!(
-                    "Failed to parse Hub Messages Stats message: {error:?}. Message: {message:#?}"
-                );
-                    return;
-                }
-            };
-
-        self.hub_messages_stats.update(hub_messages_stats_sample)
-    }
-
     fn process_hub_stats_websocket(&mut self) {
         use ewebsock::{WsEvent, WsMessage};
 
@@ -502,18 +463,6 @@ impl App {
         }
     }
 
-    fn deal_with_hub_stats_message(&mut self, message: String) {
-        let hub_stats_sample = match serde_json::from_str::<HubStatsSample>(&message) {
-            Ok(stats) => stats,
-            Err(error) => {
-                log::error!("Failed to parse Hub Stats message: {error:?}. Message: {message:#?}");
-                return;
-            }
-        };
-
-        self.hub_stats.update(hub_stats_sample)
-    }
-
     fn process_drivers_stats_websocket(&mut self) {
         use ewebsock::{WsEvent, WsMessage};
 
@@ -545,6 +494,57 @@ impl App {
                 None => break,
             }
         }
+    }
+
+    fn deal_with_vehicles_message(&mut self, message: String) {
+        let Ok(message_json) = serde_json::from_str::<serde_json::Value>(&message) else {
+            log::error!("Failed to parse Vehicles message: {message}");
+            return;
+        };
+        self.vehicles = message_json;
+    }
+
+    fn deal_with_parameters_message(&mut self, message: String) {
+        let Ok(message_json) = serde_json::from_str::<serde_json::Value>(&message) else {
+            log::error!("Failed to parse Vehicles message: {message}");
+            return;
+        };
+
+        // We only deal with a single vehicle for now
+        if !message_json.as_object().unwrap().contains_key("1") {
+            return;
+        }
+        let parameter = message_json["1"].as_object().unwrap();
+        for (key, value) in parameter {
+            self.parameters.insert(key.to_string(), value.clone());
+        }
+    }
+
+    fn deal_with_hub_messages_stats_message(&mut self, message: String) {
+        let hub_messages_stats_sample =
+            match serde_json::from_str::<HubMessagesStatsSample>(&message) {
+                Ok(stats) => stats,
+                Err(error) => {
+                    log::error!(
+                    "Failed to parse Hub Messages Stats message: {error:?}. Message: {message:#?}"
+                );
+                    return;
+                }
+            };
+
+        self.hub_messages_stats.update(hub_messages_stats_sample)
+    }
+
+    fn deal_with_hub_stats_message(&mut self, message: String) {
+        let hub_stats_sample = match serde_json::from_str::<HubStatsSample>(&message) {
+            Ok(stats) => stats,
+            Err(error) => {
+                log::error!("Failed to parse Hub Stats message: {error:?}. Message: {message:#?}");
+                return;
+            }
+        };
+
+        self.hub_stats.update(hub_stats_sample)
     }
 
     fn deal_with_drivers_stats_message(&mut self, message: String) {
