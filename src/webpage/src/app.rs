@@ -6,7 +6,7 @@ use egui::mutex::Mutex;
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use egui_extras::TableBody;
 use egui_plot::{Line, Plot, PlotPoints};
-use ewebsock::{connect, WsReceiver, WsSender};
+use ewebsock::{connect, WsEvent, WsMessage, WsReceiver, WsSender};
 use humantime::format_duration;
 use ringbuffer::RingBuffer;
 use url::Url;
@@ -293,8 +293,6 @@ impl App {
     }
 
     fn process_mavlink_websocket(&mut self) {
-        use ewebsock::{WsEvent, WsMessage};
-
         loop {
             match self.mavlink_receiver.try_recv() {
                 Some(WsEvent::Message(WsMessage::Text(message))) => {
@@ -326,8 +324,6 @@ impl App {
     }
 
     fn process_vehicles_websocket(&mut self) {
-        use ewebsock::{WsEvent, WsMessage};
-
         loop {
             match self.vehicles_receiver.try_recv() {
                 Some(WsEvent::Message(WsMessage::Text(message))) => {
@@ -359,8 +355,6 @@ impl App {
     }
 
     fn process_parameters_websocket(&mut self) {
-        use ewebsock::{WsEvent, WsMessage};
-
         loop {
             match self.parameters_receiver.try_recv() {
                 Some(WsEvent::Message(WsMessage::Text(message))) => {
@@ -392,8 +386,6 @@ impl App {
     }
 
     fn process_hub_messages_stats_websocket(&mut self) {
-        use ewebsock::{WsEvent, WsMessage};
-
         loop {
             match self.hub_messages_stats_receiver.try_recv() {
                 Some(WsEvent::Message(WsMessage::Text(message))) => {
@@ -431,8 +423,6 @@ impl App {
     }
 
     fn process_hub_stats_websocket(&mut self) {
-        use ewebsock::{WsEvent, WsMessage};
-
         loop {
             match self.hub_stats_receiver.try_recv() {
                 Some(WsEvent::Message(WsMessage::Text(message))) => {
@@ -464,8 +454,6 @@ impl App {
     }
 
     fn process_drivers_stats_websocket(&mut self) {
-        use ewebsock::{WsEvent, WsMessage};
-
         loop {
             match self.drivers_stats_receiver.try_recv() {
                 Some(WsEvent::Message(WsMessage::Text(message))) => {
