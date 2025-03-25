@@ -753,7 +753,11 @@ pub fn add_label_and_plot_all_stats(
     add_last_update_row(body, now, message_stats.last_message_time_us as i64);
 }
 
-fn add_last_update_row(body: &mut TableBody<'_>, now: DateTime<Utc>, last_message_time_us: i64) {
+pub fn add_last_update_row(
+    body: &mut TableBody<'_>,
+    now: DateTime<Utc>,
+    last_message_time_us: i64,
+) {
     body.row(15., |mut row| {
         row.col(|ui| {
             ui.label("Last Update");
@@ -773,7 +777,7 @@ fn add_last_update_row(body: &mut TableBody<'_>, now: DateTime<Utc>, last_messag
     });
 }
 
-fn add_row_with_graph<T>(body: &mut TableBody<'_>, field_info: &FieldInfo<T>, field_name: &str)
+pub fn add_row_with_graph<T>(body: &mut TableBody<'_>, field_info: &FieldInfo<T>, field_name: &str)
 where
     f64: std::convert::From<T>,
     T: Copy + std::fmt::Display + std::fmt::Debug + Default,
