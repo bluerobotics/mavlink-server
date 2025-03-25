@@ -3,11 +3,9 @@ use std::{collections::BTreeMap, sync::Arc};
 use chrono::prelude::*;
 use eframe::egui::{CollapsingHeader, Context};
 use egui::mutex::Mutex;
-use egui_autocomplete::AutoCompleteTextEdit;
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use egui_extras::{Column, TableBody, TableBuilder};
 use egui_plot::{Line, Plot, PlotPoints};
-use ehttp::{Request, Response};
 use ewebsock::{connect, WsReceiver, WsSender};
 use humantime::format_duration;
 use ringbuffer::RingBuffer;
@@ -17,19 +15,16 @@ use web_sys::window;
 use crate::{
     components_names,
     messages::{FieldInfo, MessageInfo, VehiclesMessages},
-    messages_names::NAMES as mavlink_names,
     stats::{
         drivers_stats::{DriversStatsHistorical, DriversStatsSample},
         hub_messages_stats::{HubMessagesStatsHistorical, HubMessagesStatsSample},
         hub_stats::{HubStatsHistorical, HubStatsSample},
         ByteStatsHistorical, DelayStatsHistorical, MessageStatsHistorical, StatsInner,
     },
-    tabs::control::ControlTab,
+    tabs::{control::ControlTab, helper::HelperTab},
 };
 
 const MAVLINK_MESSAGES_WEBSOCKET_PATH: &str = "rest/ws";
-const MAVLINK_HELPER: &str = "rest/helper";
-const MAVLINK_POST: &str = "rest/mavlink";
 const CONTROL_VEHICLES_WEBSOCKET_PATH: &str = "rest/vehicles/ws";
 const CONTROL_PARAMETERS_WEBSOCKET_PATH: &str = "rest/vehicles/parameters/ws";
 const HUB_MESSAGES_STATS_WEBSOCKET_PATH: &str = "stats/messages/ws";
@@ -76,15 +71,13 @@ pub struct App {
     /// Driver statistics
     drivers_stats: DriversStatsHistorical,
     search_query: String,
-    search_help_mavlink_query: String,
-    mavlink_code: Arc<Mutex<String>>,
-    mavlink_code_post_response: Arc<Mutex<String>>,
     collapse_all: bool,
     expand_all: bool,
     stats_frequency: Arc<Mutex<f32>>,
     dock_state: Option<DockState<Tab>>,
     show_screen: Screens,
     control_tab: ControlTab,
+    helper_tab: HelperTab,
 }
 
 impl Default for App {
@@ -145,15 +138,13 @@ impl Default for App {
             hub_stats: Default::default(),
             drivers_stats: Default::default(),
             search_query: String::new(),
-            search_help_mavlink_query: "HEARTBEAT".to_string(),
-            mavlink_code: Arc::new(Mutex::new(String::new())),
-            mavlink_code_post_response: Arc::new(Mutex::new(String::new())),
             collapse_all: false,
             expand_all: false,
             stats_frequency,
             dock_state: Some(dock_state),
             show_screen: Screens::Main,
             control_tab: Default::default(),
+            helper_tab: Default::default(),
         }
     }
 }
@@ -221,90 +212,7 @@ impl App {
     }
 
     fn show_helper_screen(&mut self, ctx: &Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal_top(|ui| {
-                ui.label("Search:");
-                ui.add(AutoCompleteTextEdit::new(
-                    &mut self.search_help_mavlink_query,
-                    mavlink_names,
-                ));
-
-                if ui.button("Find").clicked() {
-                    let mavlink_code = self.mavlink_code.clone();
-                    ehttp::fetch(
-                        Request::get(format!(
-                            "/{MAVLINK_HELPER}?name={}",
-                            self.search_help_mavlink_query
-                        )),
-                        move |res| {
-                            let mut s = mavlink_code.lock();
-                            *s = match res {
-                                Ok(Response { bytes, .. }) => String::from_utf8(bytes).unwrap(),
-                                Err(error) => format!("Error: {error:?}"),
-                            };
-                        },
-                    );
-                }
-            });
-
-            let mut theme =
-                egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
-            ui.collapsing("Theme", |ui| {
-                ui.group(|ui| {
-                    theme.ui(ui);
-                    theme.clone().store_in_memory(ui.ctx());
-                });
-            });
-
-            let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
-                let mut layout_job = egui_extras::syntax_highlighting::highlight(
-                    ui.ctx(),
-                    ui.style(),
-                    &theme,
-                    string,
-                    "js",
-                );
-                layout_job.wrap.max_width = wrap_width;
-                ui.fonts(|f| f.layout_job(layout_job))
-            };
-
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                let mut mavlink_code = self.mavlink_code.lock().to_owned();
-                ui.add(
-                    egui::TextEdit::multiline(&mut mavlink_code)
-                        .font(egui::TextStyle::Monospace)
-                        .code_editor()
-                        .desired_rows(30)
-                        .lock_focus(true)
-                        .desired_width(500.0)
-                        .layouter(&mut layouter),
-                );
-                *self.mavlink_code.lock() = mavlink_code;
-            });
-
-            ui.horizontal_top(|ui| {
-                if ui.button("Send").clicked() {
-                    let mavlink_code = self.mavlink_code.lock();
-
-                    let mut request = Request::post(
-                        format!("/{MAVLINK_POST}"),
-                        mavlink_code.clone().into_bytes(),
-                    );
-                    request.headers.insert("Content-Type", "application/json");
-
-                    let mavlink_code_post_response = self.mavlink_code_post_response.clone();
-                    *mavlink_code_post_response.lock() = String::default();
-                    ehttp::fetch(request, move |res| {
-                        let mut s = mavlink_code_post_response.lock();
-                        *s = match res {
-                            Ok(Response { bytes, .. }) => String::from_utf8(bytes).unwrap(),
-                            Err(error) => format!("Error: {error:?}"),
-                        };
-                    });
-                }
-                ui.label(format!("{}", *self.mavlink_code_post_response.lock()));
-            });
-        });
+        self.helper_tab.show(ctx);
     }
 
     fn show_control_screen(&mut self, ctx: &Context) {
