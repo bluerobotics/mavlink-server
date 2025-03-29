@@ -99,11 +99,11 @@ jobs:
       working-directory: src/webpage
       run: trunk build --release --locked --verbose
 
-    - name: Building for ${{ matrix.os }} ${{ matrix.target }}
+    - name: Building linux for ${{ matrix.os }} ${{ matrix.target }}
       if: ${{ contains(matrix.TARGET, 'linux') }}
       run: SKIP_FRONTEND=1 cross build --release --locked --target ${{matrix.target}} --verbose
 
-    - name: Building for ${{ matrix.os }} ${{ matrix.target }}
+    - name: Building non linux for ${{ matrix.os }} ${{ matrix.target }}
       if: ${{ !contains(matrix.TARGET, 'linux') }}
       run: cross build --release --locked --target ${{matrix.target}} --verbose
 
