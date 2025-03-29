@@ -64,6 +64,7 @@ strum_macros = "0.26"
 bitflags = { version = "2.9.0", features = ["serde"] }
 semver = { version = "1.0.26", features = ["serde"] }
 cached = "0.55.1"
+sysinfo = "0.29.10"
 
 [dev-dependencies]
 criterion = "0.5"
