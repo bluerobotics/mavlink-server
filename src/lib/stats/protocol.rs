@@ -2,7 +2,7 @@ use anyhow::Result;
 use tokio::sync::{mpsc, oneshot};
 
 use super::messages::HubMessagesStats;
-use crate::stats::{DriversStats, StatsInner};
+use crate::stats::{resources::ResourceUsage, DriversStats, StatsInner};
 
 pub enum StatsCommand {
     SetPeriod {
@@ -14,6 +14,12 @@ pub enum StatsCommand {
     },
     Reset {
         response: oneshot::Sender<Result<()>>,
+    },
+    GetResources {
+        response: oneshot::Sender<Result<ResourceUsage>>,
+    },
+    GetResourcesStream {
+        response: oneshot::Sender<Result<mpsc::Receiver<ResourceUsage>>>,
     },
     GetDriversStats {
         response: oneshot::Sender<Result<DriversStats>>,
