@@ -30,6 +30,8 @@ pub fn router() -> Router {
         .route("/drivers/ws", get(drivers_stats_websocket_handler))
         .route("/hub/ws", get(hub_stats_websocket_handler))
         .route("/messages/ws", get(hub_messages_stats_websocket_handler))
+        .route("/resources", get(resources_stats))
+        .route("/resources/ws", get(resources_stats_websocket_handler))
 }
 
 async fn drivers_stats() -> impl IntoResponse {
@@ -47,6 +49,11 @@ async fn hub_messages_stats() -> impl IntoResponse {
 async fn stats_frequency() -> impl IntoResponse {
     let frequency = 1. / stats::period().await.unwrap().as_secs_f32();
     Json(Frequency { frequency })
+}
+
+#[instrument(level = "debug")]
+async fn resources_stats() -> impl IntoResponse {
+    Json(stats::resources().await.unwrap())
 }
 
 async fn set_stats_frequency(Json(Frequency { frequency }): Json<Frequency>) -> impl IntoResponse {
@@ -219,6 +226,62 @@ async fn drivers_stats_websocket_connection(socket: WebSocket, addr: SocketAddr)
     });
     if let Err(error) = periodic_task.await {
         error!("Failed finishing task Drivers Stats WebSocket task: {error:?}");
+    }
+
+    debug!("WS client {identifier} ended");
+}
+
+#[instrument(level = "debug", skip_all)]
+async fn resources_stats_websocket_handler(
+    ws: WebSocketUpgrade,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> Response {
+    ws.on_upgrade(move |socket| resources_stats_websocket_connection(socket, addr))
+}
+
+#[instrument(level = "debug", skip(socket))]
+async fn resources_stats_websocket_connection(socket: WebSocket, addr: SocketAddr) {
+    let identifier = Uuid::new_v4();
+    debug!("WS client connected with ID: {identifier}");
+
+    let (mut sender, _receiver) = socket.split();
+
+    let periodic_task = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+        let mut first = true;
+        loop {
+            if first {
+                first = false;
+            } else {
+                interval.tick().await;
+            }
+
+            let mut resources_stream = match stats::resources_stream().await {
+                Ok(resources_stream) => resources_stream,
+                Err(error) => {
+                    warn!("Failed getting Resources Stream: {error:?}");
+                    continue;
+                }
+            };
+
+            while let Some(resources) = resources_stream.recv().await {
+                let json = match serde_json::to_string(&resources) {
+                    Ok(json) => json,
+                    Err(error) => {
+                        warn!("Failed to create json from Resources: {error:?}");
+                        continue;
+                    }
+                };
+
+                if let Err(error) = sender.send(ws::Message::Text(json.into())).await {
+                    warn!("Failed to send message to WebSocket: {error:?}");
+                    return;
+                }
+            }
+        }
+    });
+    if let Err(error) = periodic_task.await {
+        error!("Failed finishing task Resources Stats WebSocket task: {error:?}");
     }
 
     debug!("WS client {identifier} ended");
