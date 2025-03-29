@@ -14,6 +14,7 @@ use crate::{
         },
         driver::{DriverStats, DriverStatsInner},
         messages::HubMessagesStats,
+        resources::{self, ResourceUsage},
         DriversStats, StatsCommand, StatsInner,
     },
 };
@@ -30,6 +31,8 @@ pub struct StatsActor {
     last_accumulated_hub_messages_stats: Arc<Mutex<AccumulatedHubMessagesStats>>,
     hub_messages_stats: Arc<RwLock<HubMessagesStats>>,
     hub_messages_stats_notify: Arc<Notify>,
+    resources: Arc<RwLock<ResourceUsage>>,
+    resources_notify: Arc<Notify>,
 }
 
 impl StatsActor {
@@ -99,6 +102,22 @@ impl StatsActor {
             }
         });
 
+        let resources_task = tokio::spawn({
+            let update_period = self.update_period.clone();
+            let resources = self.resources.clone();
+            let resources_notify = self.resources_notify.clone();
+
+            async move {
+                loop {
+                    let resource_usage = resources::usage();
+                    *resources.write().await =
+                        resource_usage.expect("Failed to get resource usage");
+                    resources_notify.notify_waiters();
+                    tokio::time::sleep(*update_period.read().await).await;
+                }
+            }
+        });
+
         while let Some(command) = receiver.recv().await {
             match command {
                 StatsCommand::SetPeriod { period, response } => {
@@ -111,6 +130,14 @@ impl StatsActor {
                 }
                 StatsCommand::Reset { response } => {
                     let result: std::result::Result<(), anyhow::Error> = self.reset().await;
+                    let _ = response.send(result);
+                }
+                StatsCommand::GetResources { response } => {
+                    let result = resources::usage();
+                    let _ = response.send(result);
+                }
+                StatsCommand::GetResourcesStream { response } => {
+                    let result = self.resources_stream().await;
                     let _ = response.send(result);
                 }
                 StatsCommand::GetDriversStats { response } => {
@@ -143,6 +170,7 @@ impl StatsActor {
         hub_messages_stats_task.abort();
         drivers_stats_task.abort();
         hub_stats_task.abort();
+        resources_task.abort();
     }
 
     #[instrument(level = "debug")]
@@ -160,6 +188,8 @@ impl StatsActor {
         let hub_messages_stats = Arc::new(RwLock::new(HubMessagesStats::default()));
         let hub_messages_stats_notify = Arc::new(Notify::new());
         let start_time = Arc::new(RwLock::new(chrono::Utc::now().timestamp_micros() as u64));
+        let resources = Arc::new(RwLock::new(ResourceUsage::default()));
+        let resources_notify = Arc::new(Notify::new());
 
         Self {
             start_time,
@@ -173,6 +203,8 @@ impl StatsActor {
             last_accumulated_hub_messages_stats,
             hub_messages_stats,
             hub_messages_stats_notify,
+            resources,
+            resources_notify,
         }
     }
 
@@ -224,6 +256,27 @@ impl StatsActor {
 
                 if let Err(error) = sender.send(hub_messages_stats.read().await.clone()).await {
                     trace!("Finishing Hub Messages Stats stream: {error:?}");
+                    break;
+                }
+            }
+        });
+
+        Ok(receiver)
+    }
+
+    #[instrument(level = "debug", skip(self))]
+    async fn resources_stream(&self) -> Result<mpsc::Receiver<ResourceUsage>> {
+        let (sender, receiver) = mpsc::channel(100);
+
+        let resources = self.resources.clone();
+        let resources_notify = self.resources_notify.clone();
+
+        tokio::spawn(async move {
+            loop {
+                resources_notify.notified().await;
+
+                if let Err(error) = sender.send(resources.read().await.clone()).await {
+                    trace!("Finishing Resources stream: {error:?}");
                     break;
                 }
             }

@@ -3,6 +3,7 @@ mod actor;
 pub mod driver;
 mod messages;
 mod protocol;
+mod resources;
 
 use std::sync::{Arc, Mutex};
 
@@ -13,6 +14,7 @@ use driver::DriversStats;
 use lazy_static::lazy_static;
 use messages::HubMessagesStats;
 use protocol::StatsCommand;
+use resources::ResourceUsage;
 use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 
@@ -61,6 +63,28 @@ impl Stats {
         let _task = Arc::new(Mutex::new(tokio::spawn(actor.start(receiver))));
         Self { sender, _task }
     }
+}
+
+pub async fn resources() -> Result<ResourceUsage> {
+    let (response_tx, response_rx) = oneshot::channel();
+    STATS
+        .sender
+        .send(StatsCommand::GetResources {
+            response: response_tx,
+        })
+        .await?;
+    response_rx.await?
+}
+
+pub async fn resources_stream() -> Result<mpsc::Receiver<ResourceUsage>> {
+    let (response_tx, response_rx) = oneshot::channel();
+    STATS
+        .sender
+        .send(StatsCommand::GetResourcesStream {
+            response: response_tx,
+        })
+        .await?;
+    response_rx.await?
 }
 
 pub async fn drivers_stats() -> Result<DriversStats> {
