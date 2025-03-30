@@ -7,6 +7,7 @@ use crate::messages::FieldInfo;
 pub mod drivers_stats;
 pub mod hub_messages_stats;
 pub mod hub_stats;
+pub mod resources;
 pub mod stats_frequency;
 
 pub type SystemId = u8;
