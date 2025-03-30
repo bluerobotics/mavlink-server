@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, sync::{Arc, RwLock}};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, RwLock},
+};
 
 use chrono::prelude::*;
 use eframe::egui::Context;
@@ -429,9 +432,7 @@ impl App {
         let mut sender = sender.write().unwrap();
         loop {
             match receiver.try_recv() {
-                Some(WsEvent::Message(WsMessage::Text(message))) => {
-                    message_handler(self, message)
-                }
+                Some(WsEvent::Message(WsMessage::Text(message))) => message_handler(self, message),
                 Some(WsEvent::Closed) => {
                     log::error!("{name} WebSocket closed");
                     (*sender, *receiver) = connect_websocket(path).unwrap();
