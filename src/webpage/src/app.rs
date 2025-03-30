@@ -18,6 +18,7 @@ use crate::{
         drivers_stats::{DriversStatsHistorical, DriversStatsSample},
         hub_messages_stats::{HubMessagesStatsHistorical, HubMessagesStatsSample},
         hub_stats::{HubStatsHistorical, HubStatsSample},
+        resources::{ResourceUsage, ResourceUsageHistorical},
         ByteStatsHistorical, DelayStatsHistorical, MessageStatsHistorical, StatsInner,
     },
     tabs::{control::ControlTab, helper::HelperTab},
@@ -33,6 +34,7 @@ const CONTROL_PARAMETERS_WEBSOCKET_PATH: &str = "rest/vehicles/parameters/ws";
 const HUB_MESSAGES_STATS_WEBSOCKET_PATH: &str = "stats/messages/ws";
 const HUB_STATS_WEBSOCKET_PATH: &str = "stats/hub/ws";
 const DRIVERS_STATS_WEBSOCKET_PATH: &str = "stats/drivers/ws";
+const RESOURCES_WEBSOCKET_PATH: &str = "stats/resources/ws";
 
 enum Screens {
     Main,
@@ -63,6 +65,8 @@ pub struct App {
     drivers_stats_sender: Arc<RwLock<WsSender>>,
     parameters_receiver: Arc<RwLock<WsReceiver>>,
     parameters_sender: Arc<RwLock<WsSender>>,
+    resources_receiver: Arc<RwLock<WsReceiver>>,
+    resources_sender: Arc<RwLock<WsSender>>,
     /// Realtime messages, grouped by Vehicle ID and Component ID
     vehicles_mavlink: VehiclesMessages,
     vehicles: serde_json::Value,
@@ -73,6 +77,8 @@ pub struct App {
     hub_stats: HubStatsHistorical,
     /// Driver statistics
     drivers_stats: DriversStatsHistorical,
+    /// System resources usage
+    resources_stats: ResourceUsageHistorical,
     search_query: String,
     collapse_all: bool,
     expand_all: bool,
@@ -99,6 +105,9 @@ impl Default for App {
 
         let (drivers_stats_sender, drivers_stats_receiver) =
             connect_websocket(DRIVERS_STATS_WEBSOCKET_PATH).unwrap();
+
+        let (resources_sender, resources_receiver) =
+            connect_websocket(RESOURCES_WEBSOCKET_PATH).unwrap();
 
         let (vehicles_sender, vehicles_receiver) =
             connect_websocket(CONTROL_VEHICLES_WEBSOCKET_PATH).unwrap();
@@ -132,6 +141,8 @@ impl Default for App {
             hub_stats_sender: Arc::new(RwLock::new(hub_stats_sender)),
             drivers_stats_receiver: Arc::new(RwLock::new(drivers_stats_receiver)),
             drivers_stats_sender: Arc::new(RwLock::new(drivers_stats_sender)),
+            resources_receiver: Arc::new(RwLock::new(resources_receiver)),
+            resources_sender: Arc::new(RwLock::new(resources_sender)),
             parameters_receiver: Arc::new(RwLock::new(parameters_receiver)),
             parameters_sender: Arc::new(RwLock::new(parameters_sender)),
             vehicles_mavlink: Default::default(),
@@ -140,6 +151,7 @@ impl Default for App {
             hub_messages_stats: Default::default(),
             hub_stats: Default::default(),
             drivers_stats: Default::default(),
+            resources_stats: Default::default(),
             search_query: String::new(),
             collapse_all: false,
             expand_all: false,
@@ -203,6 +215,61 @@ impl App {
                             stats_frequency,
                         );
                     }
+                    ui.horizontal_top(|ui| {
+                        ui.strong("CPU:");
+                        let cpu_usage = self
+                            .resources_stats
+                            .cpu_usage
+                            .history
+                            .back()
+                            .map(|(_time, value)| value)
+                            .unwrap_or(&0.0);
+
+                        let label = ui.label(format!("{:.2}%", cpu_usage));
+                        if label.hovered() {
+                            show_stats_tooltip(ui, &self.resources_stats.cpu_usage, "CPU");
+                        };
+                    });
+                    ui.horizontal_top(|ui| {
+                        ui.strong("Memory:");
+                        let memory = self
+                            .resources_stats
+                            .memory_usage_mbytes
+                            .history
+                            .back()
+                            .map(|(_time, value)| value)
+                            .unwrap_or(&0.0);
+                        let total_memory = self
+                            .resources_stats
+                            .total_memory_mbytes
+                            .history
+                            .back()
+                            .map(|(_time, value)| value)
+                            .unwrap_or(&0.0);
+                        let label = ui.label(format!("{:.2}%", memory / total_memory * 100.));
+                        let label2 = ui.label(format!("({}MB)", *memory as u64));
+                        if label.hovered() || label2.hovered() {
+                            show_stats_tooltip(
+                                ui,
+                                &self.resources_stats.memory_usage_mbytes,
+                                "Memory",
+                            );
+                        };
+                    });
+                    ui.horizontal_top(|ui| {
+                        ui.strong("Up time:");
+                        let label = ui.label(
+                            self.resources_stats
+                                .run_time
+                                .history
+                                .back()
+                                .map(|(_time, value)| value.to_string())
+                                .unwrap_or("?".to_string()),
+                        );
+                        if label.hovered() {
+                            show_stats_tooltip(ui, &self.resources_stats.run_time, "Up time");
+                        };
+                    });
                 });
             });
 
@@ -340,6 +407,14 @@ impl App {
             "Drivers Stats",
             Self::deal_with_drivers_stats_message,
         );
+
+        self.process_websocket(
+            self.resources_receiver.clone(),
+            self.resources_sender.clone(),
+            RESOURCES_WEBSOCKET_PATH,
+            "Resources",
+            Self::deal_with_resources_message,
+        );
     }
 
     fn process_websocket(
@@ -441,6 +516,19 @@ impl App {
         };
 
         self.drivers_stats.update(drivers_stats_sample)
+    }
+
+    fn deal_with_resources_message(&mut self, message: String) {
+        log::info!("Resources message: {message}");
+        let resources_sample = match serde_json::from_str::<ResourceUsage>(&message) {
+            Ok(stats) => stats,
+            Err(error) => {
+                log::error!("Failed to parse Resources message: {error:?}. Message: {message:#?}");
+                return;
+            }
+        };
+
+        self.resources_stats.update(resources_sample);
     }
 
     fn create_messages_ui(&self, ui: &mut eframe::egui::Ui) {
