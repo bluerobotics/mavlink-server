@@ -11,12 +11,12 @@ use egui_extras::TableBody;
 use egui_plot::{Line, Plot, PlotPoints};
 use ewebsock::{connect, WsEvent, WsMessage, WsReceiver, WsSender};
 use humantime::format_duration;
-use ringbuffer::RingBuffer;
+use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 use url::Url;
 use web_sys::window;
 
 use crate::{
-    messages::{FieldInfo, MessageInfo, VehiclesMessages},
+    messages::{FieldInfo, FieldValue, MessageInfo, VehiclesMessages},
     stats::{
         drivers_stats::{DriversStatsHistorical, DriversStatsSample},
         hub_messages_stats::{HubMessagesStatsHistorical, HubMessagesStatsSample},
@@ -230,7 +230,11 @@ impl App {
 
                         let label = ui.label(format!("{:.2}%", cpu_usage));
                         if label.hovered() {
-                            show_stats_tooltip(ui, &self.resources_stats.cpu_usage, "CPU");
+                            show_stats_tooltip(
+                                ui,
+                                &FieldValue::Numeric(self.resources_stats.cpu_usage.to_f64()),
+                                "CPU",
+                            );
                         };
                     });
                     ui.horizontal_top(|ui| {
@@ -254,7 +258,7 @@ impl App {
                         if label.hovered() || label2.hovered() {
                             show_stats_tooltip(
                                 ui,
-                                &self.resources_stats.memory_usage_mbytes,
+                                &FieldValue::Numeric(self.resources_stats.memory_usage_mbytes.to_f64()),
                                 "Memory",
                             );
                         };
@@ -270,7 +274,11 @@ impl App {
                                 .unwrap_or("?".to_string()),
                         );
                         if label.hovered() {
-                            show_stats_tooltip(ui, &self.resources_stats.run_time, "Up time");
+                            show_stats_tooltip(
+                                ui,
+                                &FieldValue::Numeric(self.resources_stats.run_time.to_f64()),
+                                "Up time",
+                            );
                         };
                     });
                 });
@@ -344,21 +352,45 @@ impl App {
             if field_name == "type" {
                 continue;
             }
-            let Some(num) = extract_number(value) else {
-                continue;
-            };
-            let new_entry = (self.now, num);
-            message_info
-                .fields
-                .entry(field_name.clone())
-                .and_modify(|field| {
-                    field.history.push(new_entry);
-                })
-                .or_insert_with(|| {
-                    let mut field_info = FieldInfo::default();
-                    field_info.history.push(new_entry);
-                    field_info
-                });
+
+            if let Some(num) = extract_number(value) {
+                let new_entry = (self.now, num);
+                message_info
+                    .fields
+                    .entry(field_name.clone())
+                    .and_modify(|field| {
+                        if let FieldValue::Numeric(field_info) = field {
+                            field_info.history.push(new_entry);
+                        }
+                    })
+                    .or_insert_with(|| {
+                        let mut field_info = FieldInfo::default();
+                        field_info.history.push(new_entry);
+                        FieldValue::Numeric(field_info)
+                    });
+            } else {
+                let mut text;
+                if let Some(result) = value["type"].as_str().map(|s| s.to_string()) {
+                    text = result;
+                } else if let Some(result) = extract_number(&value["bits"]) {
+                    text = result.to_string();
+                } else {
+                    text = value.to_string();
+                }
+                message_info
+                    .fields
+                    .entry(field_name.clone())
+                    .and_modify(|field| {
+                        if let FieldValue::Text(field_info) = field {
+                            field_info.history.push((self.now, text.to_string()));
+                        }
+                    })
+                    .or_insert_with(|| {
+                        let mut field_info = FieldInfo::default();
+                        field_info.history.push((self.now, text.to_string()));
+                        FieldValue::Text(field_info)
+                    });
+            }
         }
     }
 
@@ -584,36 +616,48 @@ pub fn add_label_and_plot_all_stats(
     // Messages stats
     add_row_with_graph(
         body,
-        &message_stats.messages.total_messages,
+        &FieldValue::Numeric(message_stats.messages.total_messages.to_f64()),
         "Messages [Total]",
     );
     add_row_with_graph(
         body,
-        &message_stats.messages.messages_per_second,
+        &FieldValue::Numeric(message_stats.messages.messages_per_second.to_f64()),
         "Inst. Messages [Msg/s]",
     );
     add_row_with_graph(
         body,
-        &message_stats.messages.average_messages_per_second,
+        &FieldValue::Numeric(message_stats.messages.average_messages_per_second.to_f64()),
         "Messages [M/s]",
     );
 
     // Bytes stats
-    add_row_with_graph(body, &message_stats.bytes.total_bytes, "Bytes [Total]");
     add_row_with_graph(
         body,
-        &message_stats.bytes.bytes_per_second,
+        &FieldValue::Numeric(message_stats.bytes.total_bytes.to_f64()),
+        "Bytes [Total]",
+    );
+    add_row_with_graph(
+        body,
+        &FieldValue::Numeric(message_stats.bytes.bytes_per_second.to_f64()),
         "Inst. Bytes [B/s]",
     );
     add_row_with_graph(
         body,
-        &message_stats.bytes.average_bytes_per_second,
+        &FieldValue::Numeric(message_stats.bytes.average_bytes_per_second.to_f64()),
         "Avg. Bytes [B/s]",
     );
 
     // Delay stats
-    add_row_with_graph(body, &message_stats.delay_stats.delay, "Delay [us]");
-    add_row_with_graph(body, &message_stats.delay_stats.jitter, "Int. Jitter [s]");
+    add_row_with_graph(
+        body,
+        &FieldValue::Numeric(message_stats.delay_stats.delay.to_f64()),
+        "Delay [us]",
+    );
+    add_row_with_graph(
+        body,
+        &FieldValue::Numeric(message_stats.delay_stats.jitter.to_f64()),
+        "Int. Jitter [s]",
+    );
 
     add_last_update_row(body, now, message_stats.last_message_time_us as i64);
 }
@@ -642,30 +686,33 @@ pub fn add_last_update_row(
     });
 }
 
-pub fn add_row_with_graph<T>(body: &mut TableBody<'_>, field_info: &FieldInfo<T>, field_name: &str)
-where
-    f64: std::convert::From<T>,
-    T: Copy + std::fmt::Display + std::fmt::Debug + Default,
-{
+pub fn add_row_with_graph(body: &mut TableBody<'_>, field_value: &FieldValue, field_name: &str) {
     body.row(15., |mut row| {
         row.col(|ui| {
             let label = ui.label(field_name);
 
             if label.hovered() {
-                show_stats_tooltip(ui, field_info, field_name);
+                show_stats_tooltip(ui, field_value, field_name);
             };
         });
         row.col(|ui| {
-            let label = ui.label(
-                field_info
+            let value_str = match field_value {
+                FieldValue::Numeric(field_info) => field_info
                     .history
                     .back()
                     .map(|(_time, value)| value.to_string())
                     .unwrap_or("?".to_string()),
-            );
+                FieldValue::Text(field_info) => field_info
+                    .history
+                    .back()
+                    .map(|(_time, value)| value.clone())
+                    .unwrap_or("?".to_string()),
+            };
+
+            let label = ui.label(value_str);
 
             if label.hovered() {
-                show_stats_tooltip(ui, field_info, field_name);
+                show_stats_tooltip(ui, field_value, field_name);
             };
         });
     });
@@ -759,45 +806,55 @@ fn extract_number(value: &serde_json::Value) -> Option<f64> {
     }
 }
 
-fn show_stats_tooltip<T>(ui: &mut eframe::egui::Ui, field_info: &FieldInfo<T>, field_name: &str)
-where
-    f64: std::convert::From<T>,
-    T: Copy + std::fmt::Debug,
-{
-    eframe::egui::show_tooltip(ui.ctx(), ui.layer_id(), ui.id(), |ui| {
-        ui.heading(field_name);
+fn show_stats_tooltip(ui: &mut eframe::egui::Ui, field_value: &FieldValue, field_name: &str) {
+    match field_value {
+        FieldValue::Numeric(field_info) => {
+            eframe::egui::show_tooltip(ui.ctx(), ui.layer_id(), ui.id(), |ui| {
+                ui.heading(field_name);
+                ui.separator();
+                let points: PlotPoints<'_> = field_info
+                    .history
+                    .iter()
+                    .map(|(time, value)| {
+                        let timestamp = time.timestamp_millis() as f64;
+                        [timestamp, *value]
+                    })
+                    .collect();
 
-        let points: PlotPoints<'_> = field_info
-            .history
-            .iter()
-            .map(|(time, value)| {
-                let timestamp = time.timestamp_millis() as f64;
-                [timestamp, f64::from(*value)]
-            })
-            .collect();
+                let line = Line::new(points).name(field_name);
 
-        let line = Line::new(points).name(field_name);
-
-        Plot::new(field_name)
-            .view_aspect(2.0)
-            .x_axis_formatter(|x, _range| {
-                let datetime = DateTime::from_timestamp_millis(x.value as i64);
-                if let Some(dt) = datetime {
-                    dt.format("%H:%M:%S").to_string()
-                } else {
-                    "".to_string()
-                }
-            })
-            .label_formatter(|name, value| {
-                let datetime = DateTime::from_timestamp_millis(value.x as i64);
-                if let Some(dt) = datetime {
-                    format!("{name}: {:.2}\nTime: {}", value.y, dt.format("%H:%M:%S"))
-                } else {
-                    format!("{name}: {:.2}", value.y)
-                }
-            })
-            .show(ui, |plot_ui| {
-                plot_ui.line(line);
+                Plot::new(field_name)
+                    .view_aspect(2.0)
+                    .x_axis_formatter(|x, _range| {
+                        let datetime = DateTime::from_timestamp_millis(x.value as i64);
+                        if let Some(dt) = datetime {
+                            dt.format("%H:%M:%S").to_string()
+                        } else {
+                            "".to_string()
+                        }
+                    })
+                    .label_formatter(|name, value| {
+                        let datetime = DateTime::from_timestamp_millis(value.x as i64);
+                        if let Some(dt) = datetime {
+                            format!("{name}: {:.2}\nTime: {}", value.y, dt.format("%H:%M:%S"))
+                        } else {
+                            format!("{name}: {:.2}", value.y)
+                        }
+                    })
+                    .show(ui, |plot_ui| {
+                        plot_ui.line(line);
+                    });
             });
-    });
+        }
+        FieldValue::Text(field_info) => {
+            eframe::egui::show_tooltip(ui.ctx(), ui.layer_id(), ui.id(), |ui| {
+                ui.heading(field_name);
+                ui.separator();
+                ui.label("History:");
+                for (time, value) in field_info.history.iter().rev().take(20) {
+                    ui.label(format!("{}: {}", time.format("%H:%M:%S"), value));
+                }
+            });
+        }
+    }
 }
