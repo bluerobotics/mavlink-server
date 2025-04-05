@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
 
     - name: Install build dependencies - Rustup
       run: |
@@ -76,6 +78,8 @@ jobs:
       run: echo "${{ matrix.TARGET }}"
 
     - uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
 
     # Required for cargo-binstall
     - name: Fix openssl on Windows
