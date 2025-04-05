@@ -118,6 +118,18 @@ pub fn init() {
         EnvFilter::new(LevelFilter::DEBUG.to_string())
     };
     let dir = cli::log_path();
+
+    match std::fs::metadata(&dir) {
+        Ok(metadata) => {
+            if metadata.permissions().readonly() {
+                eprintln!("Error: Log directory {dir:?} does not have write permissions",);
+                std::process::exit(1);
+            }
+        }
+        Err(error) => {
+            println!("Error: Could not check permissions for log directory {dir:?}: {error:?}");
+        }
+    }
     let file_appender = tracing_appender::rolling::hourly(dir, "mavlink-router-rs.", ".log");
     let file_layer = fmt::Layer::new()
         .with_writer(file_appender)
