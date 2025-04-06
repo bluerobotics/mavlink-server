@@ -21,19 +21,6 @@ struct Manager {
 pub struct Args {
     /// Space-separated list of endpoints.
     /// At least one endpoint is required.
-    /// Possible endpoints types are:
-    ///
-    /// udpc:dest_ip:port (udp, client mode)
-    ///
-    /// udpb:broadcast_ip:port (udp, broadcast mode)
-    ///
-    /// tcps:listen_ip:port (tcp, server mode)
-    ///
-    /// tcpc:dest_ip:port (tcp, client mode)
-    ///
-    /// serial:port:baudrate (serial)
-    ///
-    /// udps:listen_ip:port (udp, server mode)
     #[arg(
         required_if_eq("allow_no_endpoints", "false"),
         num_args = 1..,
