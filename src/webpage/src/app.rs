@@ -765,6 +765,8 @@ where
     T: Copy + std::fmt::Debug,
 {
     eframe::egui::show_tooltip(ui.ctx(), ui.layer_id(), ui.id(), |ui| {
+        ui.heading(field_name);
+
         let points: PlotPoints<'_> = field_info
             .history
             .iter()
