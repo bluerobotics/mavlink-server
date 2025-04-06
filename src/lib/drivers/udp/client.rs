@@ -116,14 +116,7 @@ impl Driver for UdpClient {
                 }
             };
 
-            debug!("UdpClient successfully bound to {local_addr}. Connecting UdpClient to {remote_addr:?}...");
-
-            if let Err(error) = socket.connect(&remote_addr).await {
-                error!("Failed connecting UdpClient to {remote_addr:?}: {error:?}");
-                continue;
-            };
-
-            debug!("UdpClient successfully connected to {remote_addr:?}");
+            debug!("UdpClient successfully bound to {local_addr}");
 
             let codec = MavlinkCodec::<true, true, false, false, false, false>::default();
             let (writer, reader) = UdpFramed::new(socket, codec).split();
