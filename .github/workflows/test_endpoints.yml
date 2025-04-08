@@ -1,0 +1,51 @@
+name: Mavlink Server Test
+
+on: [push, pull_request]
+
+jobs:
+  test-mavlink-server:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        endpoint_pair:
+          - server: udpout:127.0.0.1:14550 udpin:127.0.0.1:14551
+            client: udpin:127.0.0.1:14550 udpout:127.0.0.1:14551
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Install build dependencies - Rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target x86_64-unknown-linux-musl,wasm32-unknown-unknown -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pymavlink
+
+      - name: Install build dependencies - Cargo-Binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install build dependencies - Trunk
+        run: cargo binstall -y trunk
+
+      - name: Building frontend (wasm32)
+        working-directory: src/webpage
+        run: trunk build --release --locked --verbose
+
+      - name: Build mavlink-server
+        run: |
+          cargo build --release --locked
+
+      - name: Run mavlink-server
+        run: |
+          ./target/release/mavlink-server ${{ matrix.endpoint_pair.server }} &
+          sleep 5
+
+      - name: Run Python Heartbeat Test
+        run: |
+          python tests/scripts/test_heartbeat.py ${{ matrix.endpoint_pair.client }}
