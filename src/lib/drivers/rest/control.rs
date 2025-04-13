@@ -51,9 +51,36 @@ pub struct Vehicles {
     vehicles: HashMap<u8, Vehicle>,
 }
 
-#[derive(Clone, Debug, Default, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Vehicle {
     vehicle_id: u8,
+    components: HashMap<u8, VehicleComponents>,
+}
+
+impl Default for Vehicle {
+    fn default() -> Self {
+        Self {
+            // Default vehicle id expected, can be different for multiple vehicles in the network
+            vehicle_id: 1,
+            // Every vehicle should have an autopilot component
+            // https://mavlink.io/en/messages/common.html#MAV_COMP_ID_AUTOPILOT1
+            components: HashMap::from([(
+                mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_AUTOPILOT1 as u8,
+                VehicleComponents::Autopilot(VehicleComponent::default()),
+            )]),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type")]
+pub enum VehicleComponents {
+    Autopilot(VehicleComponent),
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct VehicleComponent {
+    component_id: u8,
     armed: bool,
     autopilot: Option<autopilot::AutoPilotType>,
     vehicle_type: Option<autopilot::VehicleType>,
@@ -65,6 +92,22 @@ pub struct Vehicle {
     // Inner logic control
     #[serde(skip_serializing)]
     context: VehicleContext,
+}
+
+impl Default for VehicleComponent {
+    fn default() -> Self {
+        Self {
+            component_id: 1,
+            armed: false,
+            autopilot: None,
+            vehicle_type: None,
+            mode: String::new(),
+            attitude: Attitude::default(),
+            position: Position::default(),
+            version: None,
+            context: VehicleContext::default(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -122,45 +165,54 @@ impl Vehicle {
             return;
         }
 
-        // Let's only take care of the vehicle and not the components
         if header.component_id != mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_AUTOPILOT1 as u8
         {
             return;
         }
 
+        let component = match self.components.entry(header.component_id) {
+            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::hash_map::Entry::Vacant(_) => return,
+        };
+        let VehicleComponents::Autopilot(component) = component;
+
         let mut vehicle_updated = true;
 
         match message {
             mavlink::ardupilotmega::MavMessage::HEARTBEAT(heartbeat) => {
-                self.armed = heartbeat.base_mode
+                component.armed = heartbeat.base_mode
                     & mavlink::ardupilotmega::MavModeFlag::MAV_MODE_FLAG_SAFETY_ARMED
                     == mavlink::ardupilotmega::MavModeFlag::MAV_MODE_FLAG_SAFETY_ARMED;
 
-                self.autopilot = Some(autopilot::AutoPilotType::from_u8(heartbeat.autopilot as u8));
-                self.vehicle_type = Some(autopilot::VehicleType::from_u8(heartbeat.mavtype as u8));
+                component.autopilot =
+                    Some(autopilot::AutoPilotType::from_u8(heartbeat.autopilot as u8));
+                component.vehicle_type =
+                    Some(autopilot::VehicleType::from_u8(heartbeat.mavtype as u8));
 
-                if let Some(AutoPilotType::ArduPilotMega) = self.autopilot {
-                    self.mode = autopilot::ardupilot::flight_mode(
-                        self.vehicle_type.expect("Should have vehicle type already"),
+                if let Some(AutoPilotType::ArduPilotMega) = component.autopilot {
+                    component.mode = autopilot::ardupilot::flight_mode(
+                        component
+                            .vehicle_type
+                            .expect("Should have vehicle type already"),
                         heartbeat.base_mode,
                         heartbeat.custom_mode,
                     );
                 }
 
                 // Request version to take care of initial values
-                if self.version.is_none() {
+                if component.version.is_none() {
                     send_version_request(self.vehicle_id, header.component_id);
                 }
             }
             mavlink::ardupilotmega::MavMessage::ATTITUDE(attitude) => {
-                self.attitude = Attitude {
+                component.attitude = Attitude {
                     roll: attitude.roll,
                     pitch: attitude.pitch,
                     yaw: attitude.yaw,
                 };
             }
             mavlink::ardupilotmega::MavMessage::GLOBAL_POSITION_INT(global_position) => {
-                self.position = Position {
+                component.position = Position {
                     latitude: global_position.lat as f64 / 1e7,  //degE7
                     longitude: global_position.lon as f64 / 1e7, //degE7
                     altitude: global_position.alt as f32 / 1e3,  //mm
@@ -178,33 +230,36 @@ impl Vehicle {
                 });
 
                 let firmware_type = autopilot::ardupilot::firmware_type(
-                    self.vehicle_type.expect("Should have vehicle type already"),
+                    component
+                        .vehicle_type
+                        .expect("Should have vehicle type already"),
                 );
                 let version_major_minor = format!("{}.{}", major, minor);
 
                 // First time requesting parameters
-                if self.version.is_none() {
-                    self.version = version;
-                    self.context.firmware_type = Some(firmware_type.clone());
+                if component.version.is_none() {
+                    component.version = version;
+                    component.context.firmware_type = Some(firmware_type.clone());
 
-                    self.context.parameters_metadata = autopilot::parameters::get_parameters(
+                    component.context.parameters_metadata = autopilot::parameters::get_parameters(
                         firmware_type.to_string(),
                         version_major_minor,
                     );
                     request_parameters(self.vehicle_id, header.component_id);
                 } else if let Some(version) = version {
                     // Version or vehicle type changed
-                    let self_version = self.version.as_ref().unwrap();
+                    let self_version = component.version.as_ref().unwrap();
                     if self_version.version != version.version
-                        || self.context.firmware_type != Some(firmware_type.clone())
+                        || component.context.firmware_type != Some(firmware_type.clone())
                     {
-                        self.version = Some(version);
-                        self.context.firmware_type = Some(firmware_type.clone());
+                        component.version = Some(version);
+                        component.context.firmware_type = Some(firmware_type.clone());
 
-                        self.context.parameters_metadata = autopilot::parameters::get_parameters(
-                            firmware_type.to_string(),
-                            version_major_minor,
-                        );
+                        component.context.parameters_metadata =
+                            autopilot::parameters::get_parameters(
+                                firmware_type.to_string(),
+                                version_major_minor,
+                            );
                         request_parameters(self.vehicle_id, header.component_id);
                     }
                 }
@@ -212,11 +267,11 @@ impl Vehicle {
             mavlink::ardupilotmega::MavMessage::PARAM_VALUE(param_value) => {
                 let parameter_name =
                     autopilot::Parameter::string_from_param_id(&param_value.param_id);
-                self.context.parameters.insert(
+                component.context.parameters.insert(
                     parameter_name.clone(),
                     ParameterData {
                         parameter: autopilot::Parameter::from_param_value(param_value),
-                        metadata: self
+                        metadata: component
                             .context
                             .parameters_metadata
                             .get(&parameter_name)
@@ -229,7 +284,8 @@ impl Vehicle {
                 let mut vehicle = HashMap::new();
                 parameter.insert(
                     parameter_name.clone(),
-                    self.context
+                    component
+                        .context
                         .parameters
                         .get(&parameter_name)
                         .cloned()
@@ -245,9 +301,11 @@ impl Vehicle {
 
         if vehicle_updated {
             // Limit update to 16Hz
-            if self.context.last_update.elapsed() > std::time::Duration::from_millis(1000 / 16) {
-                let _ = BROADCAST_VEHICLES.send(self.clone());
-                self.context.last_update = Instant::now();
+            if component.context.last_update.elapsed() > std::time::Duration::from_millis(1000 / 16)
+            {
+                component.context.last_update = Instant::now();
+                let vehicle_clone = self.clone();
+                let _ = BROADCAST_VEHICLES.send(vehicle_clone);
             }
         }
     }
@@ -441,6 +499,19 @@ pub async fn parameters() -> HashMap<u8, HashMap<String, ParameterData>> {
     vehicles
         .vehicles
         .iter()
-        .map(|(vehicle_id, vehicle)| (*vehicle_id, vehicle.context.parameters.clone()))
+        .map(|(vehicle_id, vehicle)| {
+            let parameters = vehicle
+                .components
+                .get(&(mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_AUTOPILOT1 as u8))
+                .map(|component| {
+                    if let VehicleComponents::Autopilot(component) = component {
+                        component.context.parameters.clone()
+                    } else {
+                        HashMap::new()
+                    }
+                })
+                .unwrap_or_default();
+            (*vehicle_id, parameters)
+        })
         .collect()
 }
