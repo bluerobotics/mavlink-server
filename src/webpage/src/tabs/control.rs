@@ -82,7 +82,7 @@ impl ControlTab {
                     .body(|mut body| {
                         if let Some(values) = vehicles.as_object() {
                             for (key, value) in values {
-                                if key == "parameters" {
+                                if key == "parameters" || key == "components" {
                                     continue;
                                 }
                                 if !value.is_object() {
@@ -115,6 +115,55 @@ impl ControlTab {
                             }
                         }
                     });
+
+
+                let components = vehicles["components"].as_object().unwrap();
+                for (key, value) in components {
+                    let component_id = key;
+                    let typ = value["type"].as_str().unwrap_or("Unknown");
+                    let component_header = CollapsingHeader::new(format!("Component {typ}: {component_id}"))
+                        .default_open(true)
+                        .id_salt(ui.make_persistent_id(format!("vehicle_control_{system_id}_{component_id}_{key}")));
+                    component_header.show(ui, |ui| {
+                        for (key, value) in value.as_object().unwrap() {
+                                let id_salt = ui.make_persistent_id(format!("vehicle_table_table_{system_id}_{component_id}_{key}"));
+                                TableBuilder::new(ui)
+                                    .id_salt(id_salt)
+                                    .striped(true)
+                                    .column(Column::auto().at_least(100.))
+                                    .column(Column::remainder().at_least(150.))
+                                    .body(|mut body| {
+                                        if !value.is_object() {
+                                            body.row(15., |mut row| {
+                                                row.col(|ui| {
+                                                    let _label = ui.label(key);
+                                                });
+                                                row.col(|ui| {
+                                                    let _label = ui.label(value.to_string());
+                                                });
+                                            });
+                                        } else {
+                                            body.row(15., |mut row| {
+                                                row.col(|ui| {
+                                                    let _label = ui.label(key);
+                                                });
+                                            });
+                                            for (key, value) in value.as_object().unwrap() {
+                                                body.row(10., |mut row| {
+                                                    row.col(|ui| {
+                                                        let _label = ui.label(format!("\t{key}"));
+                                                    });
+
+                                                    row.col(|ui| {
+                                                        let _label = ui.label(format!("\t{value}"));
+                                                    });
+                                                });
+                                            }
+                                        }
+                                    });
+                        }
+                    });
+                }
 
                 ui.horizontal_top(|ui| {
                     ui.strong("Search parameter:");
