@@ -78,7 +78,7 @@ pub enum VehicleComponents {
     Autopilot(VehicleComponent),
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 pub struct VehicleComponent {
     component_id: u8,
     armed: bool,
@@ -92,6 +92,23 @@ pub struct VehicleComponent {
     // Inner logic control
     #[serde(skip_serializing)]
     context: VehicleContext,
+}
+
+impl Clone for VehicleComponent {
+    fn clone(&self) -> Self {
+        Self {
+            component_id: self.component_id.clone(),
+            armed: self.armed.clone(),
+            autopilot: self.autopilot.clone(),
+            vehicle_type: self.vehicle_type.clone(),
+            mode: self.mode.clone(),
+            attitude: self.attitude.clone(),
+            position: self.position.clone(),
+            version: self.version.clone(),
+            // We don't clone the context because is for inner logic
+            context: Default::default(),
+        }
+    }
 }
 
 impl Default for VehicleComponent {
@@ -110,7 +127,8 @@ impl Default for VehicleComponent {
     }
 }
 
-#[derive(Clone, Debug)]
+// This should not implement Clone because it is for inner logic and it's quite heavy
+#[derive(Debug)]
 pub struct VehicleContext {
     parameters: HashMap<String, ParameterData>,
     parameters_metadata: HashMap<String, ParameterMetadata>,
