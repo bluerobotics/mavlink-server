@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 static ASSETS_DIR: Dir = include_dir!(
-    "$CARGO_MANIFEST_DIR/src/lib/drivers/rest/autopilot/parameters/ardupilot_parameters"
+    "$CARGO_MANIFEST_DIR/src/lib/drivers/rest/autopilot/parameters/ardupilot_parameters",
+    "**/*.json"
 );
 
 // A function that caches it return value, should return a map of vehicle type by version
