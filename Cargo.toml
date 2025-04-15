@@ -29,7 +29,7 @@ byteorder = "1.5.0"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
 futures = "0.3"
-include_dir = "0.7.4"
+include_dir = { git = "https://github.com/patrickelectric/include_dir", branch = "fixes" }
 indexmap = { version = "2.5.0", features = ["serde"] }
 json5 = "0.4.1"
 lazy_static = "1.5.0"
