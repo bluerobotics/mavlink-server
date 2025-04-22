@@ -185,6 +185,18 @@ impl Zenoh {
             } else {
                 trace!("Message sent to {topic_name}: {json_string:?}");
             }
+
+            // for each key inside mavlink_json and publish under topic_name/field_name
+            let message_value = serde_json::to_value(&mavlink_json.message).unwrap();
+            for (field_name, field_value) in message_value.as_object().unwrap() {
+                let topic_name = &format!("{}/{}", topic_name, field_name);
+                if let Err(error) = session
+                    .put(topic_name, json5::to_string(field_value).unwrap())
+                    .await
+                {
+                    error!("Failed to send message to {topic_name}: {error:?}");
+                }
+            }
         }
 
         debug!("Driver sender task stopped!");
