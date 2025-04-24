@@ -11,6 +11,7 @@ use axum::{
 };
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::*;
 use uuid::Uuid;
 
@@ -30,6 +31,8 @@ pub fn router() -> Router {
         .route("/drivers/ws", get(drivers_stats_websocket_handler))
         .route("/hub/ws", get(hub_stats_websocket_handler))
         .route("/messages/ws", get(hub_messages_stats_websocket_handler))
+        .layer(CorsLayer::permissive())
+        .layer(TraceLayer::new_for_http())
 }
 
 async fn drivers_stats() -> impl IntoResponse {

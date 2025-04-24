@@ -1,5 +1,6 @@
 use axum::{response::IntoResponse, routing::get, Json, Router};
 use serde::Serialize;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::*;
 
 #[derive(Serialize, Debug, Default)]
@@ -27,6 +28,8 @@ pub fn router() -> Router {
     Router::new()
         .route("/", get(info))
         .route("/full", get(info_full))
+        .layer(CorsLayer::permissive())
+        .layer(TraceLayer::new_for_http())
 }
 
 #[instrument(level = "trace")]
