@@ -8,11 +8,15 @@ use axum::{
     Router,
 };
 use futures::{SinkExt, StreamExt};
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::*;
 
 #[instrument(level = "trace")]
 pub fn router() -> Router {
-    Router::new().route("/", get(log_websocket_handler))
+    Router::new()
+        .route("/", get(log_websocket_handler))
+        .layer(CorsLayer::permissive())
+        .layer(TraceLayer::new_for_http())
 }
 
 async fn log_websocket_handler(ws: WebSocketUpgrade) -> Response {
