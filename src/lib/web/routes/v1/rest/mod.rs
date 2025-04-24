@@ -6,6 +6,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::*;
 
 #[instrument(level = "trace")]
@@ -37,4 +38,6 @@ pub fn router() -> Router {
             get(vehicles::parameters_websocket_handler),
         )
         .route("/vehicles/set_parameter", post(vehicles::set_parameter))
+        .layer(CorsLayer::permissive())
+        .layer(TraceLayer::new_for_http())
 }
