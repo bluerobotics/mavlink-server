@@ -37,8 +37,8 @@ mavlink = { default-features = false, features = ["std", "ardupilotmega", "serde
 mavlink-codec = { git = "https://github.com/bluerobotics/rust-mavlink-codec", branch = "master" }
 regex = "1.10.6"
 serde = { version = "1", features = ["rc"] }
-serde_derive = "1.0.210"
-serde_json = "1.0.128"
+serde_derive = "1"
+serde_json = "1"
 shellexpand = "3.1"
 tokio = { version = "1", features = ["full"] }
 tokio-serial = "5.4.4"
