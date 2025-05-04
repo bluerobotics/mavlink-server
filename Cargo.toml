@@ -24,7 +24,7 @@ anyhow = "1"
 arc-swap = "1.7"
 async-trait = "0.1.81"
 axum = { version = "0.8.4", features = ["ws"] }
-bytes = { version = "1.7", features = ["serde"] }
+bytes = { version = "1.10", features = ["serde"] }
 byteorder = "1.5.0"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
