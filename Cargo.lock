@@ -2342,6 +2342,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "serde_urlencoded",
  "shellexpand",
  "strum",
  "strum_macros",
