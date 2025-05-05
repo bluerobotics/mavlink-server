@@ -282,7 +282,7 @@ impl StatsActor {
             loop {
                 resources_notify.notified().await;
 
-                if let Err(error) = sender.send(resources.read().await.clone()).await {
+                if let Err(error) = sender.send(*resources.read().await).await {
                     trace!("Finishing Resources stream: {error:?}");
                     break;
                 }
