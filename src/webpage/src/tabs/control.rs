@@ -214,33 +214,33 @@ impl ControlTab {
                         let parameter = &parameters[&self.editor_parameter_name];
                         ui.label(format!(
                             "Current value: {}",
-                            parameter["parameter"]["value"].to_string()
+                            parameter["parameter"]["value"]
                         ));
                         ui.separator();
                         ui.label(format!(
                             "Type: {}",
-                            parameter["parameter"]["param_type"].to_string()
+                            parameter["parameter"]["param_type"]
                         ));
                         ui.label(format!(
                             "Increment: {}",
-                            parameter["metadata"]["increment"].to_string()
+                            parameter["metadata"]["increment"]
                         ));
                         ui.label(format!(
                             "Reboot required: {}",
-                            parameter["metadata"]["reboot_required"].to_string()
+                            parameter["metadata"]["reboot_required"]
                         ));
                         ui.label(format!(
                             "Max/Min: {} / {}",
-                            parameter["metadata"]["range"]["high"].to_string(),
-                            parameter["metadata"]["range"]["low"].to_string()
+                            parameter["metadata"]["range"]["high"],
+                            parameter["metadata"]["range"]["low"]
                         ));
                         ui.label(format!(
                             "Units: {}",
-                            parameter["metadata"]["unit"].to_string()
+                            parameter["metadata"]["unit"]
                         ));
                         ui.label(format!(
                             "User level: {}",
-                            parameter["metadata"]["user_level"].to_string()
+                            parameter["metadata"]["user_level"]
                         ));
                         ui.separator();
                         ui.text_edit_singleline(&mut self.editor_new_value);

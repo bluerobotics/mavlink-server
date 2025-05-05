@@ -106,7 +106,7 @@ impl HelperTab {
                         };
                     });
                 }
-                ui.label(format!("{}", *self.mavlink_code_post_response.lock()));
+                ui.label((*self.mavlink_code_post_response.lock()).to_string());
             });
         });
     }
