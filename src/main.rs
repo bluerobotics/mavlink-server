@@ -7,7 +7,21 @@ async fn main() -> Result<()> {
     // CLI should be started before logger to allow control over verbosity
     cli::init();
     // Logger should start before everything else to register any log information
-    logger::init();
+    logger::init(cli::log_path(), cli::is_verbose(), cli::is_tracing());
+
+    info!(
+        "{}, version: {}-{}, build date: {}",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION"),
+        env!("VERGEN_GIT_SHA"),
+        env!("VERGEN_BUILD_DATE")
+    );
+    info!(
+        "Starting at {}",
+        chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
+    );
+    debug!("Command line call: {}", cli::command_line_string());
+    debug!("Command line input struct call: {}", cli::command_line());
 
     for driver in cli::endpoints() {
         hub::add_driver(driver).await?;
