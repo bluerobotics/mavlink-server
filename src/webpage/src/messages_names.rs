@@ -1,4 +1,4 @@
-pub const NAMES: &'static [&'static str] = &[
+pub const NAMES: &[&str] = &[
     "ACTUATOR_CONTROL_TARGET",
     "ACTUATOR_OUTPUT_STATUS",
     "ADAP_TUNING",
