@@ -522,6 +522,7 @@ pub async fn parameters() -> HashMap<u8, HashMap<String, ParameterData>> {
                 .components
                 .get(&(mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_AUTOPILOT1 as u8))
                 .map(|component| {
+                    #[allow(irrefutable_let_patterns)]
                     if let VehicleComponents::Autopilot(component) = component {
                         component.context.parameters.clone()
                     } else {
