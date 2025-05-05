@@ -6,7 +6,7 @@ use std::{
 use lazy_static::lazy_static;
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use tokio::sync::broadcast::{Receiver, Sender};
-use tracing::{metadata::LevelFilter, *};
+use tracing::metadata::LevelFilter;
 use tracing_log::LogTracer;
 use tracing_subscriber::{
     fmt::{self, MakeWriter},
@@ -117,20 +117,12 @@ pub fn init(log_path: String, is_verbose: bool, is_tracing: bool) {
     } else {
         EnvFilter::new(LevelFilter::DEBUG.to_string())
     };
-    let dir = cli::log_path();
-
-    match std::fs::metadata(&dir) {
-        Ok(metadata) => {
-            if metadata.permissions().readonly() {
-                eprintln!("Error: Log directory {dir:?} does not have write permissions",);
-                std::process::exit(1);
-            }
-        }
-        Err(error) => {
-            println!("Error: Could not check permissions for log directory {dir:?}: {error:?}");
-        }
-    }
-    let file_appender = tracing_appender::rolling::hourly(dir, "mavlink-router-rs.", ".log");
+    let file_appender = custom_rolling_appender(
+        log_path,
+        tracing_appender::rolling::Rotation::HOURLY,
+        "mavlink-server",
+        "log",
+    );
     let file_layer = fmt::Layer::new()
         .with_writer(file_appender)
         .with_ansi(false)
@@ -180,4 +172,18 @@ pub fn init(log_path: String, is_verbose: bool, is_tracing: bool) {
         .with(file_layer)
         .with(server_layer);
     tracing::subscriber::set_global_default(subscriber).expect("Unable to set a global subscriber");
+}
+
+fn custom_rolling_appender<P: AsRef<std::path::Path>>(
+    dir: P,
+    rotation: tracing_appender::rolling::Rotation,
+    prefix: &str,
+    suffix: &str,
+) -> tracing_appender::rolling::RollingFileAppender {
+    tracing_appender::rolling::RollingFileAppender::builder()
+        .rotation(rotation)
+        .filename_prefix(prefix)
+        .filename_suffix(suffix)
+        .build(dir)
+        .expect("failed to initialize rolling file appender")
 }
