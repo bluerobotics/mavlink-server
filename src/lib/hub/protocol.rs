@@ -9,8 +9,8 @@ use crate::{
     protocol::Protocol,
     stats::{
         accumulated::{
-            driver::AccumulatedDriversStats, messages::AccumulatedHubMessagesStats,
-            AccumulatedStatsInner,
+            AccumulatedStatsInner, driver::AccumulatedDriversStats,
+            messages::AccumulatedHubMessagesStats,
         },
         driver::DriverUuid,
     },

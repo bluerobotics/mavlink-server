@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use futures::StreamExt;
 use mavlink_codec::codec::MavlinkCodec;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 use tokio_serial::{self, SerialPortBuilderExt};
 use tokio_util::codec::Framed;
 use tracing::*;
@@ -11,8 +11,8 @@ use tracing::*;
 use crate::{
     callbacks::{Callbacks, MessageCallback},
     drivers::{
-        generic_tasks::{default_send_receive_run, SendReceiveContext},
         Driver, DriverInfo,
+        generic_tasks::{SendReceiveContext, default_send_receive_run},
     },
     protocol::Protocol,
     stats::{

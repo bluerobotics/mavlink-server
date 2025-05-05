@@ -8,7 +8,7 @@ use anyhow::Result;
 use indexmap::IndexMap;
 use lazy_static::lazy_static;
 use protocol::HubCommand;
-use tokio::sync::{broadcast, mpsc, oneshot, RwLock};
+use tokio::sync::{RwLock, broadcast, mpsc, oneshot};
 
 use crate::{
     cli,
@@ -16,8 +16,8 @@ use crate::{
     protocol::Protocol,
     stats::{
         accumulated::{
-            driver::AccumulatedDriversStats, messages::AccumulatedHubMessagesStats,
-            AccumulatedStatsInner,
+            AccumulatedStatsInner, driver::AccumulatedDriversStats,
+            messages::AccumulatedHubMessagesStats,
         },
         driver::DriverUuid,
     },

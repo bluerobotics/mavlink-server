@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use chrono::DateTime;
 use mavlink::ardupilotmega::MavMessage;
 use mavlink_codec::Packet;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 use tracing::*;
 
 use crate::{
@@ -235,7 +235,7 @@ mod tests {
     use std::{collections::BTreeMap, str::FromStr};
 
     use anyhow::Result;
-    use mavlink::{error::ParserError, MavFrame};
+    use mavlink::{MavFrame, error::ParserError};
     use tokio::sync::RwLock;
 
     use super::*;

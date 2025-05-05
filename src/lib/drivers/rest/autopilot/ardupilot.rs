@@ -1,4 +1,4 @@
-use super::{arducopter, arduplane, ardurover, ardusub, VehicleType};
+use super::{VehicleType, arducopter, arduplane, ardurover, ardusub};
 use serde::Serialize;
 
 #[derive(Clone, Debug, PartialEq, strum_macros::EnumString, strum_macros::Display)]

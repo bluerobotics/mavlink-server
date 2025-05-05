@@ -1,7 +1,7 @@
 use std::{
     env,
     path::Path,
-    process::{exit, Command},
+    process::{Command, exit},
 };
 
 use vergen_gix::{BuildBuilder, CargoBuilder, DependencyKind, GixBuilder};

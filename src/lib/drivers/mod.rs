@@ -269,8 +269,8 @@ pub fn endpoints() -> Vec<ExtInfo> {
 mod tests {
     use std::{collections::HashSet, sync::Arc};
 
-    use anyhow::{anyhow, Result};
-    use mavlink_codec::{v2::V2Packet, Packet};
+    use anyhow::{Result, anyhow};
+    use mavlink_codec::{Packet, v2::V2Packet};
     use tokio::sync::RwLock;
     use tracing::*;
 

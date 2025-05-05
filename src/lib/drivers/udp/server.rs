@@ -2,10 +2,10 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
 use futures::{Stream, StreamExt};
-use mavlink_codec::{codec::MavlinkCodec, error::DecoderError, Packet};
+use mavlink_codec::{Packet, codec::MavlinkCodec, error::DecoderError};
 use tokio::{
     net::UdpSocket,
-    sync::{broadcast, RwLock},
+    sync::{RwLock, broadcast},
     task::JoinHandle,
 };
 use tokio_util::udp::UdpFramed;
@@ -14,7 +14,7 @@ use tracing::*;
 use crate::{
     callbacks::{Callbacks, MessageCallback},
     drivers::{
-        generic_tasks::SendReceiveContext, udp::udp_send_task, Direction, Driver, DriverInfo,
+        Direction, Driver, DriverInfo, generic_tasks::SendReceiveContext, udp::udp_send_task,
     },
     protocol::Protocol,
     stats::{

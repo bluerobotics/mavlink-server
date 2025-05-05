@@ -2,7 +2,7 @@ pub mod routes;
 
 use std::net::SocketAddr;
 
-use axum::{extract::Request, ServiceExt};
+use axum::{ServiceExt, extract::Request};
 use tokio::signal;
 use tower::Layer;
 use tower_http::normalize_path::NormalizePathLayer;

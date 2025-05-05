@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use mavlink::{self, Message};
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 use tracing::*;
 use zenoh;
 
 use crate::{
     callbacks::{Callbacks, MessageCallback},
-    drivers::{generic_tasks::SendReceiveContext, Driver, DriverInfo},
+    drivers::{Driver, DriverInfo, generic_tasks::SendReceiveContext},
     mavlink_json::MAVLinkJSON,
     protocol::Protocol,
     stats::{

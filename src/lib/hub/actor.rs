@@ -1,8 +1,8 @@
 use std::{ops::Div, sync::Arc};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use indexmap::IndexMap;
-use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::sync::{RwLock, broadcast, mpsc};
 use tracing::*;
 
 use crate::{
@@ -12,8 +12,8 @@ use crate::{
     protocol::Protocol,
     stats::{
         accumulated::{
-            driver::AccumulatedDriversStats, messages::AccumulatedHubMessagesStats,
-            AccumulatedStatsInner,
+            AccumulatedStatsInner, driver::AccumulatedDriversStats,
+            messages::AccumulatedHubMessagesStats,
         },
         driver::DriverUuid,
     },

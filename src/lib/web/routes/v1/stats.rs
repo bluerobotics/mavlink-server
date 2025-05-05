@@ -1,13 +1,13 @@
 use std::net::SocketAddr;
 
 use axum::{
+    Json, Router,
     extract::{
-        ws::{self, WebSocket},
         ConnectInfo, WebSocketUpgrade,
+        ws::{self, WebSocket},
     },
     response::{IntoResponse, Response},
     routing::get,
-    Json, Router,
 };
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};

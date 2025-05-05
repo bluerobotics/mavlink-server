@@ -3,8 +3,8 @@ use std::net::SocketAddr;
 use crate::drivers::rest::{autopilot, control};
 use axum::{
     extract::{
-        ws::{self, WebSocket},
         ConnectInfo, Json, Query, WebSocketUpgrade,
+        ws::{self, WebSocket},
     },
     http::header,
     response::IntoResponse,

@@ -2,10 +2,10 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
 use futures::{Sink, Stream, StreamExt};
-use mavlink_codec::{codec::MavlinkCodec, error::DecoderError, Packet};
+use mavlink_codec::{Packet, codec::MavlinkCodec, error::DecoderError};
 use tokio::{
     net::UdpSocket,
-    sync::{broadcast, RwLock},
+    sync::{RwLock, broadcast},
 };
 use tokio_util::udp::UdpFramed;
 use tracing::*;
@@ -13,7 +13,7 @@ use tracing::*;
 use crate::{
     callbacks::{Callbacks, MessageCallback},
     drivers::{
-        generic_tasks::SendReceiveContext, udp::udp_send_task, Direction, Driver, DriverInfo,
+        Direction, Driver, DriverInfo, generic_tasks::SendReceiveContext, udp::udp_send_task,
     },
     protocol::Protocol,
     stats::{
@@ -292,7 +292,9 @@ impl DriverInfo for UdpClientInfo {
             .unwrap_or(Direction::Both);
 
         if direction.receive_only() {
-            info!("UdpClient cannot be created with direction: {direction:?}, there is no way to receive messages without sending them for UDP.");
+            info!(
+                "UdpClient cannot be created with direction: {direction:?}, there is no way to receive messages without sending them for UDP."
+            );
             return None;
         }
 

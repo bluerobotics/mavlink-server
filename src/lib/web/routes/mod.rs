@@ -1,13 +1,13 @@
 pub mod v1;
 
 use axum::{
+    Router,
     extract::Path,
-    http::{header, StatusCode},
+    http::{StatusCode, header},
     response::IntoResponse,
     routing::get,
-    Router,
 };
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 use mime_guess::from_path;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::*;

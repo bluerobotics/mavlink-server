@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use futures::{Sink, SinkExt, Stream, StreamExt};
-use mavlink_codec::{error::DecoderError, Packet};
-use tokio::sync::{broadcast, RwLock};
+use mavlink_codec::{Packet, error::DecoderError};
+use tokio::sync::{RwLock, broadcast};
 use tracing::*;
 
 use crate::{
