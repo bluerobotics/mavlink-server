@@ -723,7 +723,7 @@ struct OurTabViewer<'a> {
     app: &'a mut App,
 }
 
-impl<'a> TabViewer for OurTabViewer<'a> {
+impl TabViewer for OurTabViewer<'_> {
     type Tab = Tab;
 
     fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
