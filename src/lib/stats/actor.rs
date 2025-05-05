@@ -266,7 +266,7 @@ impl StatsActor {
 
     #[instrument(level = "debug", skip(self))]
     async fn resources(&mut self) -> Result<ResourceUsage> {
-        let resources = self.resources.read().await.clone();
+        let resources = *self.resources.read().await;
 
         Ok(resources)
     }
