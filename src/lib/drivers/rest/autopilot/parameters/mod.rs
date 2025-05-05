@@ -43,8 +43,7 @@ pub fn get_parameters(vehicle_type: String, version: String) -> HashMap<String, 
         .get_dir(format!("{}-{}", vehicle_type, version))
         .and_then(|dir| {
             dir.files()
-                .filter(|file| file.path().extension().unwrap_or_default() == "json")
-                .next()
+                .find(|file| file.path().extension().unwrap_or_default() == "json")
         });
 
     if let Some(file) = file {
