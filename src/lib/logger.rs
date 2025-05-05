@@ -84,14 +84,14 @@ lazy_static! {
 }
 
 // Start logger, should be done inside main
-pub fn init() {
+pub fn init(log_path: String, is_verbose: bool, is_tracing: bool) {
     // Redirect all logs from libs using "Log"
     LogTracer::init_with_filter(tracing::log::LevelFilter::Trace).expect("Failed to set logger");
 
     // Configure the console log
     let console_env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| {
-            if cli::is_verbose() {
+            if is_verbose {
                 EnvFilter::new(LevelFilter::DEBUG.to_string())
             } else {
                 EnvFilter::new(LevelFilter::INFO.to_string())
@@ -112,7 +112,7 @@ pub fn init() {
         .with_filter(console_env_filter);
 
     // Configure the file log
-    let file_env_filter = if cli::is_tracing() {
+    let file_env_filter = if is_tracing {
         EnvFilter::new(LevelFilter::TRACE.to_string())
     } else {
         EnvFilter::new(LevelFilter::DEBUG.to_string())
@@ -180,18 +180,4 @@ pub fn init() {
         .with(file_layer)
         .with(server_layer);
     tracing::subscriber::set_global_default(subscriber).expect("Unable to set a global subscriber");
-
-    info!(
-        "{}, version: {}-{}, build date: {}",
-        env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION"),
-        env!("VERGEN_GIT_SHA"),
-        env!("VERGEN_BUILD_DATE")
-    );
-    info!(
-        "Starting at {}",
-        chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
-    );
-    debug!("Command line call: {}", cli::command_line_string());
-    debug!("Command line input struct call: {}", cli::command_line());
 }
