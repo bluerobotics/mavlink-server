@@ -74,7 +74,7 @@ impl Parameter {
     pub fn string_from_param_id(param_id: &[u8; 16]) -> String {
         String::from_utf8_lossy(param_id)
             .to_string()
-            .trim_end_matches(|c| c == '\0')
+            .trim_end_matches('\0')
             .to_string()
     }
 
