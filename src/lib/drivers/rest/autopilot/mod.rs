@@ -63,7 +63,7 @@ pub struct Parameter {
 impl Parameter {
     /// Onboard parameter id, terminated by NULL if the length is less than 16 human-readable chars and WITHOUT null termination (NULL) byte
     /// if the length is exactly 16 chars - applications have to provide 16+1 bytes storage if the ID is stored as string
-    fn id(&self) -> [u8; 16] {
+    pub fn id(&self) -> [u8; 16] {
         let mut buffer = [0u8; 16];
         let bytes = self.name.as_bytes();
         let len = bytes.len().min(16);
