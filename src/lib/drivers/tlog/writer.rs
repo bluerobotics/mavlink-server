@@ -285,7 +285,6 @@ impl DriverInfo for TlogWriterInfo {
             .get("when")
             .and_then(|v| {
                 v.parse()
-                    .map(FileCreationCondition::from)
                     .map(|cond| match cond {
                         FileCreationCondition::WhileArmed(_) => {
                             FileCreationCondition::WhileArmed(ExpectedOrigin {
@@ -369,7 +368,7 @@ async fn wait_for_arm(
                 message.system_id()
             );
 
-            let current_system_id = system_id.read().await.clone();
+            let current_system_id = *system_id.read().await;
 
             let system_id = match current_system_id {
                 Some(system_id) => system_id,
