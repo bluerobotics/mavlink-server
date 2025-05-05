@@ -13,7 +13,6 @@ pub struct ControlTab {
     pub search_query: String,
 }
 
-
 impl ControlTab {
     pub fn show(
         &mut self,
@@ -107,51 +106,55 @@ impl ControlTab {
                         }
                     });
 
-
                 let components = vehicles["components"].as_object().unwrap();
                 for (key, value) in components {
                     let component_id = key;
                     let typ = value["type"].as_str().unwrap_or("Unknown");
-                    let component_header = CollapsingHeader::new(format!("Component {typ}: {component_id}"))
-                        .default_open(true)
-                        .id_salt(ui.make_persistent_id(format!("vehicle_control_{system_id}_{component_id}_{key}")));
+                    let component_header =
+                        CollapsingHeader::new(format!("Component {typ}: {component_id}"))
+                            .default_open(true)
+                            .id_salt(ui.make_persistent_id(format!(
+                                "vehicle_control_{system_id}_{component_id}_{key}"
+                            )));
                     component_header.show(ui, |ui| {
                         for (key, value) in value.as_object().unwrap() {
-                                let id_salt = ui.make_persistent_id(format!("vehicle_table_table_{system_id}_{component_id}_{key}"));
-                                TableBuilder::new(ui)
-                                    .id_salt(id_salt)
-                                    .striped(true)
-                                    .column(Column::auto().at_least(100.))
-                                    .column(Column::remainder().at_least(150.))
-                                    .body(|mut body| {
-                                        if !value.is_object() {
-                                            body.row(15., |mut row| {
-                                                row.col(|ui| {
-                                                    let _label = ui.label(key);
-                                                });
-                                                row.col(|ui| {
-                                                    let _label = ui.label(value.to_string());
-                                                });
+                            let id_salt = ui.make_persistent_id(format!(
+                                "vehicle_table_table_{system_id}_{component_id}_{key}"
+                            ));
+                            TableBuilder::new(ui)
+                                .id_salt(id_salt)
+                                .striped(true)
+                                .column(Column::auto().at_least(100.))
+                                .column(Column::remainder().at_least(150.))
+                                .body(|mut body| {
+                                    if !value.is_object() {
+                                        body.row(15., |mut row| {
+                                            row.col(|ui| {
+                                                let _label = ui.label(key);
                                             });
-                                        } else {
-                                            body.row(15., |mut row| {
-                                                row.col(|ui| {
-                                                    let _label = ui.label(key);
-                                                });
+                                            row.col(|ui| {
+                                                let _label = ui.label(value.to_string());
                                             });
-                                            for (key, value) in value.as_object().unwrap() {
-                                                body.row(10., |mut row| {
-                                                    row.col(|ui| {
-                                                        let _label = ui.label(format!("\t{key}"));
-                                                    });
+                                        });
+                                    } else {
+                                        body.row(15., |mut row| {
+                                            row.col(|ui| {
+                                                let _label = ui.label(key);
+                                            });
+                                        });
+                                        for (key, value) in value.as_object().unwrap() {
+                                            body.row(10., |mut row| {
+                                                row.col(|ui| {
+                                                    let _label = ui.label(format!("\t{key}"));
+                                                });
 
-                                                    row.col(|ui| {
-                                                        let _label = ui.label(format!("\t{value}"));
-                                                    });
+                                                row.col(|ui| {
+                                                    let _label = ui.label(format!("\t{value}"));
                                                 });
-                                            }
+                                            });
                                         }
-                                    });
+                                    }
+                                });
                         }
                     });
                 }
@@ -217,14 +220,8 @@ impl ControlTab {
                             parameter["parameter"]["value"]
                         ));
                         ui.separator();
-                        ui.label(format!(
-                            "Type: {}",
-                            parameter["parameter"]["param_type"]
-                        ));
-                        ui.label(format!(
-                            "Increment: {}",
-                            parameter["metadata"]["increment"]
-                        ));
+                        ui.label(format!("Type: {}", parameter["parameter"]["param_type"]));
+                        ui.label(format!("Increment: {}", parameter["metadata"]["increment"]));
                         ui.label(format!(
                             "Reboot required: {}",
                             parameter["metadata"]["reboot_required"]
@@ -234,10 +231,7 @@ impl ControlTab {
                             parameter["metadata"]["range"]["high"],
                             parameter["metadata"]["range"]["low"]
                         ));
-                        ui.label(format!(
-                            "Units: {}",
-                            parameter["metadata"]["unit"]
-                        ));
+                        ui.label(format!("Units: {}", parameter["metadata"]["unit"]));
                         ui.label(format!(
                             "User level: {}",
                             parameter["metadata"]["user_level"]
