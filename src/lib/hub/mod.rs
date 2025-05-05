@@ -4,7 +4,7 @@ mod protocol;
 use std::sync::{Arc, Mutex};
 
 use actor::HubActor;
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use indexmap::IndexMap;
 use lazy_static::lazy_static;
 use protocol::HubCommand;
@@ -32,6 +32,10 @@ lazy_static! {
     );
 }
 
+lazy_static! {
+    static ref NAMES_MAP: Arc<Mutex<IndexMap<String, u32>>> = Default::default();
+}
+
 struct Hub {
     sender: mpsc::Sender<HubCommand>,
     _task: Arc<Mutex<tokio::task::JoinHandle<()>>>,
@@ -47,6 +51,7 @@ impl Hub {
         let (sender, receiver) = mpsc::channel(32);
         let hub = HubActor::new(buffer_size, component_id, system_id, frequency);
         let _task = Arc::new(Mutex::new(tokio::spawn(hub.start(receiver))));
+
         Self { sender, _task }
     }
 }
@@ -136,4 +141,27 @@ pub async fn reset_all_stats() -> Result<()> {
         })
         .await?;
     response_rx.await?
+}
+
+pub fn generate_new_default_name(prefix: &str) -> Result<String> {
+    let mut generated_names = NAMES_MAP.lock().unwrap();
+
+    let num = generated_names
+        .entry(prefix.to_owned())
+        .and_modify(|n| {
+            if *n == u32::MAX {
+                // still panic-free; the Err below will be returned
+            } else {
+                *n = n.saturating_add(1);
+            }
+        })
+        .or_insert(0);
+
+    if *num == u32::MAX {
+        return Err(anyhow!(
+            "No indexes are left for the given prefix {prefix:?}. Current index: {num:?}."
+        ));
+    }
+
+    Ok(format!("{prefix}{num}"))
 }
