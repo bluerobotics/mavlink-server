@@ -3,17 +3,16 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use super::autopilot::{
-    self,
+    self, AutoPilotType, Parameter,
     ardupilot::{Capabilities, FirmwareType},
     parameters::Parameter as ParameterMetadata,
-    AutoPilotType, Parameter,
 };
 
 use anyhow::Result;
 use lazy_static::lazy_static;
 use mavlink;
 use serde::Serialize;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 use tracing::*;
 
 lazy_static! {

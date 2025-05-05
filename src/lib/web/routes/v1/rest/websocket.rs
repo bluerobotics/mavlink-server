@@ -2,14 +2,14 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use axum::{
     extract::{
-        ws::{self, WebSocket},
         ConnectInfo, WebSocketUpgrade,
+        ws::{self, WebSocket},
     },
     response::Response,
 };
 use futures::{SinkExt, StreamExt};
 use lazy_static::lazy_static;
-use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::sync::{RwLock, broadcast, mpsc};
 use tracing::*;
 use uuid::Uuid;
 

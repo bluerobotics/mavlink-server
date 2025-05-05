@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use bytes::{BufMut, BytesMut};
-use mavlink_codec::{v2::V2Packet, Packet};
-use tokio::sync::{broadcast, RwLock};
+use mavlink_codec::{Packet, v2::V2Packet};
+use tokio::sync::{RwLock, broadcast};
 use tracing::*;
 
 use crate::{
@@ -206,7 +206,7 @@ impl Driver for FakeSource {
         let mut sequence = 0;
 
         use mavlink::ardupilotmega::{
-            MavAutopilot, MavMessage, MavModeFlag, MavState, MavType, HEARTBEAT_DATA,
+            HEARTBEAT_DATA, MavAutopilot, MavMessage, MavModeFlag, MavState, MavType,
         };
 
         let mut header = mavlink::MavHeader {
@@ -336,7 +336,7 @@ mod test {
 
     use anyhow::Result;
     use clap::Parser;
-    use tokio::sync::{broadcast, RwLock};
+    use tokio::sync::{RwLock, broadcast};
 
     use crate::cli;
 

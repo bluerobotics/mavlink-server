@@ -4,7 +4,7 @@ use anyhow::Result;
 use lazy_static::lazy_static;
 use serde::Serialize;
 use sysinfo::{
-    get_current_pid, MemoryRefreshKind, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System,
+    MemoryRefreshKind, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System, get_current_pid,
 };
 
 lazy_static! {

@@ -3,8 +3,8 @@ pub mod vehicles;
 pub mod websocket;
 
 use axum::{
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::*;

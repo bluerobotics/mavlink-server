@@ -1,11 +1,11 @@
 use axum::{
+    Router,
     extract::{
-        ws::{Message, WebSocket},
         WebSocketUpgrade,
+        ws::{Message, WebSocket},
     },
     response::Response,
     routing::get,
-    Router,
 };
 use futures::{SinkExt, StreamExt};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};

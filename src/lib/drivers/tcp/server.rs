@@ -1,11 +1,11 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use futures::StreamExt;
 use mavlink_codec::codec::MavlinkCodec;
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{broadcast, RwLock},
+    sync::{RwLock, broadcast},
 };
 use tokio_util::codec::Framed;
 use tracing::*;
@@ -13,8 +13,8 @@ use tracing::*;
 use crate::{
     callbacks::{Callbacks, MessageCallback},
     drivers::{
-        generic_tasks::{default_send_receive_run, SendReceiveContext},
         Direction, Driver, DriverInfo,
+        generic_tasks::{SendReceiveContext, default_send_receive_run},
     },
     protocol::Protocol,
     stats::{

@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 use anyhow::{Context, Result};
 use tokio::{
     io::{AsyncWriteExt, BufWriter},
-    sync::{broadcast, RwLock},
+    sync::{RwLock, broadcast},
 };
 use tracing::*;
 

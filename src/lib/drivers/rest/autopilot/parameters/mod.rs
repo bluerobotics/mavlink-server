@@ -1,4 +1,4 @@
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

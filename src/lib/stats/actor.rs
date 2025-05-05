@@ -2,20 +2,20 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use indexmap::IndexMap;
-use tokio::sync::{mpsc, Mutex, Notify, RwLock};
+use tokio::sync::{Mutex, Notify, RwLock, mpsc};
 use tracing::*;
 
 use crate::{
     hub,
     stats::{
+        DriversStats, StatsCommand, StatsInner,
         accumulated::{
-            driver::AccumulatedDriversStats, messages::AccumulatedHubMessagesStats,
-            AccumulatedStatsInner,
+            AccumulatedStatsInner, driver::AccumulatedDriversStats,
+            messages::AccumulatedHubMessagesStats,
         },
         driver::{DriverStats, DriverStatsInner},
         messages::HubMessagesStats,
         resources::{self, ResourceUsage},
-        DriversStats, StatsCommand, StatsInner,
     },
 };
 

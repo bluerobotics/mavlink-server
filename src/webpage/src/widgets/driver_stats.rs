@@ -4,8 +4,8 @@ use egui_extras::{Column, TableBuilder};
 use uuid::Uuid;
 
 use crate::stats::{
-    drivers_stats::{DriverStats, DriversStatsHistorical},
     ByteStatsHistorical, DelayStatsHistorical, MessageStatsHistorical, StatsInner,
+    drivers_stats::{DriverStats, DriversStatsHistorical},
 };
 
 pub struct DriverStatsWidget<'a> {
