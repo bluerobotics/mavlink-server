@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 const CONTROL_VEHICLES: &str = "rest/vehicles";
 
+#[derive(Default)]
 pub struct ControlTab {
     pub editor_open: bool,
     pub editor_parameter_name: String,
@@ -12,16 +13,6 @@ pub struct ControlTab {
     pub search_query: String,
 }
 
-impl Default for ControlTab {
-    fn default() -> Self {
-        Self {
-            editor_open: false,
-            editor_parameter_name: String::new(),
-            editor_new_value: String::new(),
-            search_query: String::new(),
-        }
-    }
-}
 
 impl ControlTab {
     pub fn show(
