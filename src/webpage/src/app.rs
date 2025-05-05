@@ -11,7 +11,7 @@ use egui_extras::TableBody;
 use egui_plot::{Line, Plot, PlotPoints};
 use ewebsock::{connect, WsEvent, WsMessage, WsReceiver, WsSender};
 use humantime::format_duration;
-use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
+use ringbuffer::RingBuffer;
 use url::Url;
 use web_sys::window;
 
