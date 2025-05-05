@@ -97,10 +97,10 @@ pub struct VehicleComponent {
 impl Clone for VehicleComponent {
     fn clone(&self) -> Self {
         Self {
-            component_id: self.component_id.clone(),
-            armed: self.armed.clone(),
-            autopilot: self.autopilot.clone(),
-            vehicle_type: self.vehicle_type.clone(),
+            component_id: self.component_id,
+            armed: self.armed,
+            autopilot: self.autopilot,
+            vehicle_type: self.vehicle_type,
             mode: self.mode.clone(),
             attitude: self.attitude.clone(),
             position: self.position.clone(),
@@ -242,7 +242,7 @@ impl Vehicle {
                 let patch = ((autopilot_version.flight_sw_version >> 8) & 0xff) as u64;
                 let version = Some(Version {
                     capabilities: Capabilities::from_bits_truncate(
-                        autopilot_version.capabilities.bits() as u64,
+                        autopilot_version.capabilities.bits(),
                     ),
                     version: semver::Version::new(major, minor, patch),
                 });
