@@ -1,7 +1,7 @@
 [package]
 name = "mavlink-server"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["João Antônio Cardoso <joao.maker@gmail.com>", "Patrick José Pereira <patrickelectric@gmail.com>"]
 build = "build.rs"
 

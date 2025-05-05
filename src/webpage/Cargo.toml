@@ -2,7 +2,7 @@
 name = "mavlink-server-frontend"
 version = "0.1.0"
 authors = ["Patrick José Pereira <patrickelectric@gmail.com>"]
-edition = "2021"
+edition = "2024"
 include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
 
 [package.metadata.docs.rs]
