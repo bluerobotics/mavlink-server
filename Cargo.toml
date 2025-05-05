@@ -76,4 +76,3 @@ vergen-gix = { version = "1.0.2", default-features = false, features = ["build",
 [profile.profiling]
 inherits = "release"
 debug = 1
-jemalloc = false
