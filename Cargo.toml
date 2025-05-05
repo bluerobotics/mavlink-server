@@ -53,9 +53,7 @@ mime_guess = "2.0.5"
 tracing = { version = "0.1.40", features = ["log", "async-await"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing-log = "0.2.0"
-# This is a custom revision adding file name suffix on top of tracing-appender-0.2.2" "0.2.2", but compatible with the current tracing version.
-# Reference: https://github.com/tokio-rs/tracing/issues/2441
-tracing-appender = { git = "https://github.com/joaoantoniocardoso/tracing", branch = "tracing-appender-0.2.2-with-filename-suffix" }
+tracing-appender = "0.2.3"
 toml = "0.8.19"
 zenoh = "1.3.4"
 ringbuffer = "0.15.0"
