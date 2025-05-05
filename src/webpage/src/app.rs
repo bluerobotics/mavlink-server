@@ -369,7 +369,7 @@ impl App {
                         FieldValue::Numeric(field_info)
                     });
             } else {
-                let mut text;
+                let text;
                 if let Some(result) = value["type"].as_str().map(|s| s.to_string()) {
                     text = result;
                 } else if let Some(result) = extract_number(&value["bits"]) {
