@@ -328,7 +328,7 @@ impl DriverInfo for UdpServerInfo {
                 if key != "direction" {
                     return None;
                 }
-                value.parse().map(Direction::from).ok()
+                value.parse().ok()
             })
             .unwrap_or(Direction::Both);
 
