@@ -3,10 +3,18 @@ use std::sync::Mutex;
 use anyhow::Result;
 use lazy_static::lazy_static;
 use serde::Serialize;
-use sysinfo::{get_current_pid, ProcessExt, System, SystemExt};
+use sysinfo::{
+    get_current_pid, MemoryRefreshKind, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System,
+};
 
 lazy_static! {
-    static ref SYSTEM: Mutex<System> = Mutex::new(System::new_all());
+    static ref SYSTEM: Mutex<System> = Mutex::new(System::new_with_specifics(
+        RefreshKind::nothing()
+            // Processes time, CPU, and memory:
+            .with_processes(ProcessRefreshKind::nothing().with_cpu().with_memory())
+            // System memory:
+            .with_memory(MemoryRefreshKind::nothing().with_ram()),
+    ));
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize)]
@@ -19,11 +27,19 @@ pub struct ResourceUsage {
 
 pub fn usage() -> Result<ResourceUsage> {
     let mut sys = SYSTEM.lock().unwrap();
-    sys.refresh_cpu();
-    sys.refresh_memory();
-    sys.refresh_processes();
 
     let pid = get_current_pid().expect("Failed getting current process' PID");
+
+    // Refresh our process time, CPU, and memory:
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[pid]),
+        true,
+        ProcessRefreshKind::nothing().with_cpu().with_memory(),
+    );
+
+    // Refresh system memory:
+    sys.refresh_memory_specifics(MemoryRefreshKind::nothing().with_ram());
+
     let process = sys.process(pid).expect("Failed getting proccess from PID");
 
     return Ok(ResourceUsage {
