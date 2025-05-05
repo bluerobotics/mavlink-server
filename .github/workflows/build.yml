@@ -9,41 +9,41 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: 'recursive'
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
 
-    - name: Install build dependencies - Rustup
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target x86_64-unknown-linux-musl,wasm32-unknown-unknown -y
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Install build dependencies - Rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target x86_64-unknown-linux-musl,wasm32-unknown-unknown -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Check code style
-      run: cargo fmt -- --check
+      - name: Check code style
+        run: cargo fmt -- --check
 
-    - name: Install build dependencies - Cargo-Binstall
-      uses: cargo-bins/cargo-binstall@main
+      - name: Install build dependencies - Cargo-Binstall
+        uses: cargo-bins/cargo-binstall@main
 
-    - name: Install build dependencies - Trunk
-      run: cargo binstall -y trunk
+      - name: Install build dependencies - Trunk
+        run: cargo binstall -y trunk
 
-    - name: Building frontend (wasm32)
-      working-directory: src/webpage
-      run: trunk build --release --locked --verbose
+      - name: Building frontend (wasm32)
+        working-directory: src/webpage
+        run: trunk build --release --locked --verbose
 
-    - name: Building tests
-      run: SKIP_FRONTEND=1 cargo test --no-run --locked --verbose
+      - name: Building tests
+        run: SKIP_FRONTEND=1 cargo test --no-run --locked --verbose
 
-    - name: Run Tests
-      run: |
-        SKIP_FRONTEND=1 cargo test --verbose -- --nocapture
-        SKIP_FRONTEND=1 cargo test test_udpserver_receive_only --verbose -- --nocapture
-        SKIP_FRONTEND=1 cargo test test_udpserver_send_only --verbose -- --nocapture --ignored
-        SKIP_FRONTEND=1 cargo test test_udpclient_send_only --verbose -- --nocapture --ignored
-        SKIP_FRONTEND=1 cargo test test_tcpserver_receive_only --verbose -- --nocapture --ignored
-        SKIP_FRONTEND=1 cargo test test_tcpserver_send_only --verbose -- --nocapture --ignored
-        SKIP_FRONTEND=1 cargo test test_tcpclient_send_only --verbose -- --nocapture --ignored
-        SKIP_FRONTEND=1 cargo test test_tcpclient_receive_only --verbose -- --nocapture --ignored
+      - name: Run Tests
+        run: |
+          SKIP_FRONTEND=1 cargo test --verbose -- --nocapture
+          SKIP_FRONTEND=1 cargo test test_udpserver_receive_only --verbose -- --nocapture
+          SKIP_FRONTEND=1 cargo test test_udpserver_send_only --verbose -- --nocapture --ignored
+          SKIP_FRONTEND=1 cargo test test_udpclient_send_only --verbose -- --nocapture --ignored
+          SKIP_FRONTEND=1 cargo test test_tcpserver_receive_only --verbose -- --nocapture --ignored
+          SKIP_FRONTEND=1 cargo test test_tcpserver_send_only --verbose -- --nocapture --ignored
+          SKIP_FRONTEND=1 cargo test test_tcpclient_send_only --verbose -- --nocapture --ignored
+          SKIP_FRONTEND=1 cargo test test_tcpclient_receive_only --verbose -- --nocapture --ignored
 
   build:
     runs-on: ${{ matrix.os }}
@@ -51,81 +51,81 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        - os: macos-latest
-          TARGET: aarch64-apple-darwin
+          - os: macos-latest
+            TARGET: aarch64-apple-darwin
 
-        - os: macos-latest
-          TARGET: x86_64-apple-darwin
+          - os: macos-latest
+            TARGET: x86_64-apple-darwin
 
-        - os: ubuntu-latest
-          TARGET: arm-unknown-linux-musleabihf
+          - os: ubuntu-latest
+            TARGET: arm-unknown-linux-musleabihf
 
-        - os: ubuntu-latest
-          TARGET: aarch64-unknown-linux-musl
+          - os: ubuntu-latest
+            TARGET: aarch64-unknown-linux-musl
 
-        - os: ubuntu-latest
-          TARGET: armv7-unknown-linux-musleabihf
+          - os: ubuntu-latest
+            TARGET: armv7-unknown-linux-musleabihf
 
-        - os: ubuntu-latest
-          TARGET: x86_64-unknown-linux-musl
+          - os: ubuntu-latest
+            TARGET: x86_64-unknown-linux-musl
 
-        - os: windows-latest
-          TARGET: x86_64-pc-windows-msvc
-          EXTENSION: .exe
+          - os: windows-latest
+            TARGET: x86_64-pc-windows-msvc
+            EXTENSION: .exe
 
     steps:
-    - name: Building ${{ matrix.TARGET }}
-      run: echo "${{ matrix.TARGET }}"
+      - name: Building ${{ matrix.TARGET }}
+        run: echo "${{ matrix.TARGET }}"
 
-    - uses: actions/checkout@v4
-      with:
-        submodules: 'recursive'
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
 
-    # Required for cargo-binstall
-    - name: Fix openssl on Windows
-      if: runner.os == 'Windows'
-      run: |
-        echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
-        vcpkg install openssl:x64-windows-static-md
+      # Required for cargo-binstall
+      - name: Fix openssl on Windows
+        if: runner.os == 'Windows'
+        run: |
+          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
+          vcpkg install openssl:x64-windows-static-md
 
-    - name: Install build dependencies - Rustup
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target ${{ matrix.TARGET }},wasm32-unknown-unknown -y
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Install build dependencies - Rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target ${{ matrix.TARGET }},wasm32-unknown-unknown -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Install build dependencies - Cargo-Binstall
-      uses: cargo-bins/cargo-binstall@main
+      - name: Install build dependencies - Cargo-Binstall
+        uses: cargo-bins/cargo-binstall@main
 
-    - name: Install build dependencies - Cross, Trunk
-      run: cargo binstall -y trunk cross
+      - name: Install build dependencies - Cross, Trunk
+        run: cargo binstall -y trunk cross
 
-    - name: Building frontend (wasm32)
-      working-directory: src/webpage
-      run: trunk build --release --locked --verbose
+      - name: Building frontend (wasm32)
+        working-directory: src/webpage
+        run: trunk build --release --locked --verbose
 
-    - name: Building linux for ${{ matrix.os }} ${{ matrix.target }}
-      if: ${{ contains(matrix.TARGET, 'linux') }}
-      run: SKIP_FRONTEND=1 cross build --release --locked --target ${{matrix.target}} --verbose
+      - name: Building linux for ${{ matrix.os }} ${{ matrix.target }}
+        if: ${{ contains(matrix.TARGET, 'linux') }}
+        run: SKIP_FRONTEND=1 cross build --release --locked --target ${{matrix.target}} --verbose
 
-    - name: Building non linux for ${{ matrix.os }} ${{ matrix.target }}
-      if: ${{ !contains(matrix.TARGET, 'linux') }}
-      run: cross build --release --locked --target ${{matrix.target}} --verbose
+      - name: Building non linux for ${{ matrix.os }} ${{ matrix.target }}
+        if: ${{ !contains(matrix.TARGET, 'linux') }}
+        run: cross build --release --locked --target ${{matrix.target}} --verbose
 
-    - name: Rename
-      run: cp target/${{ matrix.TARGET }}/release/${{ github.event.repository.name }}${{ matrix.EXTENSION }} ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+      - name: Rename
+        run: cp target/${{ matrix.TARGET }}/release/${{ github.event.repository.name }}${{ matrix.EXTENSION }} ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
 
-    - uses: actions/upload-artifact@v4
-      with:
-        name: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
-        path: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+          path: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
 
-    - uses: svenstaro/upload-release-action@v2
-      name: Upload binaries to release
-      if: ${{ github.event_name == 'push' }}
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
-        asset_name: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
-        tag: ${{ github.ref }}
-        prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        overwrite: true
+      - uses: svenstaro/upload-release-action@v2
+        name: Upload binaries to release
+        if: ${{ github.event_name == 'push' }}
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+          asset_name: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+          tag: ${{ github.ref }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          overwrite: true

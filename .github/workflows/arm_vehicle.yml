@@ -6,45 +6,45 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: 'recursive'
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.13'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
 
-    - name: Install build dependencies - Rustup
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target x86_64-unknown-linux-musl,wasm32-unknown-unknown -y
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Install build dependencies - Rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target x86_64-unknown-linux-musl,wasm32-unknown-unknown -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Install build dependencies - Cargo-Binstall
-      uses: cargo-bins/cargo-binstall@main
+      - name: Install build dependencies - Cargo-Binstall
+        uses: cargo-bins/cargo-binstall@main
 
-    - name: Install build dependencies - Trunk
-      run: cargo binstall -y trunk
+      - name: Install build dependencies - Trunk
+        run: cargo binstall -y trunk
 
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
 
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install aiohttp mavsdk
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install aiohttp mavsdk
 
-    - name: Building frontend (wasm32)
-      working-directory: src/webpage
-      run: trunk build --release --locked --verbose
+      - name: Building frontend (wasm32)
+        working-directory: src/webpage
+        run: trunk build --release --locked --verbose
 
-    - name: Build mavlink-server
-      run: |
-        cargo build
+      - name: Build mavlink-server
+        run: |
+          cargo build
 
-    - name: Run vehicle arming test
-      run: |
-        cd tests/python
-        python main.py
+      - name: Run vehicle arming test
+        run: |
+          cd tests/python
+          python main.py
