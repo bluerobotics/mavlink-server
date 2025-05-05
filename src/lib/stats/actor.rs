@@ -133,7 +133,7 @@ impl StatsActor {
                     let _ = response.send(result);
                 }
                 StatsCommand::GetResources { response } => {
-                    let result = resources::usage();
+                    let result = self.resources().await;
                     let _ = response.send(result);
                 }
                 StatsCommand::GetResourcesStream { response } => {
@@ -262,6 +262,13 @@ impl StatsActor {
         });
 
         Ok(receiver)
+    }
+
+    #[instrument(level = "debug", skip(self))]
+    async fn resources(&mut self) -> Result<ResourceUsage> {
+        let resources = self.resources.read().await.clone();
+
+        Ok(resources)
     }
 
     #[instrument(level = "debug", skip(self))]
