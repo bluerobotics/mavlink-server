@@ -258,7 +258,9 @@ impl App {
                         if label.hovered() || label2.hovered() {
                             show_stats_tooltip(
                                 ui,
-                                &FieldValue::Numeric(self.resources_stats.memory_usage_mbytes.to_f64()),
+                                &FieldValue::Numeric(
+                                    self.resources_stats.memory_usage_mbytes.to_f64(),
+                                ),
                                 "Memory",
                             );
                         };
