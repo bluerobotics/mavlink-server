@@ -94,51 +94,49 @@ impl TlogWriter {
         let mut writer = writer;
 
         loop {
-            match hub_receiver.recv().await {
-                Ok(message) => {
-                    let timestamp = chrono::Utc::now().timestamp_micros() as u64;
+            let message = match hub_receiver.recv().await {
+                Ok(message) => message,
+                Err(broadcast::error::RecvError::Closed) => {
+                    error!("Hub channel closed!");
+                    break;
+                }
+                Err(broadcast::error::RecvError::Lagged(count)) => {
+                    warn!("Channel lagged by {count} messages.");
+                    continue;
+                }
+            };
 
-                    self.stats.write().await.stats.update_output(&message);
+            let timestamp = chrono::Utc::now().timestamp_micros() as u64;
 
-                    for future in self.on_message_output.call_all(message.clone()) {
-                        if let Err(error) = future.await {
-                            debug!(
-                                "Dropping message: on_message_input callback returned error: {error:?}"
-                            );
-                            continue;
-                        }
-                    }
+            self.stats.write().await.stats.update_output(&message);
 
-                    let raw_bytes = message.bytes();
-                    writer.write_all(&timestamp.to_be_bytes()).await?;
-                    writer.write_all(raw_bytes).await?;
-                    writer.flush().await?;
+            for future in self.on_message_output.call_all(message.clone()) {
+                if let Err(error) = future.await {
+                    debug!("Dropping message: on_message_input callback returned error: {error:?}");
+                    continue;
+                }
+            }
 
-                    if let FileCreationCondition::WhileArmed(ExpectedOrigin {
-                        system_id,
-                        component_id,
-                    }) = &self.file_creation_condition
-                    {
-                        let system_id = system_id.read().await.expect(
+            let raw_bytes = message.bytes();
+            writer.write_all(&timestamp.to_be_bytes()).await?;
+            writer.write_all(raw_bytes).await?;
+            writer.flush().await?;
+
+            if let FileCreationCondition::WhileArmed(ExpectedOrigin {
+                system_id,
+                component_id,
+            }) = &self.file_creation_condition
+            {
+                let system_id = system_id.read().await.expect(
                             "System ID should always be Some at this point because it was replaced when armed, which is the condition to reach this part",
                         );
 
-                        if *message.system_id() != system_id
-                            || message.component_id() != component_id
-                        {
-                            continue;
-                        }
-
-                        if let Some(ArmState::Disarmed) = check_arm_state(&message) {
-                            debug!(
-                                "Vehicle disarmed, finishing tlog file writer until next arm..."
-                            );
-                            break;
-                        }
-                    }
+                if *message.system_id() != system_id || message.component_id() != component_id {
+                    continue;
                 }
-                Err(error) => {
-                    error!("Failed to receive message from hub: {error:?}");
+
+                if let Some(ArmState::Disarmed) = check_arm_state(&message) {
+                    debug!("Vehicle disarmed, finishing tlog file writer until next arm...");
                     break;
                 }
             }
