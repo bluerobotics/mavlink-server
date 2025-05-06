@@ -249,21 +249,31 @@ pub struct FakeSource {
     period: std::time::Duration,
     on_message_output: Callbacks<Arc<Protocol>>,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
+    system_id: u8,
+    component_id: u8,
+    message_id: u32,
 }
 
 impl FakeSource {
-    pub fn builder(name: &str, period: std::time::Duration) -> FakeSourceBuilder {
-        let name = Arc::new(name.to_string());
+    pub fn builder() -> FakeSourceBuilder {
+        Self::builder_from_params(FakeSourceParams::default())
+    }
+
+    pub fn builder_from_params(params: FakeSourceParams) -> FakeSourceBuilder {
+        let name = Arc::new(params.name.to_string());
 
         FakeSourceBuilder(Self {
             name: arc_swap::ArcSwap::new(name.clone()),
             uuid: Self::generate_uuid(&name),
-            period,
+            period: std::time::Duration::from_micros(params.period_us),
             on_message_output: Callbacks::default(),
             stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
                 name,
                 &FakeSourceInfo,
             ))),
+            system_id: params.system_id,
+            component_id: params.component_id,
+            message_id: params.message_id,
         })
     }
 }
@@ -274,6 +284,32 @@ impl FakeSourceBuilder {
     pub fn build(self) -> FakeSource {
         self.0
     }
+
+    pub fn name(self, name: &str) -> Self {
+        self.0.name.store(Arc::new(name.to_string()));
+        self
+    }
+
+    pub fn period_us(mut self, period_us: u64) -> Self {
+        self.0.period = std::time::Duration::from_micros(period_us);
+        self
+    }
+
+    pub fn system_id(mut self, system_id: u8) -> Self {
+        self.0.system_id = system_id;
+        self
+    }
+
+    pub fn component_id(mut self, component_id: u8) -> Self {
+        self.0.component_id = component_id;
+        self
+    }
+
+    pub fn message_id(mut self, message_id: u32) -> Self {
+        self.0.message_id = message_id;
+        self
+    }
+
     pub fn on_message_output<C>(self, callback: C) -> Self
     where
         C: MessageCallback<Arc<Protocol>>,
@@ -387,29 +423,54 @@ impl DriverInfo for FakeSourceInfo {
 
     fn cli_example_url(&self) -> Vec<String> {
         let first_schema = &self.valid_schemes()[0];
-        vec![
-            format!("{first_schema}://<MODE>?period=<MILLISECONDS?>").to_string(),
-            url::Url::parse(&format!("{first_schema}://heartbeat?period=10"))
-                .unwrap()
-                .to_string(),
+        let params = serde_urlencoded::to_string(FakeSourceParams::default()).unwrap();
+        [
+            format!("{first_schema}://?{params}"),
+            format!("{first_schema}://"),
         ]
+        .iter()
+        .map(|s| {
+            let url_str = url::Url::parse(s).unwrap().to_string();
+            format!("'{url_str}'")
+        })
+        .collect()
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
-        let period: u64 = url
-            .query_pairs()
-            .find_map(|(key, value)| {
-                if key == "period" {
-                    value.parse().ok()
-                } else {
-                    None
-                }
+        let params: FakeSourceParams = url
+            .query()
+            .and_then(|qs| {
+                serde_urlencoded::from_str(qs)
+                    .inspect_err(|error| {
+                        eprintln!("Failed to parse parameters: {error:?}. url: {url:?}");
+                    })
+                    .ok()
             })
-            .unwrap_or(10);
+            .unwrap_or_default();
 
-        Some(Arc::new(
-            FakeSource::builder("Unnamed", std::time::Duration::from_millis(period)).build(),
-        ))
+        Some(Arc::new(FakeSource::builder_from_params(params).build()))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FakeSourceParams {
+    pub name: String,
+    pub period_us: u64,
+    pub system_id: u8,
+    pub component_id: u8,
+    pub message_id: u32,
+}
+
+impl Default for FakeSourceParams {
+    fn default() -> Self {
+        Self {
+            name: crate::hub::generate_new_default_name(FakeSourceInfo.name()).unwrap(),
+            period_us: 1_000_000,
+            system_id: 42,
+            component_id: mavlink::common::MavComponent::MAV_COMP_ID_USER42 as u8,
+            message_id: mavlink::common::HEARTBEAT_DATA::ID,
+        }
     }
 }
 
@@ -464,7 +525,9 @@ mod test {
         });
 
         // FakeSource and task
-        let source = FakeSource::builder("test", message_period)
+        let source = FakeSource::builder()
+            .name("test")
+            .period_us(message_period.as_micros() as u64)
             .on_message_output({
                 let source_messages = source_messages.clone();
                 move |message: Arc<Protocol>| {
