@@ -322,44 +322,63 @@ impl FakeSourceBuilder {
 #[async_trait::async_trait]
 impl Driver for FakeSource {
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
-        let mut sequence = 0;
+        let (tx, mut rx) = tokio::sync::mpsc::channel(100);
 
-        use mavlink::ardupilotmega::{
-            HEARTBEAT_DATA, MavAutopilot, MavMessage, MavModeFlag, MavState, MavType,
-        };
+        let generator_task = std::thread::Builder::new()
+            .name(format!("gen_{}", self.name))
+            .spawn({
+                let period = self.period;
+                let system_id = self.system_id;
+                let component_id = self.component_id;
+                let message_id = self.message_id;
 
-        let mut header = mavlink::MavHeader {
-            sequence,
-            system_id: 1,
-            component_id: 2,
-        };
-        let data = MavMessage::HEARTBEAT(HEARTBEAT_DATA {
-            custom_mode: 5,
-            mavtype: MavType::MAV_TYPE_QUADROTOR,
-            autopilot: MavAutopilot::MAV_AUTOPILOT_ARDUPILOTMEGA,
-            base_mode: MavModeFlag::MAV_MODE_FLAG_MANUAL_INPUT_ENABLED
-                | MavModeFlag::MAV_MODE_FLAG_STABILIZE_ENABLED
-                | MavModeFlag::MAV_MODE_FLAG_GUIDED_ENABLED
-                | MavModeFlag::MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-            system_status: MavState::MAV_STATE_STANDBY,
-            mavlink_version: 3,
-        });
+                move || {
+                    let mut header = mavlink::MavHeader {
+                        sequence: 0,
+                        system_id,
+                        component_id,
+                    };
 
-        loop {
-            header.sequence = sequence;
-            sequence = sequence.overflowing_add(1).0;
+                    let data =
+                        mavlink::ardupilotmega::MavMessage::default_message_from_id(message_id)
+                            .expect("Unknown message ID");
 
-            let buf = BytesMut::with_capacity(V2Packet::MAX_PACKET_SIZE);
-            let mut writer = buf.writer();
-            if let Err(error) = mavlink::write_v2_msg(&mut writer, header, &data) {
-                warn!("Failed to serialize message: {error:?}");
-                continue;
-            }
+                    let mut current_instant: std::time::Instant;
+                    let mut prev_instant = std::time::Instant::now();
 
-            let packet = Packet::V2(V2Packet::new(writer.into_inner().freeze()));
+                    loop {
+                        current_instant = std::time::Instant::now();
 
-            let message = Arc::new(Protocol::new("fake_source", packet));
+                        if current_instant - prev_instant > period {
+                            prev_instant = current_instant;
 
+                            let buf = BytesMut::with_capacity(V2Packet::MAX_PACKET_SIZE);
+                            let mut writer = buf.writer();
+
+                            if let Err(error) = mavlink::write_v2_msg(&mut writer, header, &data) {
+                                warn!("Failed to serialize message: {error:?}");
+                                continue;
+                            }
+
+                            let packet = Packet::V2(V2Packet::new(writer.into_inner().freeze()));
+
+                            let message = Arc::new(Protocol::new("fake_source", packet));
+
+                            if let Err(error) = tx.blocking_send(message) {
+                                warn!(
+                                    "FakeSource's generator task failed sending message: {error:?}"
+                                );
+                                break;
+                            }
+
+                            header.sequence = header.sequence.overflowing_add(1).0;
+                        }
+                    }
+                }
+            })
+            .expect("Failed spawning thread for generator task");
+
+        while let Some(message) = rx.recv().await {
             self.stats.write().await.stats.update_output(&message);
 
             for future in self.on_message_output.call_all(message.clone()) {
@@ -372,9 +391,11 @@ impl Driver for FakeSource {
             if let Err(error) = hub_sender.send(message) {
                 error!("Failed to send message to hub: {error:?}");
             }
-
-            tokio::time::sleep(self.period).await;
         }
+
+        let _ = generator_task.join();
+
+        Ok(())
     }
 
     fn info(&self) -> Box<dyn DriverInfo> {
