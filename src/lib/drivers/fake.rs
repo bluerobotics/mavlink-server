@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use bytes::{BufMut, BytesMut};
+use mavlink::{Message, MessageData};
 use mavlink_codec::{Packet, v2::V2Packet};
+use serde::{Deserialize, Serialize};
 use tokio::sync::{RwLock, broadcast};
 use tracing::*;
 
@@ -21,19 +23,27 @@ pub struct FakeSink {
     name: arc_swap::ArcSwap<String>,
     uuid: DriverUuid,
     on_message_input: Callbacks<Arc<Protocol>>,
-    print: bool,
+    print_as_bytes: bool,
+    print_as_json: bool,
+    force_parse: bool,
     stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
 
 impl FakeSink {
-    pub fn builder(name: &str) -> FakeSinkBuilder {
-        let name = Arc::new(name.to_string());
+    pub fn builder() -> FakeSinkBuilder {
+        Self::builder_from_params(FakeSinkParams::default())
+    }
+
+    pub fn builder_from_params(params: FakeSinkParams) -> FakeSinkBuilder {
+        let name = Arc::new(params.name.to_string());
 
         FakeSinkBuilder(Self {
             name: arc_swap::ArcSwap::new(name.clone()),
             uuid: Self::generate_uuid(&name),
             on_message_input: Callbacks::default(),
-            print: false,
+            print_as_bytes: params.print_as_bytes,
+            print_as_json: params.print_as_json,
+            force_parse: params.force_parse,
             stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
                 name,
                 &FakeSinkInfo,
@@ -49,8 +59,23 @@ impl FakeSinkBuilder {
         self.0
     }
 
-    pub fn print(mut self) -> Self {
-        self.0.print = true;
+    pub fn name(self, name: &str) -> Self {
+        self.0.name.store(Arc::new(name.to_string()));
+        self
+    }
+
+    pub fn print_packet(mut self, print_packet: bool) -> Self {
+        self.0.print_as_bytes = print_packet;
+        self
+    }
+
+    pub fn print_decoded(mut self, print_decoded: bool) -> Self {
+        self.0.print_as_json = print_decoded;
+        self
+    }
+
+    pub fn force_parse(mut self, force_parse: bool) -> Self {
+        self.0.force_parse = force_parse;
         self
     }
 
@@ -68,7 +93,19 @@ impl Driver for FakeSink {
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let mut hub_receiver = hub_sender.subscribe();
 
-        while let Ok(message) = hub_receiver.recv().await {
+        loop {
+            let message = match hub_receiver.recv().await {
+                Ok(message) => message,
+                Err(broadcast::error::RecvError::Closed) => {
+                    error!("Hub channel closed!");
+                    break;
+                }
+                Err(broadcast::error::RecvError::Lagged(count)) => {
+                    warn!("Channel lagged by {count} messages.");
+                    continue;
+                }
+            };
+
             self.stats.write().await.stats.update_input(&message);
 
             for future in self.on_message_input.call_all(message.clone()) {
@@ -76,6 +113,16 @@ impl Driver for FakeSink {
                     debug!("Dropping message: on_message_input callback returned error: {error:?}");
                     continue;
                 }
+            }
+
+            if self.print_as_bytes {
+                println!("Message received: {message:?}");
+            } else {
+                trace!("Message received: {message:?}");
+            }
+
+            if !(self.force_parse || self.print_as_json) {
+                continue;
             }
 
             let Ok(mavlink_json) = message
@@ -89,7 +136,7 @@ impl Driver for FakeSink {
             let header = mavlink_json.header;
             let message = mavlink_json.message;
 
-            if self.print {
+            if self.print_as_json {
                 println!("Message received: {header:?} {message:?}");
             } else {
                 trace!("Message received: {header:?} {message:?}");
@@ -133,7 +180,7 @@ impl DriverInfo for FakeSinkInfo {
     }
 
     fn valid_schemes(&self) -> &'static [&'static str] {
-        &["fakeclient", "fakesink", "fakec"]
+        &["fakesink", "fakeclient", "fakec"]
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {
@@ -146,16 +193,52 @@ impl DriverInfo for FakeSinkInfo {
 
     fn cli_example_url(&self) -> Vec<String> {
         let first_schema = &self.valid_schemes()[0];
-        vec![
-            format!("{first_schema}://<MODE>").to_string(),
-            url::Url::parse(&format!("{first_schema}://debug"))
-                .unwrap()
-                .to_string(),
+        let params = serde_urlencoded::to_string(FakeSinkParams::default()).unwrap();
+        [
+            format!("{first_schema}://?{params}"),
+            format!("{first_schema}://"),
         ]
+        .iter()
+        .map(|s| {
+            let url_str = url::Url::parse(s).unwrap().to_string();
+            format!("'{url_str}'")
+        })
+        .collect()
     }
 
-    fn create_endpoint_from_url(&self, _url: &url::Url) -> Option<Arc<dyn Driver>> {
-        Some(Arc::new(FakeSink::builder("Unnamed").print().build()))
+    fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
+        let params: FakeSinkParams = url
+            .query()
+            .and_then(|qs| {
+                serde_urlencoded::from_str(qs)
+                    .inspect_err(|error| {
+                        eprintln!("Failed to parse parameters: {error:?}. url: {url:?}");
+                    })
+                    .ok()
+            })
+            .unwrap_or_default();
+
+        Some(Arc::new(FakeSink::builder_from_params(params).build()))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FakeSinkParams {
+    pub name: String,
+    pub print_as_bytes: bool,
+    pub print_as_json: bool,
+    pub force_parse: bool,
+}
+
+impl Default for FakeSinkParams {
+    fn default() -> Self {
+        Self {
+            name: crate::hub::generate_new_default_name(FakeSinkInfo.name()).unwrap(),
+            print_as_bytes: false,
+            print_as_json: true,
+            force_parse: false,
+        }
     }
 }
 
@@ -359,7 +442,8 @@ mod test {
         let sink_messages = Arc::new(RwLock::new(Vec::<Arc<Protocol>>::with_capacity(1000)));
 
         // FakeSink and task
-        let sink = FakeSink::builder("test")
+        let sink = FakeSink::builder()
+            .name("test")
             .on_message_input({
                 let sink_messages = sink_messages.clone();
 
