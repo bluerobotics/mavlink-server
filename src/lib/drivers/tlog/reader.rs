@@ -304,7 +304,7 @@ mod tests {
             .iter()
             .map(|(id, samples)| (*id, samples.len()))
             .collect::<Vec<(u32, usize)>>();
-        let messages_count_per_id_fmt = messages_count_per_id
+        let _messages_count_per_id_fmt = messages_count_per_id
             .iter()
             .map(|sample| format!("{}:{}", sample.0, sample.1))
             .collect::<Vec<String>>();
