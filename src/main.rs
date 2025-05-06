@@ -2,7 +2,7 @@ use anyhow::*;
 use mavlink_server::{cli, hub, logger, web};
 use tracing::*;
 
-#[tokio::main(flavor = "multi_thread", worker_threads = 10)]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
     // CLI should be started before logger to allow control over verbosity
     cli::init();
