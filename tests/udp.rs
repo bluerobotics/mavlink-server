@@ -6,7 +6,7 @@ use tracing::*;
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
 async fn test_udpserver_receive_only() -> Result<()> {
     cli::init_with(cli::Args::parse_from(vec![
-        "", // For some unknown reason, the first argument is ignored
+        &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
         "udpclient:0.0.0.0:3333",
         "udpserver://0.0.0.0:3333?direction=receiver",
         "--mavlink-heartbeat-frequency",
@@ -43,7 +43,7 @@ async fn test_udpserver_receive_only() -> Result<()> {
 #[ignore]
 async fn test_udpserver_send_only() -> Result<()> {
     cli::init_with(cli::Args::parse_from(vec![
-        "", // For some unknown reason, the first argument is ignored
+        &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
         "udpclient:0.0.0.0:3333",
         "udpserver://0.0.0.0:3333?direction=sender",
         "--mavlink-heartbeat-frequency",
@@ -80,7 +80,7 @@ async fn test_udpserver_send_only() -> Result<()> {
 #[ignore]
 async fn test_udpclient_send_only() -> Result<()> {
     cli::init_with(cli::Args::parse_from(vec![
-        "", // For some unknown reason, the first argument is ignored
+        &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
         "udpclient://0.0.0.0:3333?direction=sender",
         "udpserver://0.0.0.0:3333",
         "--mavlink-heartbeat-frequency",

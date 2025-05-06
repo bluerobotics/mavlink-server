@@ -7,7 +7,7 @@ use tracing::*;
 #[ignore]
 async fn test_tcpserver_receive_only() -> Result<()> {
     cli::init_with(cli::Args::parse_from(vec![
-        "", // For some unknown reason, the first argument is ignored
+        &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
         "tcpclient:0.0.0.0:3333",
         "tcpserver://0.0.0.0:3333?direction=receiver",
         "--mavlink-heartbeat-frequency",
@@ -44,7 +44,7 @@ async fn test_tcpserver_receive_only() -> Result<()> {
 #[ignore]
 async fn test_tcpserver_send_only() -> Result<()> {
     cli::init_with(cli::Args::parse_from(vec![
-        "", // For some unknown reason, the first argument is ignored
+        &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
         "tcpclient:0.0.0.0:3333",
         "tcpserver://0.0.0.0:3333?direction=sender",
         "--mavlink-heartbeat-frequency",
@@ -81,7 +81,7 @@ async fn test_tcpserver_send_only() -> Result<()> {
 #[ignore]
 async fn test_tcpclient_send_only() -> Result<()> {
     cli::init_with(cli::Args::parse_from(vec![
-        "", // For some unknown reason, the first argument is ignored
+        &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
         "tcpclient://0.0.0.0:3333?direction=sender",
         "tcpserver://0.0.0.0:3333",
         "--mavlink-heartbeat-frequency",
@@ -118,7 +118,7 @@ async fn test_tcpclient_send_only() -> Result<()> {
 #[ignore]
 async fn test_tcpclient_receive_only() -> Result<()> {
     cli::init_with(cli::Args::parse_from(vec![
-        "", // For some unknown reason, the first argument is ignored
+        &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
         "tcpclient://0.0.0.0:3333?direction=receiver",
         "tcpserver://0.0.0.0:3333",
         "--mavlink-heartbeat-frequency",
