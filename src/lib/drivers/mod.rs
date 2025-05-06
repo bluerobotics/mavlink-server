@@ -338,7 +338,21 @@ mod tests {
         async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
             let mut hub_receiver = hub_sender.subscribe();
 
-            while let Ok(message) = hub_receiver.recv().await {
+            loop {
+                let message = match hub_receiver.recv().await {
+                    Ok(message) => message,
+                    Err(broadcast::error::RecvError::Closed) => {
+                        error!("Hub channel closed!");
+                        break;
+                    }
+                    Err(broadcast::error::RecvError::Lagged(count)) => {
+                        warn!("Channel lagged by {count} messages. Dropping all...");
+                        hub_receiver = hub_sender.subscribe();
+
+                        continue;
+                    }
+                };
+
                 self.stats.write().await.stats.update_output(&message);
 
                 for future in self.on_message_input.call_all(message.clone()) {
