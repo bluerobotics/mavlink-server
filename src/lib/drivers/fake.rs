@@ -517,7 +517,7 @@ mod test {
         let (hub_sender, _) = broadcast::channel(10000);
 
         let number_of_messages = 800;
-        let message_period = tokio::time::Duration::from_micros(1);
+        let message_period = tokio::time::Duration::from_millis(1);
         let timeout_time = tokio::time::Duration::from_secs(1);
 
         let source_messages = Arc::new(RwLock::new(Vec::<Arc<Protocol>>::with_capacity(1000)));
