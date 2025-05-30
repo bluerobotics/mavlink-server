@@ -34,13 +34,23 @@ pub struct UdpServer {
     stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
 
-type Clients = HashMap<
-    SocketAddr,
-    (
-        JoinHandle<std::result::Result<(), anyhow::Error>>,
-        tokio::time::Instant,
-    ),
->;
+type Clients = HashMap<SocketAddr, UdpClient>;
+
+#[derive(Debug)]
+struct UdpClient {
+    address: SocketAddr,
+    last_update: tokio::time::Instant,
+    task: JoinHandle<Result<()>>,
+}
+
+impl Drop for UdpClient {
+    #[instrument(level = "debug")]
+    fn drop(&mut self) {
+        debug!("Aborting task for client {:?}", self.address);
+
+        self.task.abort();
+    }
+}
 
 pub struct UdpServerBuilder(UdpServer);
 
@@ -201,40 +211,38 @@ where
 
             clients
                 .entry(client_addr)
-                .and_modify(|(_task, time)| {
+                .and_modify(|client| {
                     // Time refresh
-                    *time = tokio::time::Instant::now();
+                    client.last_update = tokio::time::Instant::now();
                 })
                 .or_insert_with(move || {
-                    let task = spawn_send_task(socket.clone(), client_addr, context);
-
                     debug!("New client added: {client_addr:?}");
 
-                    let current_time = tokio::time::Instant::now();
-
-                    (task, current_time)
+                    UdpClient {
+                        address: client_addr,
+                        last_update: tokio::time::Instant::now(),
+                        task: spawn_send_task(socket, client_addr, context),
+                    }
                 });
         }
 
         {
             let socket = socket.clone();
 
-            clients.retain(move |addr, (task, time)| {
+            clients.retain(move |addr, client| {
                 // Client Timeout
                 if let Some(timeout) = client_timeout {
-                    if time.elapsed() > timeout {
+                    if client.last_update.elapsed() > timeout {
                         debug!("Client {addr} timed out.");
-
-                        task.abort();
 
                         return false;
                     }
                 }
 
                 // Client task recreation
-                if task.is_finished() {
+                if client.task.is_finished() {
                     debug!("Recreating sending task for client {addr:?}");
-                    *task = spawn_send_task(socket.clone(), *addr, context);
+                    client.task = spawn_send_task(socket.clone(), *addr, context);
                 }
 
                 true
