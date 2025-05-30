@@ -1,9 +1,8 @@
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use futures::{Stream, StreamExt};
 use mavlink_codec::{Packet, codec::MavlinkCodec, error::DecoderError};
-use socket2::{Domain, SockAddr, Socket, Type};
 use tokio::{
     net::UdpSocket,
     sync::{RwLock, broadcast},
@@ -35,13 +34,23 @@ pub struct UdpServer {
     stats: Arc<RwLock<AccumulatedDriverStats>>,
 }
 
-type Clients = HashMap<
-    SocketAddr,
-    (
-        JoinHandle<std::result::Result<(), anyhow::Error>>,
-        tokio::time::Instant,
-    ),
->;
+type Clients = HashMap<SocketAddr, UdpClient>;
+
+#[derive(Debug)]
+struct UdpClient {
+    address: SocketAddr,
+    last_update: tokio::time::Instant,
+    task: JoinHandle<Result<()>>,
+}
+
+impl Drop for UdpClient {
+    #[instrument(level = "debug")]
+    fn drop(&mut self) {
+        debug!("Aborting task for client {:?}", self.address);
+
+        self.task.abort();
+    }
+}
 
 pub struct UdpServerBuilder(UdpServer);
 
@@ -98,12 +107,6 @@ impl Driver for UdpServer {
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let local_addr = self.local_addr.parse::<SocketAddr>()?;
 
-        // Check if the address is already in use before running our bind
-        {
-            let socket = Socket::new(Domain::IPV4, Type::DGRAM, None)?;
-            socket.bind(&SockAddr::from(local_addr))?;
-        }
-
         let context = SendReceiveContext {
             direction: self.direction,
             hub_sender,
@@ -123,13 +126,7 @@ impl Driver for UdpServer {
 
             debug!("Trying to bind to address {local_addr:?}...");
 
-            let socket = match {
-                let socket = Socket::new(Domain::IPV4, Type::DGRAM, None)?;
-                socket.set_reuse_address(true)?;
-                socket.set_nonblocking(true)?;
-                socket.bind(&SockAddr::from(local_addr))?;
-                UdpSocket::from_std(socket.into())
-            } {
+            let socket = match UdpSocket::bind(&local_addr).await {
                 Ok(socket) => Arc::new(socket),
                 Err(error) => {
                     error!("Failed binding UdpServer to address {local_addr:?}: {error:?}");
@@ -186,8 +183,11 @@ where
                 continue;
             }
             Some(Err(io_error)) => {
-                error!("Critical error trying to decode data from: {io_error:?}");
-                break;
+                drop(clients); // Drop it earlier so we avoid delay in rebinds
+
+                return Err(anyhow!(
+                    "Critical error trying to decode data from: {io_error:?}"
+                ));
             }
             None => break,
         };
@@ -213,40 +213,38 @@ where
 
             clients
                 .entry(client_addr)
-                .and_modify(|(_task, time)| {
+                .and_modify(|client| {
                     // Time refresh
-                    *time = tokio::time::Instant::now();
+                    client.last_update = tokio::time::Instant::now();
                 })
                 .or_insert_with(move || {
-                    let task = spawn_send_task(socket.clone(), client_addr, context);
-
                     debug!("New client added: {client_addr:?}");
 
-                    let current_time = tokio::time::Instant::now();
-
-                    (task, current_time)
+                    UdpClient {
+                        address: client_addr,
+                        last_update: tokio::time::Instant::now(),
+                        task: spawn_send_task(socket, client_addr, context),
+                    }
                 });
         }
 
         {
             let socket = socket.clone();
 
-            clients.retain(move |addr, (task, time)| {
+            clients.retain(move |addr, client| {
                 // Client Timeout
                 if let Some(timeout) = client_timeout {
-                    if time.elapsed() > timeout {
+                    if client.last_update.elapsed() > timeout {
                         debug!("Client {addr} timed out.");
-
-                        task.abort();
 
                         return false;
                     }
                 }
 
                 // Client task recreation
-                if task.is_finished() {
+                if client.task.is_finished() {
                     debug!("Recreating sending task for client {addr:?}");
-                    *task = spawn_send_task(socket.clone(), *addr, context);
+                    client.task = spawn_send_task(socket.clone(), *addr, context);
                 }
 
                 true

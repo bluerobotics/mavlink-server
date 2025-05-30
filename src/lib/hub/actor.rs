@@ -21,7 +21,7 @@ use crate::{
 
 #[allow(dead_code)]
 pub struct HubActor {
-    drivers: IndexMap<DriverUuid, Arc<dyn Driver>>,
+    drivers: IndexMap<DriverUuid, DriverRunner>,
     bcst_sender: broadcast::Sender<Arc<Protocol>>,
     component_id: Arc<RwLock<u8>>,
     system_id: Arc<RwLock<u8>>,
@@ -29,6 +29,22 @@ pub struct HubActor {
     hub_stats_task: tokio::task::JoinHandle<Result<()>>,
     hub_stats: Arc<RwLock<AccumulatedStatsInner>>,
     hub_messages_stats: Arc<RwLock<AccumulatedHubMessagesStats>>,
+}
+
+#[derive(Debug)]
+struct DriverRunner {
+    uuid: DriverUuid,
+    driver: Arc<dyn Driver>,
+    task: tokio::task::JoinHandle<Result<()>>,
+}
+
+impl Drop for DriverRunner {
+    #[instrument(level = "debug")]
+    fn drop(&mut self) {
+        debug!("Aborting runner task for driver: {:?}", self.uuid);
+
+        self.task.abort();
+    }
 }
 
 impl HubActor {
@@ -112,15 +128,34 @@ impl HubActor {
     #[instrument(level = "debug", skip(self, driver))]
     async fn add_driver(&mut self, driver: Arc<dyn Driver>) -> Result<DriverUuid> {
         let uuid = *driver.uuid();
-        if self.drivers.insert(uuid, driver.clone()).is_some() {
+
+        let hub_sender = self.bcst_sender.clone();
+
+        let task = tokio::spawn({
+            let driver = driver.clone();
+
+            async move {
+                while let Err(error) = driver.run(hub_sender.clone()).await {
+                    error!(
+                        "Driver runner ended with error. Restarting in 1 second... Error: {error:?}"
+                    );
+
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                }
+
+                info!("Driver runner ended.");
+
+                Ok(())
+            }
+        });
+
+        let driver_runner = DriverRunner { uuid, driver, task };
+
+        if self.drivers.insert(uuid, driver_runner).is_some() {
             return Err(anyhow!(
                 "Failed addinng driver: uuid {uuid:?} is already present"
             ));
         }
-
-        let hub_sender = self.bcst_sender.clone();
-
-        tokio::spawn(async move { driver.run(hub_sender).await });
 
         Ok(uuid)
     }
@@ -137,7 +172,7 @@ impl HubActor {
     async fn drivers(&self) -> IndexMap<DriverUuid, Box<dyn DriverInfo>> {
         self.drivers
             .iter()
-            .map(|(&id, driver)| (id, driver.info()))
+            .map(|(&id, driver_runner)| (id, driver_runner.driver.info()))
             .collect()
     }
 
@@ -220,9 +255,9 @@ impl HubActor {
     #[instrument(level = "debug", skip(self))]
     async fn get_drivers_stats(&self) -> AccumulatedDriversStats {
         let mut drivers_stats = IndexMap::with_capacity(self.drivers.len());
-        for (_id, driver) in self.drivers.iter() {
-            let stats = driver.stats().await;
-            let uuid = *driver.uuid();
+        for (_id, driver_runner) in self.drivers.iter() {
+            let stats = driver_runner.driver.stats().await;
+            let uuid = *driver_runner.driver.uuid();
 
             drivers_stats.insert(uuid, stats);
         }
@@ -242,8 +277,8 @@ impl HubActor {
 
     #[instrument(level = "debug", skip(self))]
     async fn reset_all_stats(&mut self) -> Result<()> {
-        for (_id, driver) in self.drivers.iter() {
-            driver.reset_stats().await;
+        for (_id, driver_runner) in self.drivers.iter() {
+            driver_runner.driver.reset_stats().await;
         }
 
         *self.hub_stats.write().await = AccumulatedStatsInner::default();
