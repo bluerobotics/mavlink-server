@@ -3,7 +3,6 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use anyhow::Result;
 use futures::{Stream, StreamExt};
 use mavlink_codec::{Packet, codec::MavlinkCodec, error::DecoderError};
-use socket2::{Domain, SockAddr, Socket, Type};
 use tokio::{
     net::UdpSocket,
     sync::{RwLock, broadcast},
@@ -98,12 +97,6 @@ impl Driver for UdpServer {
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let local_addr = self.local_addr.parse::<SocketAddr>()?;
 
-        // Check if the address is already in use before running our bind
-        {
-            let socket = Socket::new(Domain::IPV4, Type::DGRAM, None)?;
-            socket.bind(&SockAddr::from(local_addr))?;
-        }
-
         let context = SendReceiveContext {
             direction: self.direction,
             hub_sender,
@@ -123,13 +116,7 @@ impl Driver for UdpServer {
 
             debug!("Trying to bind to address {local_addr:?}...");
 
-            let socket = match {
-                let socket = Socket::new(Domain::IPV4, Type::DGRAM, None)?;
-                socket.set_reuse_address(true)?;
-                socket.set_nonblocking(true)?;
-                socket.bind(&SockAddr::from(local_addr))?;
-                UdpSocket::from_std(socket.into())
-            } {
+            let socket = match UdpSocket::bind(&local_addr).await {
                 Ok(socket) => Arc::new(socket),
                 Err(error) => {
                     error!("Failed binding UdpServer to address {local_addr:?}: {error:?}");
