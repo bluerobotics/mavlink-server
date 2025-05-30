@@ -2,3 +2,5 @@
 /logs
 .vscode
 /tests/files/untracked
+dev
+dist
