@@ -2344,6 +2344,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "shellexpand",
+ "socket2",
  "strum",
  "strum_macros",
  "sysinfo",
