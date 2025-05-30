@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use futures::{Sink, SinkExt, Stream, StreamExt};
 use mavlink_codec::{Packet, error::DecoderError};
 use tokio::sync::{RwLock, broadcast};
@@ -74,8 +74,9 @@ where
                 continue;
             }
             Some(Err(io_error)) => {
-                error!("Critical error trying to decode data from: {io_error:?}");
-                break;
+                return Err(anyhow!(
+                    "Critical error trying to decode data from: {io_error:?}"
+                ));
             }
             None => break,
         };
