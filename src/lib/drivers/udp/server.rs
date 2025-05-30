@@ -183,6 +183,8 @@ where
                 continue;
             }
             Some(Err(io_error)) => {
+                drop(clients); // Drop it earlier so we avoid delay in rebinds
+
                 return Err(anyhow!(
                     "Critical error trying to decode data from: {io_error:?}"
                 ));
