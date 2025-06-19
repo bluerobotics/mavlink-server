@@ -8,6 +8,7 @@ use zenoh;
 
 use crate::{
     callbacks::{Callbacks, MessageCallback},
+    cli::zenoh_config_file,
     drivers::{Driver, DriverInfo, generic_tasks::SendReceiveContext},
     mavlink_json::MAVLinkJSON,
     protocol::Protocol,
@@ -217,8 +218,19 @@ impl Driver for Zenoh {
             stats: self.stats.clone(),
         };
 
-        // Change this based on the endpoint configuration
-        let config = zenoh::Config::default();
+        let config = if let Some(zenoh_config_file) = zenoh_config_file() {
+            zenoh::Config::from_file(zenoh_config_file)
+                .map_err(|error| anyhow::anyhow!("Failed to load Zenoh config file: {error:?}"))?
+        } else {
+            let mut config = zenoh::Config::default();
+            config
+                .insert_json5("mode", r#""client""#)
+                .expect("Failed to insert client mode");
+            config
+                .insert_json5("connect/endpoints", r#"["tcp/127.0.0.1:7447"]"#)
+                .expect("Failed to insert connect endpoints");
+            config
+        };
 
         let mut first = true;
         loop {
