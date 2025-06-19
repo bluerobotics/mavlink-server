@@ -83,6 +83,10 @@ pub struct Args {
     /// Only useful for test and debug
     #[arg(long, hide = true, default_value = "false")]
     allow_no_endpoints: bool,
+
+    /// Sets the zenoh configuration file path
+    #[arg(long, value_name = "PATH")]
+    zenoh_config_file: Option<String>,
 }
 
 #[instrument(level = "trace")]
@@ -256,6 +260,11 @@ pub fn mavlink_version() -> u8 {
 #[instrument(level = "debug")]
 pub fn default_api_version() -> u8 {
     args().default_api_version
+}
+
+#[instrument(level = "debug")]
+pub fn zenoh_config_file() -> Option<String> {
+    args().zenoh_config_file.clone()
 }
 
 #[cfg(test)]
