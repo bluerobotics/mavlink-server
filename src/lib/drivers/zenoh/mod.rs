@@ -218,7 +218,7 @@ impl Driver for Zenoh {
             stats: self.stats.clone(),
         };
 
-        let config = if let Some(zenoh_config_file) = zenoh_config_file() {
+        let mut config = if let Some(zenoh_config_file) = zenoh_config_file() {
             zenoh::Config::from_file(zenoh_config_file)
                 .map_err(|error| anyhow::anyhow!("Failed to load Zenoh config file: {error:?}"))?
         } else {
@@ -231,6 +231,13 @@ impl Driver for Zenoh {
                 .expect("Failed to insert connect endpoints");
             config
         };
+
+        config
+            .insert_json5("adminspace", r#"{"enabled": true}"#)
+            .expect("Failed to insert adminspace");
+        config
+            .insert_json5("metadata", r#"{"name": "mavlink-server"}"#)
+            .expect("Failed to insert metadata");
 
         let mut first = true;
         loop {
