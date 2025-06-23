@@ -1,4 +1,4 @@
-name: Mavlink Server Test
+name: Mavlink Server Test TCP/UDP
 
 on: [push, pull_request]
 
@@ -8,9 +8,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        endpoint_pair:
-          - server: udpout:127.0.0.1:14550 udpin:127.0.0.1:14551
-            client: udpin:127.0.0.1:14550 udpout:127.0.0.1:14551
+        include:
+          - name: "UDP Test"
+            server_endpoints: "udpout:127.0.0.1:14550 udpin:127.0.0.1:14551"
+            client_endpoints: "udpin:127.0.0.1:14550 udpout:127.0.0.1:14551"
+          - name: "TCP Test"
+            server_endpoints: "tcpout:127.0.0.1:5761 tcpin:127.0.0.1:5760"
+            client_endpoints: "tcpin:127.0.0.1:5761 tcp:127.0.0.1:5760"
 
     steps:
       - uses: actions/checkout@v4
@@ -43,9 +47,9 @@ jobs:
 
       - name: Run mavlink-server
         run: |
-          ./target/release/mavlink-server ${{ matrix.endpoint_pair.server }} &
+          ./target/release/mavlink-server ${{ matrix.server_endpoints }} &
           sleep 5
 
       - name: Run Python Heartbeat Test
         run: |
-          python tests/scripts/test_heartbeat.py ${{ matrix.endpoint_pair.client }}
+          python tests/scripts/test_heartbeat.py ${{ matrix.client_endpoints }}
