@@ -26,10 +26,10 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target x86_64-unknown-linux-musl,wasm32-unknown-unknown -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Install Python Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pymavlink
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
 
       - name: Install build dependencies - Cargo-Binstall
         uses: cargo-bins/cargo-binstall@main
@@ -52,4 +52,5 @@ jobs:
 
       - name: Run Python Heartbeat Test
         run: |
-          python tests/scripts/test_heartbeat.py ${{ matrix.client_endpoints }}
+          cd tests/scripts
+          uv run test_heartbeat.py ${{ matrix.client_endpoints }}
