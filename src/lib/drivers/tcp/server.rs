@@ -195,7 +195,7 @@ impl DriverInfo for TcpServerInfo {
         "TcpServer"
     }
     fn valid_schemes(&self) -> &'static [&'static str] {
-        &["tcps", "tcpserver"]
+        &["tcps", "tcpserver", "tcpin"]
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {
