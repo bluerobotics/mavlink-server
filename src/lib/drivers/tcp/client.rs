@@ -164,7 +164,7 @@ impl DriverInfo for TcpClientInfo {
         "TcpClient"
     }
     fn valid_schemes(&self) -> &'static [&'static str] {
-        &["tcpc", "tcpclient"]
+        &["tcpc", "tcpclient", "tcpout", "tcp"]
     }
 
     fn cli_example_legacy(&self) -> Vec<String> {
