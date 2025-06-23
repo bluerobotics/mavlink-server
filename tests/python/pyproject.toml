@@ -1,0 +1,10 @@
+[project]
+name = "mavlink-server-tests"
+version = "0.1.0"
+description = "Python test scripts for MAVLink server with SITL simulation"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "aiohttp>=3.8.0",
+    "mavsdk>=1.4.0",
+]
