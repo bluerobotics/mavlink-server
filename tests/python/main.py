@@ -45,7 +45,7 @@ async def main() -> None:
 
     try:
         # Wait for a while to test to completion or until interrupted
-        await asyncio.sleep(20)
+        await asyncio.sleep(120)
     except asyncio.CancelledError:
         print("Received interrupt signal, cleaning up...")
     finally:
