@@ -6,5 +6,5 @@ readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "aiohttp>=3.8.0",
-    "mavsdk>=1.4.0",
+    "pymavlink>=2.4.47",
 ]
