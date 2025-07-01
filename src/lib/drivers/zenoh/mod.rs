@@ -170,7 +170,11 @@ impl Zenoh {
             };
 
             let topic_name = "mavlink/out";
-            if let Err(error) = session.put(topic_name, json_string).await {
+            if let Err(error) = session
+                .put(topic_name, json_string)
+                .encoding(zenoh::bytes::Encoding::APPLICATION_JSON)
+                .await
+            {
                 error!("Failed to send message to {topic_name}: {error:?}");
             } else {
                 trace!("Message sent to {topic_name}: {json_string:?}");
@@ -181,7 +185,11 @@ impl Zenoh {
                 "mavlink/{}/{}/{}",
                 header.system_id, header.component_id, message_name
             );
-            if let Err(error) = session.put(topic_name, json_string).await {
+            if let Err(error) = session
+                .put(topic_name, json_string)
+                .encoding(zenoh::bytes::Encoding::APPLICATION_JSON)
+                .await
+            {
                 error!("Failed to send message to {topic_name}: {error:?}");
             } else {
                 trace!("Message sent to {topic_name}: {json_string:?}");
