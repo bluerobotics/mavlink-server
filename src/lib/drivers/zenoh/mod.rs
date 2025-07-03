@@ -201,6 +201,7 @@ impl Zenoh {
                 let topic_name = &format!("{}/{}", topic_name, field_name);
                 if let Err(error) = session
                     .put(topic_name, json5::to_string(field_value).unwrap())
+                    .encoding(zenoh::bytes::Encoding::APPLICATION_JSON)
                     .await
                 {
                     error!("Failed to send message to {topic_name}: {error:?}");
