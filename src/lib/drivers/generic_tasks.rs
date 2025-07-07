@@ -73,11 +73,26 @@ where
                 error!("Failed to decode packet: {decode_error:?}");
                 continue;
             }
-            Some(Err(io_error)) => {
-                return Err(anyhow!(
-                    "Critical error trying to decode data from: {io_error:?}"
-                ));
-            }
+            Some(Err(ref io_error)) => match io_error.kind() {
+                std::io::ErrorKind::ConnectionReset
+                | std::io::ErrorKind::ConnectionAborted
+                | std::io::ErrorKind::BrokenPipe
+                | std::io::ErrorKind::UnexpectedEof => {
+                    warn!("Remote {identifier:?} disconnected: {io_error:?}");
+                    break;
+                }
+                std::io::ErrorKind::TimedOut
+                | std::io::ErrorKind::WouldBlock
+                | std::io::ErrorKind::Interrupted => {
+                    warn!("Temporary IO error from {identifier:?}: {io_error:?}");
+                    continue;
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "Critical error trying to decode data from: {io_error:?}"
+                    ));
+                }
+            },
             None => break,
         };
 

@@ -182,13 +182,28 @@ where
                 error!(origin = ?client_addr, "Failed to decode packet: {decode_error:?}");
                 continue;
             }
-            Some(Err(io_error)) => {
-                drop(clients); // Drop it earlier so we avoid delay in rebinds
+            Some(Err(ref io_error)) => match io_error.kind() {
+                std::io::ErrorKind::ConnectionReset
+                | std::io::ErrorKind::ConnectionAborted
+                | std::io::ErrorKind::BrokenPipe
+                | std::io::ErrorKind::UnexpectedEof => {
+                    warn!("Remote {local_addr:?} disconnected: {io_error:?}");
+                    break;
+                }
+                std::io::ErrorKind::TimedOut
+                | std::io::ErrorKind::WouldBlock
+                | std::io::ErrorKind::Interrupted => {
+                    warn!("Temporary IO error from {local_addr:?}: {io_error:?}");
+                    continue;
+                }
+                _ => {
+                    drop(clients); // Drop it earlier so we avoid delay in rebinds
 
-                return Err(anyhow!(
-                    "Critical error trying to decode data from: {io_error:?}"
-                ));
-            }
+                    return Err(anyhow!(
+                        "Critical error trying to decode data from: {io_error:?}"
+                    ));
+                }
+            },
             None => break,
         };
 
