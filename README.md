@@ -39,7 +39,7 @@ Download the binaries available on the [latest release](https://github.com/bluer
 mavlink-server [OPTIONS] [ENDPOINTS]...
 ```
 
-`[ENDPOINTS]` is a space-separated list of connection endpoints.
+`[ENDPOINTS]` is a space-separated list of connection endpoints, that follows the same convention as other tools, such as mavlink-router, mavp2p, and etc.
 Examples include serial ports, UDP/TCP sockets, or log readers.
 
 ## Endpoint Examples
