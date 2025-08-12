@@ -36,7 +36,7 @@ Download the binaries available on the [latest release](https://github.com/bluer
 ## Usage
 
 ```bash
-mavlink-server-x86_64-pc-windows-msvc.exe [OPTIONS] [ENDPOINTS]...
+mavlink-server [OPTIONS] [ENDPOINTS]...
 ```
 
 `[ENDPOINTS]` is a space-separated list of connection endpoints.
