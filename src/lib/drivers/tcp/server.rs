@@ -86,6 +86,7 @@ impl TcpServer {
     #[instrument(level = "debug", skip(stream, context))]
     async fn handle_client(
         stream: TcpStream,
+        local_addr: String,
         remote_addr: String,
         context: SendReceiveContext,
     ) -> Result<()> {
@@ -107,7 +108,7 @@ impl TcpServer {
 
 #[async_trait::async_trait]
 impl Driver for TcpServer {
-    #[instrument(level = "debug", skip(self, hub_sender))]
+    #[instrument(level = "debug", skip(self, hub_sender), fields(local_addr = self.local_addr))]
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let local_addr = self.local_addr.parse::<SocketAddr>()?;
 
@@ -150,6 +151,7 @@ impl Driver for TcpServer {
 
                     tokio::spawn(TcpServer::handle_client(
                         socket,
+                        self.local_addr.clone(),
                         remote_addr,
                         context.clone(),
                     ));
