@@ -53,7 +53,7 @@ pub(crate) async fn helper(name: Query<MessageInfo>) -> impl IntoResponse {
     });
 
     match result {
-        Ok(message) => {
+        Some(message) => {
             let header = MAVLinkJSONHeader {
                 inner: Default::default(),
                 message_id: Some(mavlink::Message::message_id(&message)),
@@ -61,7 +61,8 @@ pub(crate) async fn helper(name: Query<MessageInfo>) -> impl IntoResponse {
             let json = serde_json::to_string_pretty(&MAVLinkJSON { header, message }).unwrap();
             ([(header::CONTENT_TYPE, "application/json")], json).into_response()
         }
-        Err(error) => {
+        None => {
+            let error = serde_json::json!({ "error": "Message not found" });
             let error_json = serde_json::to_string_pretty(&error).unwrap();
             (
                 StatusCode::NOT_FOUND,
@@ -77,5 +78,5 @@ pub(crate) async fn message_id_from_name(name: Path<String>) -> impl IntoRespons
     use mavlink::{self, Message};
     mavlink::ardupilotmega::MavMessage::message_id_from_name(&name.0.to_ascii_uppercase())
         .map(|id| (StatusCode::OK, Json(id)).into_response())
-        .unwrap_or_else(|_| (StatusCode::NOT_FOUND, "404 Not Found").into_response())
+        .unwrap_or_else(|| (StatusCode::NOT_FOUND, "404 Not Found").into_response())
 }

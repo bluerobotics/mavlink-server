@@ -354,7 +354,7 @@ pub async fn set_parameter(
             param_value: value as f32,
             target_system: vehicle_id,
             target_component: component_id,
-            param_id: Parameter::param_id_from_string(&parameter_name),
+            param_id: parameter_name.as_str().into(),
             param_type: mavlink::ardupilotmega::MavParamType::MAV_PARAM_TYPE_REAL64,
         });
 

@@ -489,8 +489,8 @@ impl Default for FakeSourceParams {
             name: crate::hub::generate_new_default_name(FakeSourceInfo.name()).unwrap(),
             period_us: 1_000_000,
             system_id: 42,
-            component_id: mavlink::common::MavComponent::MAV_COMP_ID_USER42 as u8,
-            message_id: mavlink::common::HEARTBEAT_DATA::ID,
+            component_id: mavlink::ardupilotmega::MavComponent::MAV_COMP_ID_USER42 as u8,
+            message_id: mavlink::ardupilotmega::HEARTBEAT_DATA::ID,
         }
     }
 }

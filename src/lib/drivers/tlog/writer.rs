@@ -402,7 +402,7 @@ enum ArmState {
 fn check_arm_state(message: &Arc<Protocol>) -> Option<ArmState> {
     use mavlink::MessageData;
 
-    if message.message_id() != mavlink::common::HEARTBEAT_DATA::ID {
+    if message.message_id() != mavlink::ardupilotmega::HEARTBEAT_DATA::ID {
         return None;
     }
 
@@ -412,9 +412,9 @@ fn check_arm_state(message: &Arc<Protocol>) -> Option<ArmState> {
         .payload()
         .get(BASE_MODE_BYTE)
         .cloned()
-        .unwrap_or_else(|| mavlink::common::MavModeFlag::empty().bits());
+        .unwrap_or_else(|| mavlink::ardupilotmega::MavModeFlag::empty().bits());
 
-    match base_mode & mavlink::common::MavModeFlag::MAV_MODE_FLAG_SAFETY_ARMED.bits() {
+    match base_mode & mavlink::ardupilotmega::MavModeFlag::MAV_MODE_FLAG_SAFETY_ARMED.bits() {
         0 => Some(ArmState::Disarmed),
         _ => Some(ArmState::Armed),
     }
