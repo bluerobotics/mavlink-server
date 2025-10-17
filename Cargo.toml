@@ -33,7 +33,7 @@ include_dir = { git = "https://github.com/patrickelectric/include_dir", branch =
 indexmap = { version = "2.5.0", features = ["serde"] }
 json5 = "0.4.1"
 lazy_static = "1.5.0"
-mavlink = { version = "0.16.1", default-features = false, features = ["std", "ardupilotmega", "serde", "tokio-1"] }
+mavlink = { version = "0.16.1", default-features = false, features = ["std", "ardupilotmega", "format-generated-code", "serde", "tokio-1"] }
 mavlink-codec = { git = "https://github.com/bluerobotics/rust-mavlink-codec", branch = "master" }
 regex = "1.10.6"
 serde = { version = "1", features = ["rc"] }
