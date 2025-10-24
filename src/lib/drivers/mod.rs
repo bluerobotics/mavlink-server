@@ -5,6 +5,7 @@ pub mod serial;
 pub mod tcp;
 pub mod tlog;
 pub mod udp;
+pub mod websocket;
 pub mod zenoh;
 
 use std::sync::Arc;
@@ -30,6 +31,8 @@ pub enum Type {
     TlogWriter,
     UdpClient,
     UdpServer,
+    WebSocketClient,
+    WebSocketServer,
     Zenoh,
 }
 
@@ -249,6 +252,14 @@ pub fn endpoints() -> Vec<ExtInfo> {
         ExtInfo {
             driver_ext: Box::new(udp::server::UdpServerInfo),
             typ: Type::UdpServer,
+        },
+        ExtInfo {
+            driver_ext: Box::new(websocket::client::WebSocketClientInfo),
+            typ: Type::WebSocketClient,
+        },
+        ExtInfo {
+            driver_ext: Box::new(websocket::server::WebSocketServerInfo),
+            typ: Type::WebSocketServer,
         },
         ExtInfo {
             driver_ext: Box::new(fake::FakeSinkInfo),
