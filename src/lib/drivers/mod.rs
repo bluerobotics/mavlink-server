@@ -271,6 +271,7 @@ mod tests {
 
     use anyhow::{Result, anyhow};
     use clap::Parser;
+    use mavlink::{Message, MessageData};
     use tokio::sync::RwLock;
     use tracing::*;
 
@@ -452,11 +453,16 @@ mod tests {
         let sender_task_handle = tokio::spawn({
             let sender = sender.clone();
 
+            let header = mavlink::MavHeader::default();
+            let message = mavlink::ardupilotmega::MavMessage::default_message_from_id(
+                mavlink::ardupilotmega::HEARTBEAT_DATA::ID,
+            )
+            .unwrap();
+
             async move {
                 sender
-                    .send(Arc::new(Protocol::new(
-                        "test",
-                        Packet::V2(V2Packet::default()),
+                    .send(Arc::new(Protocol::from_mavlink_raw(
+                        header, &message, "test",
                     )))
                     .unwrap();
             }
