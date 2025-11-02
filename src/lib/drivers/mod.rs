@@ -308,7 +308,7 @@ mod tests {
     pub struct ExampleDriver {
         name: arc_swap::ArcSwap<String>,
         uuid: DriverUuid,
-        on_message_input: Callbacks<Arc<Protocol>>,
+        on_message_output: Callbacks<Arc<Protocol>>,
         stats: Arc<RwLock<AccumulatedDriverStats>>,
     }
 
@@ -319,7 +319,7 @@ mod tests {
             ExampleDriverBuilder(Self {
                 name: arc_swap::ArcSwap::new(name.clone()),
                 uuid: Self::generate_uuid(&name),
-                on_message_input: Callbacks::default(),
+                on_message_output: Callbacks::default(),
                 stats: Arc::new(RwLock::new(AccumulatedDriverStats::new(
                     name,
                     &ExampleDriverInfo,
@@ -335,11 +335,11 @@ mod tests {
             self.0
         }
 
-        pub fn on_message_input<C>(self, callback: C) -> Self
+        pub fn on_message_output<C>(self, callback: C) -> Self
         where
             C: MessageCallback<Arc<Protocol>>,
         {
-            self.0.on_message_input.add_callback(callback.into_boxed());
+            self.0.on_message_output.add_callback(callback.into_boxed());
             self
         }
     }
@@ -357,19 +357,17 @@ mod tests {
                         break;
                     }
                     Err(broadcast::error::RecvError::Lagged(count)) => {
-                        warn!("Channel lagged by {count} messages. Dropping all...");
-                        hub_receiver = hub_sender.subscribe();
-
+                        warn!("Channel lagged by {count} messages.");
                         continue;
                     }
                 };
 
                 self.stats.write().await.stats.update_output(&message);
 
-                for future in self.on_message_input.call_all(message.clone()) {
+                for future in self.on_message_output.call_all(message.clone()) {
                     if let Err(error) = future.await {
                         debug!(
-                            "Dropping message: on_message_input callback returned error: {error:?}"
+                            "Dropping message: on_message_output callback returned error: {error:?}"
                         );
                         continue;
                     }
@@ -430,12 +428,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn on_message_input_callback_test() -> Result<()> {
+    async fn on_message_output_callback_test() -> Result<()> {
         let (sender, _receiver) = tokio::sync::broadcast::channel(1);
 
         let called = Arc::new(RwLock::new(false));
         let driver = ExampleDriver::new("test")
-            .on_message_input({
+            .on_message_output({
                 let called = called.clone();
                 move |_msg| {
                     let called = called.clone();
