@@ -46,6 +46,10 @@ jobs:
           SKIP_FRONTEND=1 cargo test test_tcpserver_send_only --verbose -- --nocapture --ignored
           SKIP_FRONTEND=1 cargo test test_tcpclient_send_only --verbose -- --nocapture --ignored
           SKIP_FRONTEND=1 cargo test test_tcpclient_receive_only --verbose -- --nocapture --ignored
+          SKIP_FRONTEND=1 cargo test test_wsserver_receive_only --verbose -- --nocapture --ignored
+          SKIP_FRONTEND=1 cargo test test_wsserver_send_only --verbose -- --nocapture --ignored
+          SKIP_FRONTEND=1 cargo test test_wsclient_send_only --verbose -- --nocapture --ignored
+          SKIP_FRONTEND=1 cargo test test_wsclient_receive_only --verbose -- --nocapture --ignored
 
   build:
     runs-on: ${{ matrix.os }}
