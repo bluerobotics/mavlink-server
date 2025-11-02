@@ -35,6 +35,6 @@ impl AccumulatedHubMessagesStats {
             .messages_stats
             .entry(message.message_id())
             .and_modify(|accumulated_stats| accumulated_stats.update(message))
-            .or_default();
+            .or_insert_with(|| AccumulatedStatsInner::new(message));
     }
 }
