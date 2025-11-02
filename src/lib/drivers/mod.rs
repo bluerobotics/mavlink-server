@@ -270,13 +270,14 @@ mod tests {
     use std::{collections::HashSet, sync::Arc};
 
     use anyhow::{Result, anyhow};
-    use mavlink_codec::{Packet, v2::V2Packet};
+    use clap::Parser;
     use tokio::sync::RwLock;
     use tracing::*;
 
     use super::*;
     use crate::{
         callbacks::{Callbacks, MessageCallback},
+        cli,
         stats::{accumulated::driver::AccumulatedDriverStats, driver::DriverUuid},
     };
 
@@ -418,6 +419,12 @@ mod tests {
 
     #[tokio::test]
     async fn on_message_output_callback_test() -> Result<()> {
+        cli::init_with(cli::Args::parse_from(vec![
+            &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
+            "--allow-no-endpoints",
+            "--mavlink-heartbeat-frequency=0.001",
+        ]));
+
         let (sender, _receiver) = tokio::sync::broadcast::channel(1);
 
         let called = Arc::new(RwLock::new(false));
