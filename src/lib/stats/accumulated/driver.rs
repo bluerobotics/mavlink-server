@@ -42,7 +42,7 @@ impl AccumulatedDriverStatsInner {
         if let Some(stats) = self.input.as_mut() {
             stats.update(message);
         } else {
-            self.input.replace(AccumulatedStatsInner::default());
+            self.input.replace(AccumulatedStatsInner::new(message));
         }
     }
 
@@ -50,7 +50,7 @@ impl AccumulatedDriverStatsInner {
         if let Some(stats) = self.output.as_mut() {
             stats.update(message);
         } else {
-            self.output.replace(AccumulatedStatsInner::default());
+            self.output.replace(AccumulatedStatsInner::new(message));
         }
     }
 }

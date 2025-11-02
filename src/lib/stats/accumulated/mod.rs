@@ -29,6 +29,17 @@ impl Default for AccumulatedStatsInner {
 }
 
 impl AccumulatedStatsInner {
+    fn new(message: &Arc<Protocol>) -> Self {
+        let now = chrono::Utc::now().timestamp_micros() as u64;
+        Self {
+            last_message: Some(message.clone()),
+            last_update_us: now,
+            messages: 1,
+            bytes: message.packet_size() as u64,
+            delay: now - message.timestamp,
+        }
+    }
+
     pub fn update(&mut self, message: &Arc<Protocol>) {
         self.last_message = Some(message.clone());
         self.last_update_us = chrono::Utc::now().timestamp_micros() as u64;
