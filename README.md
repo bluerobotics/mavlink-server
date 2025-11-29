@@ -7,13 +7,15 @@
 </div>
 <br>
 
-
 <h4 align="center">
-   A MALink service that allows drivers to implement features based on an internal MAVLink bus.<br>
-   Currently, it provide router and broker features.
+   A MAVLink service that allows drivers to implement features based on an internal MAVLink bus.<br>
+   Currently, it provides router and broker features.
 </h4>
 
 [![Test and Build](https://github.com/bluerobotics/mavlink-server/actions/workflows/build.yml/badge.svg)](https://github.com/bluerobotics/mavlink-server/actions/workflows/build.yml)
+
+## As seen at the 2025 PX4 Developer Summit
+[![MAVLink Tools: Tomorrow’s Solutions for Today’s Problems - Patrick José Pereira, Blue Robotics](https://github.com/user-attachments/assets/cf853ed4-b484-4989-9f5f-e8c473591435)](https://youtu.be/zTlpceUuwQs?list=PLYy2pGCdhu7zVkfXvJkAEbT0V6CoyakMg&t=943 "Click to watch the presentation!")
 
 ## Features
 - Web Interface via default web server ([0.0.0.0:8080](0.0.0.0:8080))
@@ -31,7 +33,7 @@
 
 ## Installation
 
-Download the binaries available on the [latest release](https://github.com/bluerobotics/mavlink-server/releases/latest).
+Download the binaries from the [latest release](https://github.com/bluerobotics/mavlink-server/releases/latest).
 
 ## Usage
 
