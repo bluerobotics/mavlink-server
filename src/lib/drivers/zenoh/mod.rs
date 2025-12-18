@@ -4,11 +4,9 @@ use anyhow::Result;
 use mavlink::{self, Message};
 use tokio::sync::{RwLock, broadcast};
 use tracing::*;
-use zenoh;
 
 use crate::{
     callbacks::{Callbacks, MessageCallback},
-    cli::zenoh_config_file,
     drivers::{Driver, DriverInfo, generic_tasks::SendReceiveContext},
     mavlink_json::MAVLinkJSON,
     protocol::Protocol,
@@ -16,6 +14,7 @@ use crate::{
         accumulated::driver::{AccumulatedDriverStats, AccumulatedDriverStatsProvider},
         driver::DriverUuid,
     },
+    zenoh_service,
 };
 
 #[derive(Debug)]
@@ -66,21 +65,12 @@ impl Zenoh {
     }
 
     #[instrument(level = "debug", skip_all)]
-    async fn receive_task(
-        context: &SendReceiveContext,
-        session: Arc<zenoh::Session>,
-    ) -> Result<()> {
-        let subscriber = match session
-            .declare_subscriber(format!("{}/in", "mavlink"))
+    async fn receive_task(context: &SendReceiveContext) -> Result<()> {
+        let session = zenoh_service::get().await?;
+        let subscriber = session
+            .declare_subscriber("mavlink/in")
             .await
-        {
-            Ok(subscriber) => subscriber,
-            Err(error) => {
-                return Err(anyhow::anyhow!(
-                    "Failed to create subscriber for mavlink data: {error:?}"
-                ));
-            }
-        };
+            .map_err(|e| anyhow::anyhow!("Failed to create subscriber for mavlink data: {e}"))?;
 
         while let Ok(sample) = subscriber.recv_async().await {
             let Ok(content) = json5::from_str::<MAVLinkJSON<mavlink::ardupilotmega::MavMessage>>(
@@ -121,7 +111,7 @@ impl Zenoh {
     }
 
     #[instrument(level = "debug", skip_all)]
-    async fn send_task(context: &SendReceiveContext, session: Arc<zenoh::Session>) -> Result<()> {
+    async fn send_task(context: &SendReceiveContext) -> Result<()> {
         let mut hub_receiver = context.hub_sender.subscribe();
 
         'mainloop: loop {
@@ -161,7 +151,7 @@ impl Zenoh {
 
             let message_name = mavlink_json.message.message_name();
 
-            let json_string = &match json5::to_string(&mavlink_json) {
+            let json_string = match json5::to_string(&mavlink_json) {
                 Ok(json) => json,
                 Err(error) => {
                     error!("Failed to transform mavlink message {message_name} to json: {error:?}");
@@ -169,42 +159,36 @@ impl Zenoh {
                 }
             };
 
-            let topic_name = "mavlink/out";
-            if let Err(error) = session
-                .put(topic_name, json_string)
-                .encoding(zenoh::bytes::Encoding::APPLICATION_JSON)
-                .await
-            {
-                error!("Failed to send message to {topic_name}: {error:?}");
+            // Publish to main output topic
+            if let Err(error) = zenoh_service::publish_json("mavlink/out", &json_string).await {
+                error!("Failed to send message to mavlink/out: {error:?}");
             } else {
-                trace!("Message sent to {topic_name}: {json_string:?}");
+                trace!("Message sent to mavlink/out: {json_string:?}");
             }
 
+            // Publish to per-message topic
             let header = &mavlink_json.header.inner;
-            let topic_name = &format!(
+            let topic_name = format!(
                 "mavlink/{}/{}/{}",
                 header.system_id, header.component_id, message_name
             );
-            if let Err(error) = session
-                .put(topic_name, json_string)
-                .encoding(zenoh::bytes::Encoding::APPLICATION_JSON)
-                .await
-            {
+            if let Err(error) = zenoh_service::publish_json(&topic_name, &json_string).await {
                 error!("Failed to send message to {topic_name}: {error:?}");
             } else {
                 trace!("Message sent to {topic_name}: {json_string:?}");
             }
 
-            // for each key inside mavlink_json and publish under topic_name/field_name
+            // Publish each field under topic_name/field_name
             let message_value = serde_json::to_value(&mavlink_json.message).unwrap();
             for (field_name, field_value) in message_value.as_object().unwrap() {
-                let topic_name = &format!("{}/{}", topic_name, field_name);
-                if let Err(error) = session
-                    .put(topic_name, json5::to_string(field_value).unwrap())
-                    .encoding(zenoh::bytes::Encoding::APPLICATION_JSON)
-                    .await
+                let field_topic = format!("{topic_name}/{field_name}");
+                if let Err(error) = zenoh_service::publish_json(
+                    &field_topic,
+                    &json5::to_string(field_value).unwrap(),
+                )
+                .await
                 {
-                    error!("Failed to send message to {topic_name}: {error:?}");
+                    error!("Failed to send message to {field_topic}: {error:?}");
                 }
             }
         }
@@ -227,27 +211,6 @@ impl Driver for Zenoh {
             stats: self.stats.clone(),
         };
 
-        let mut config = if let Some(zenoh_config_file) = zenoh_config_file() {
-            zenoh::Config::from_file(zenoh_config_file)
-                .map_err(|error| anyhow::anyhow!("Failed to load Zenoh config file: {error:?}"))?
-        } else {
-            let mut config = zenoh::Config::default();
-            config
-                .insert_json5("mode", r#""client""#)
-                .expect("Failed to insert client mode");
-            config
-                .insert_json5("connect/endpoints", r#"["tcp/127.0.0.1:7447"]"#)
-                .expect("Failed to insert connect endpoints");
-            config
-        };
-
-        config
-            .insert_json5("adminspace", r#"{"enabled": true}"#)
-            .expect("Failed to insert adminspace");
-        config
-            .insert_json5("metadata", r#"{"name": "mavlink-server"}"#)
-            .expect("Failed to insert metadata");
-
         let mut first = true;
         loop {
             if first {
@@ -256,21 +219,13 @@ impl Driver for Zenoh {
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
 
-            let session = match zenoh::open(config.clone()).await {
-                Ok(session) => Arc::new(session),
-                Err(error) => {
-                    error!("Failed to start zenoh session: {error:?}");
-                    continue;
-                }
-            };
-
             tokio::select! {
-                result = Zenoh::send_task(&context, session.clone()) => {
+                result = Zenoh::send_task(&context) => {
                     if let Err(error) = result {
                         error!("Error in send task: {error:?}");
                     }
                 }
-                result = Zenoh::receive_task(&context, session) => {
+                result = Zenoh::receive_task(&context) => {
                     if let Err(error) = result {
                         error!("Error in receive task: {error:?}");
                     }
