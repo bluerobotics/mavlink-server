@@ -36,11 +36,15 @@ pub fn firmware_type(vehicle_type: VehicleType) -> FirmwareType {
         VehicleType::Submarine => FirmwareType::Submarine,
         // ArduRover
         VehicleType::GroundRover | VehicleType::SurfaceBoat => FirmwareType::Rover,
-        // ArduPlane
+        // ArduPlane (including all VTOL types)
         VehicleType::FlappingWing
         | VehicleType::VtolTiltrotor
         | VehicleType::VtolTailsitterQuadrotor
         | VehicleType::VtolTailsitterDuorotor
+        | VehicleType::VtolFixedrotor
+        | VehicleType::VtolTailsitter
+        | VehicleType::VtolTiltwing
+        | VehicleType::VtolReserved5
         | VehicleType::FixedWing => FirmwareType::Plane,
         // ArduCopter
         VehicleType::Tricopter
@@ -49,9 +53,13 @@ pub fn firmware_type(vehicle_type: VehicleType) -> FirmwareType {
         | VehicleType::Helicopter
         | VehicleType::Octorotor
         | VehicleType::Dodecarotor
+        | VehicleType::Decarotor
+        | VehicleType::GenericMultirotor
         | VehicleType::Quadrotor => FirmwareType::Copter,
         _ => {
-            todo!("TODO: {vehicle_type:?}")
+            // Default to Copter for unknown types to avoid panics
+            tracing::warn!("Unknown vehicle type: {vehicle_type:?}, defaulting to Copter firmware");
+            FirmwareType::Copter
         }
     }
 }
