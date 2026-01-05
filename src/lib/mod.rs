@@ -7,3 +7,4 @@ pub mod mavlink_json;
 pub mod protocol;
 pub mod stats;
 pub mod web;
+pub mod zenoh_service;

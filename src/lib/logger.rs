@@ -1,20 +1,25 @@
 use std::{
+    fmt::Write as FmtWrite,
     io::{self, Write},
     sync::{Arc, Mutex},
 };
 
+use chrono::Utc;
 use lazy_static::lazy_static;
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use tokio::sync::broadcast::{Receiver, Sender};
 use tracing::metadata::LevelFilter;
+use tracing::{Event, Level, Subscriber};
 use tracing_log::LogTracer;
 use tracing_subscriber::{
     EnvFilter, Layer,
     fmt::{self, MakeWriter},
-    layer::SubscriberExt,
+    layer::{Context, SubscriberExt},
+    registry::LookupSpan,
 };
 
-use crate::cli;
+use crate::{cli, zenoh_service};
+use zenoh_service::{FoxgloveLog, FoxgloveTimestamp};
 
 struct BroadcastWriter {
     sender: Sender<String>,
@@ -78,9 +83,90 @@ impl History {
     }
 }
 
+struct FoxgloveBroadcast {
+    sender: Sender<FoxgloveLog>,
+}
+
+impl FoxgloveBroadcast {
+    fn new() -> Self {
+        let (sender, _) = tokio::sync::broadcast::channel(100);
+        Self { sender }
+    }
+
+    fn send(&self, log: FoxgloveLog) {
+        let _ = self.sender.send(log);
+    }
+
+    fn subscribe(&self) -> Receiver<FoxgloveLog> {
+        self.sender.subscribe()
+    }
+}
+
 lazy_static! {
     static ref MANAGER: Arc<Mutex<Manager>> = Default::default();
     pub static ref HISTORY: Arc<Mutex<History>> = Default::default();
+    static ref FOXGLOVE_BROADCAST: FoxgloveBroadcast = FoxgloveBroadcast::new();
+}
+
+struct FoxgloveLayer;
+
+impl<S> tracing_subscriber::Layer<S> for FoxgloveLayer
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+{
+    fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
+        // Transform the message to the Foxglove log format
+        // https://docs.foxglove.dev/docs/visualization/message-schemas/log
+        let metadata = event.metadata();
+        let now = Utc::now();
+        let total_ns = now.timestamp_nanos_opt().unwrap_or(0);
+
+        // Extract the message from event fields
+        let mut message = String::new();
+        // The tracing library uses the visitor pattern for field access.
+        // Event doesn't expose fields directly, it's necessary to call event.record(&mut visitor)
+        // which invokes your visitor's methods for each field.
+        let mut visitor = MessageVisitor(&mut message);
+        event.record(&mut visitor);
+
+        let level = match *metadata.level() {
+            Level::TRACE => 0,
+            Level::DEBUG => 1,
+            Level::INFO => 2,
+            Level::WARN => 3,
+            Level::ERROR => 4,
+        };
+
+        let foxglove_log = FoxgloveLog {
+            timestamp: FoxgloveTimestamp {
+                sec: total_ns / 1_000_000_000,
+                nsec: total_ns % 1_000_000_000,
+            },
+            level,
+            message,
+            name: metadata.target().to_string(),
+            file: metadata.file().unwrap_or("").to_string(),
+            line: metadata.line().unwrap_or(0),
+        };
+
+        FOXGLOVE_BROADCAST.send(foxglove_log);
+    }
+}
+
+struct MessageVisitor<'a>(&'a mut String);
+
+impl tracing::field::Visit for MessageVisitor<'_> {
+    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+        if field.name() == "message" {
+            let _ = write!(self.0, "{value:?}");
+        }
+    }
+
+    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+        if field.name() == "message" {
+            self.0.push_str(value);
+        }
+    }
 }
 
 // Start logger, should be done inside main
@@ -152,15 +238,31 @@ pub fn init(log_path: String, is_verbose: bool, is_tracing: bool) {
         .with_thread_names(true)
         .with_filter(server_env_filter);
 
+    let foxglove_layer = FoxgloveLayer;
+
     let history = HISTORY.clone();
+    let mut foxglove_rx = FOXGLOVE_BROADCAST.subscribe();
     MANAGER.lock().unwrap().process = Some(tokio::spawn(async move {
         loop {
-            match rx.recv().await {
-                Ok(message) => {
-                    history.lock().unwrap().push(message);
+            tokio::select! {
+                result = rx.recv() => {
+                    match result {
+                        Ok(message) => {
+                            history.lock().unwrap().push(message);
+                        }
+                        Err(_) => {
+                            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+                        }
+                    }
                 }
-                Err(_error) => {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+                result = foxglove_rx.recv() => {
+                    if let Ok(foxglove_log) = result {
+                        let _ = zenoh_service::publish_foxglove_log(
+                            "services/mavlink-server/log",
+                            &foxglove_log,
+                        )
+                        .await;
+                    }
                 }
             }
         }
@@ -170,6 +272,7 @@ pub fn init(log_path: String, is_verbose: bool, is_tracing: bool) {
     let subscriber = tracing_subscriber::registry()
         .with(console_layer)
         .with(file_layer)
+        .with(foxglove_layer)
         .with(server_layer);
     tracing::subscriber::set_global_default(subscriber).expect("Unable to set a global subscriber");
 }
