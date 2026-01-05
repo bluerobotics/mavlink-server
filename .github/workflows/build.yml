@@ -57,25 +57,25 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-15
             TARGET: aarch64-apple-darwin
 
-          - os: macos-latest
+          - os: macos-15-intel
             TARGET: x86_64-apple-darwin
 
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             TARGET: arm-unknown-linux-musleabihf
 
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             TARGET: aarch64-unknown-linux-musl
 
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             TARGET: armv7-unknown-linux-musleabihf
 
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             TARGET: x86_64-unknown-linux-musl
 
-          - os: windows-latest
+          - os: windows-2025
             TARGET: x86_64-pc-windows-msvc
             EXTENSION: .exe
 
