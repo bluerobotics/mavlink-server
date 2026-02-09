@@ -1,10 +1,13 @@
+use std::{collections::HashMap, io::Read};
+
+use flate2::read::GzDecoder;
 use include_dir::{Dir, include_dir};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
+// Gzipped parameter JSONs (built in build.rs) to reduce embedded size
 static ASSETS_DIR: Dir = include_dir!(
-    "$CARGO_MANIFEST_DIR/src/lib/drivers/rest/autopilot/parameters/ardupilot_parameters",
-    "**/*.json"
+    "$CARGO_MANIFEST_DIR/ardupilot_parameters_gz",
+    "**/*.json.gz"
 );
 
 // A function that caches it return value, should return a map of vehicle type by version
@@ -43,12 +46,17 @@ pub fn get_parameters(vehicle_type: String, version: String) -> HashMap<String, 
         .get_dir(format!("{}-{}", vehicle_type, version))
         .and_then(|dir| {
             dir.files()
-                .find(|file| file.path().extension().unwrap_or_default() == "json")
+                .find(|f| f.path().extension().unwrap_or_default() == "gz")
         });
 
     if let Some(file) = file {
-        let content = file.contents_utf8().unwrap();
-        let mut json_value: serde_json::Value = serde_json::from_str(content).unwrap();
+        // Decompress the embedded .json.gz files
+        let compressed = file.contents();
+        let mut decoder = GzDecoder::new(compressed);
+        let mut content = Vec::new();
+        decoder.read_to_end(&mut content).unwrap();
+        let content = String::from_utf8(content).unwrap();
+        let mut json_value: serde_json::Value = serde_json::from_str(&content).unwrap();
 
         // TODO: Deal with the version number
         if let Some(obj) = json_value.as_object_mut() {
