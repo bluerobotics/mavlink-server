@@ -20,51 +20,51 @@ path = "src/main.rs"
 bench = false
 
 [dependencies]
-anyhow = "1"
-arc-swap = "1.7"
-async-trait = "0.1"
-axum = { version = "0.8.4", features = ["ws"] }
-bytes = { version = "1.10", features = ["serde"] }
-byteorder = "1.5.0"
-chrono = { version = "0.4", features = ["serde"] }
-clap = { version = "4.5", features = ["derive"] }
-futures = "0.3"
-include_dir = { git = "https://github.com/patrickelectric/include_dir", branch = "fixes" }
-indexmap = { version = "2.5.0", features = ["serde"] }
-json5 = "0.4.1"
-lazy_static = "1.5.0"
+anyhow = { version = "1", default-features = false, features = ["std"] }
+arc-swap = { version = "1.7", default-features = false }
+async-trait = { version = "0.1", default-features = false }
+axum = { version = "0.8.4", default-features = false, features = ["ws", "json", "query", "tokio", "http1"] }
+bytes = { version = "1.10", default-features = false, features = ["serde"] }
+byteorder = { version = "1.5.0", default-features = false, features = ["std"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+clap = { version = "4.5", default-features = false, features = ["std", "derive", "env", "help", "usage", "error-context", "suggestions", "color"] }
+futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
+include_dir = { git = "https://github.com/patrickelectric/include_dir", branch = "fixes", default-features = false }
+indexmap = { version = "2.5.0", default-features = false, features = ["serde"] }
+json5 = { version = "0.4.1", default-features = false }
+lazy_static = { version = "1.5.0", default-features = false }
 mavlink = { version = "0.16.1", default-features = false, features = ["std", "ardupilotmega", "format-generated-code", "serde", "tokio-1"] }
-mavlink-codec = { git = "https://github.com/bluerobotics/rust-mavlink-codec", hash = "04cb141" }
-regex = "1.10.6"
-serde = { version = "1", features = ["rc"] }
-serde_derive = "1"
-serde_json = "1"
-serde_urlencoded = "0.7"
-shellexpand = "3.1"
-tokio = { version = "1", features = ["full"] }
-tokio-serial = "5.4.4"
-tokio-util = { version = "0.7", features = [ "codec", "net" ] }
-tokio-tungstenite = { version = "0.28", features = ["rustls"] }
-tower = { version = "0.5" }
-tower-http = { version = "0.6", features = ["normalize-path", "trace", "cors"] }
-once_cell = "1.21"
-url = { version = "2.5.4", features = ["serde"] }
-uuid = { version = "1", features = ["v5", "v4", "serde"] }
-mime_guess = "2.0.5"
+mavlink-codec = { git = "https://github.com/bluerobotics/rust-mavlink-codec", rev = "04cb141", default-features = false }
+regex = { version = "1.10.6", default-features = false, features = ["std"] }
+serde = { version = "1", default-features = false, features = ["rc"] }
+serde_derive = { version = "1", default-features = false }
+serde_json = { version = "1", default-features = false, features = ["std"] }
+serde_urlencoded = { version = "0.7", default-features = false }
+shellexpand = { version = "3.1", default-features = false }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "sync", "net", "time", "macros", "io-util", "fs", "signal"] }
+tokio-serial = { version = "5.4.4", default-features = false }
+tokio-util = { version = "0.7", default-features = false, features = ["codec", "net"] }
+tokio-tungstenite = { version = "0.28", default-features = false, features = ["rustls", "stream", "connect"] }
+tower = { version = "0.5", default-features = false }
+tower-http = { version = "0.6", default-features = false, features = ["normalize-path", "trace", "cors"] }
+once_cell = { version = "1.21", default-features = false, features = ["std"] }
+url = { version = "2.5.4", default-features = false, features = ["serde"] }
+uuid = { version = "1", default-features = false, features = ["v4", "v5", "serde"] }
+mime_guess = { version = "2.0.5", default-features = false }
 
-tracing = { version = "0.1.40", features = ["log", "async-await"] }
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-tracing-log = "0.2.0"
-tracing-appender = "0.2.3"
-toml = "0.8.19"
-zenoh = "1.3.4"
-ringbuffer = "0.15.0"
-strum = "0.27"
-strum_macros = "0.27"
-bitflags = { version = "2.9.0", features = ["serde"] }
-semver = { version = "1.0.26", features = ["serde"] }
-cached = "0.55.1"
-sysinfo = "0.35.0"
+tracing = { version = "0.1.40", default-features = false, features = ["std", "log", "async-await"] }
+tracing-subscriber = { version = "0.3.18", default-features = false, features = ["std", "env-filter", "fmt", "registry", "ansi", "smallvec", "tracing-log"] }
+tracing-log = { version = "0.2.0", default-features = false }
+tracing-appender = { version = "0.2.3", default-features = false }
+toml = { version = "0.8.19", default-features = false, features = ["parse"] }
+zenoh = { version = "1.3.4", default-features = false }
+ringbuffer = { version = "0.15.0", default-features = false, features = ["alloc"] }
+strum = { version = "0.27", default-features = false }
+strum_macros = { version = "0.27", default-features = false }
+bitflags = { version = "2.9.0", default-features = false, features = ["serde"] }
+semver = { version = "1.0.26", default-features = false, features = ["serde"] }
+cached = { version = "0.55.1", default-features = false, features = ["proc_macro", "async_tokio_rt_multi_thread"] }
+sysinfo = { version = "0.35.0", default-features = false, features = ["system"] }
 
 [dev-dependencies]
 criterion = "0.5"
