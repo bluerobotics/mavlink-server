@@ -82,7 +82,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?
         .emit()?;
 
+    let dist_dir = Path::new(&out_dir).join("src/webpage/dist");
     if std::env::var("SKIP_FRONTEND").is_ok() {
+        fs::create_dir_all(&dist_dir)?;
         return Ok(());
     }
 
