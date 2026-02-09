@@ -102,7 +102,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Building frontend...");
     let mut trunk_command = Command::new("trunk");
-    trunk_command.current_dir("src/webpage").args(["build"]);
+    trunk_command
+        .current_dir(Path::new(&out_dir).join("src/webpage"))
+        .args(["build"]);
 
     // Add --release argument if not in debug mode
     if cfg!(not(debug_assertions)) {
