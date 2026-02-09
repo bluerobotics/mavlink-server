@@ -73,6 +73,11 @@ tokio = { version = "1", features = ["full"] }
 [build-dependencies]
 vergen-gix = { version = "1.0.2", default-features = false, features = ["build", "cargo"] }
 
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+
 [profile.profiling]
 inherits = "release"
 debug = 1
