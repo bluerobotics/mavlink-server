@@ -1,6 +1,6 @@
 use std::{
-    env,
-    path::Path,
+    env, fs,
+    path::{Path, PathBuf},
     process::{Command, exit},
 };
 
@@ -73,6 +73,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let p = Path::new(&out_dir).join(format!("src/webpage/{}", path));
         println!("cargo:rerun-if-changed={}", p.display());
     }
+    let params_src =
+        Path::new(&out_dir).join("src/lib/drivers/rest/autopilot/parameters/ardupilot_parameters");
+    println!("cargo:rerun-if-changed={}", params_src.display());
 
     vergen_gix::Emitter::default()
         .add_instructions(&BuildBuilder::all_build()?)?
@@ -81,6 +84,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             CargoBuilder::all_cargo()?.set_dep_kind_filter(Some(DependencyKind::Normal)),
         )?
         .emit()?;
+
+    gzip_ardupilot_parameters(&out_dir)?;
 
     let dist_dir = Path::new(&out_dir).join("src/webpage/dist");
     if std::env::var("SKIP_FRONTEND").is_ok() {
@@ -167,5 +172,36 @@ fn collect_files(dir: &Path) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>>
     Ok(files)
 }
 
+/// Produce gzipped parameter JSONs in ardupilot_parameters_gz
+fn gzip_ardupilot_parameters(out_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let src =
+        Path::new(out_dir).join("src/lib/drivers/rest/autopilot/parameters/ardupilot_parameters");
+    let dst = Path::new(out_dir).join("ardupilot_parameters_gz");
+    if !src.is_dir() {
+        fs::create_dir_all(&dst)?;
+        return Ok(());
+    }
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(&src)? {
+        let entry = entry?;
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let name = path.file_name().unwrap();
+        let json_path = path.join("apm.pdef.json");
+        if !json_path.is_file() {
+            continue;
+        }
+        let out_sub = dst.join(name);
+        fs::create_dir_all(&out_sub)?;
+        let gz_path = out_sub.join("apm.pdef.json.gz");
+        let output = Command::new("gzip").arg("-c").arg(&json_path).output()?;
+        if !output.status.success() {
+            eprintln!("cargo:warning=gzip failed for {json_path:?}");
+            continue;
+        }
+        fs::write(&gz_path, output.stdout)?;
+    }
     Ok(())
 }
