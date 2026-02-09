@@ -44,15 +44,27 @@ async fn root(filename: Option<Path<String>>) -> impl IntoResponse {
         })
         .unwrap_or_else(|| "index.html".into());
 
-    HTML_DIST.get_file(&filename).map_or_else(
-        || handle_404().into_response(),
-        |file| {
-            // Determine the MIME type based on the file extension
-            let mime_type = from_path(&filename).first_or_octet_stream();
-            let content = file.contents();
-            ([(header::CONTENT_TYPE, mime_type.as_ref())], content).into_response()
+    // Determine the MIME type based on the file extension
+    let mime_type = from_path(&filename).first_or_octet_stream();
+
+    match HTML_DIST.get_file(format!("{filename}.gz")) {
+        Some(file) => (
+            [
+                (header::CONTENT_TYPE, mime_type.as_ref()),
+                (header::CONTENT_ENCODING, "gzip"),
+            ],
+            file.contents(),
+        )
+            .into_response(),
+        None => match HTML_DIST.get_file(&filename) {
+            Some(file) => (
+                [(header::CONTENT_TYPE, mime_type.as_ref())],
+                file.contents(),
+            )
+                .into_response(),
+            None => return handle_404().into_response(),
         },
-    )
+    }
 }
 
 fn handle_404() -> (StatusCode, &'static str) {
