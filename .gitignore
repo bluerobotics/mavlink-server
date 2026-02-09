@@ -4,3 +4,4 @@
 /tests/files/untracked
 dev
 dist
+/ardupilot_parameters_gz
