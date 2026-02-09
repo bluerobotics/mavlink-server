@@ -122,5 +122,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     info!("{}", String::from_utf8_lossy(&trunk_output.stdout));
 
+    if dist_dir.is_dir() {
+        let n = gzip_dist_assets(&dist_dir)?;
+        info!("Gzipped {n} frontend assets in {dist_dir:?}");
+    } else {
+        fs::create_dir_all(&dist_dir)?;
+        info!("Trunk did not create dist; created empty dir so include_dir! can proceed");
+    }
+
+    Ok(())
+}
+
+/// Gzip every file in dist so we only embed .gz (smaller binary + transfer). Returns count of files gzipped.
+fn gzip_dist_assets(dist_dir: &Path) -> Result<usize, Box<dyn std::error::Error>> {
+    let files = collect_files(dist_dir)?;
+    let n = files.len();
+    for path in &files {
+        let status = Command::new("gzip")
+            .arg("-f") // overwrite if .gz exists
+            .arg(path)
+            .status()?;
+        if !status.success() {
+            eprintln!("cargo:warning=gzip failed for {path:?}");
+        }
+    }
+    Ok(n)
+}
+
+/// Collect all regular files under `dir` (recursive), skipping `.gz` files.
+fn collect_files(dir: &Path) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+    let mut files = Vec::new();
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            files.extend(collect_files(&path)?);
+        } else if path.extension().map(|e| e == "gz").unwrap_or(false) {
+            // already compressed
+            continue;
+        } else {
+            files.push(path);
+        }
+    }
+    Ok(files)
+}
+
     Ok(())
 }
