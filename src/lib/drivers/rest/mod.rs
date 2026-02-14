@@ -185,23 +185,20 @@ impl Rest {
             }
 
             let Ok(mavlink_json) = message
-                .to_mavlink_json()
+                .to_mavlink_json::<mavlink::ardupilotmega::MavMessage>()
                 .await
                 .inspect_err(|error| debug!("Failed converting message to json: {error:?}"))
             else {
                 continue;
             };
 
+            let header = mavlink_json.header.inner;
+            let mavlink_message = mavlink_json.message.clone();
+
             let json_string = parse_query(&mavlink_json);
             data::update((mavlink_json.header, mavlink_json.message));
 
-            if let Ok(message) = message
-                .to_mavlink()
-                .await
-                .inspect_err(|error| warn!("Failed converting bus message to mavlink: {error:?}"))
-            {
-                control::update(message).await;
-            }
+            control::update((header, mavlink_message)).await;
 
             websocket::broadcast(uuid, ws::Message::Text(json_string.into())).await;
         }
