@@ -103,6 +103,10 @@ pub(crate) async fn broadcast(sender_identifier: Uuid, message: ws::Message) {
     }
 }
 
+pub(crate) async fn has_clients() -> bool {
+    !SERVER.state.clients.read().await.is_empty()
+}
+
 pub(crate) fn create_message_receiver() -> broadcast::Receiver<String> {
     SERVER.state.message_tx.subscribe()
 }
