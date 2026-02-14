@@ -212,7 +212,7 @@ impl Rest {
 pub fn parse_query<T: serde::ser::Serialize>(message: &T) -> String {
     let error_message =
         "Not possible to parse mavlink message, please report this issue!".to_string();
-    serde_json::to_string_pretty(&message).unwrap_or(error_message)
+    serde_json::to_string(&message).unwrap_or(error_message)
 }
 
 #[async_trait::async_trait]
