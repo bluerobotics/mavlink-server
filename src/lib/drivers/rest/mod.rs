@@ -200,7 +200,9 @@ impl Rest {
 
             control::update((header, mavlink_message)).await;
 
-            websocket::broadcast(uuid, ws::Message::Text(json_string.into())).await;
+            if websocket::has_clients().await {
+                websocket::broadcast(uuid, ws::Message::Text(json_string.into())).await;
+            }
         }
 
         debug!("Driver sender task stopped!");
