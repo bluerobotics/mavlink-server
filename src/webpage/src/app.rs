@@ -25,7 +25,7 @@ use crate::{
         hub_stats::{HubStatsHistorical, HubStatsSample},
         resources::{ResourceUsage, ResourceUsageHistorical},
     },
-    tabs::{control::ControlTab, helper::HelperTab},
+    tabs::{control::ControlTab, helper::HelperTab, mavftp::MavFtpTab},
     widgets::driver_stats::DriverStatsWidget,
     widgets::hub_stats::HubStatsWidget,
     widgets::message_inspector::MessageInspectorWidget,
@@ -44,6 +44,7 @@ enum Screens {
     Main,
     Helper,
     Control,
+    MavFtp,
 }
 
 #[derive(Clone, PartialEq)]
@@ -91,6 +92,7 @@ pub struct App {
     show_screen: Screens,
     control_tab: ControlTab,
     helper_tab: HelperTab,
+    mavftp_tab: MavFtpTab,
 }
 
 impl Default for App {
@@ -164,6 +166,7 @@ impl Default for App {
             show_screen: Screens::Main,
             control_tab: Default::default(),
             helper_tab: Default::default(),
+            mavftp_tab: Default::default(),
         }
     }
 }
@@ -182,6 +185,10 @@ impl App {
                 ui.add_space(16.0);
                 if ui.button("Control").clicked() {
                     self.show_screen = Screens::Control;
+                }
+                ui.add_space(16.0);
+                if ui.button("MavFTP").clicked() {
+                    self.show_screen = Screens::MavFtp;
                 }
 
                 ui.with_layout(
@@ -301,6 +308,10 @@ impl App {
 
     fn show_control_screen(&mut self, ctx: &Context) {
         self.control_tab.show(ctx, &self.vehicles, &self.parameters);
+    }
+
+    fn show_mavftp_screen(&mut self, ctx: &Context) {
+        self.mavftp_tab.show(ctx);
     }
 
     fn deal_with_mavlink_message(&mut self, message: String) {
@@ -794,6 +805,7 @@ impl eframe::App for App {
             Screens::Main => self.show_main_screen(ctx),
             Screens::Helper => self.show_helper_screen(ctx),
             Screens::Control => self.show_control_screen(ctx),
+            Screens::MavFtp => self.show_mavftp_screen(ctx),
         }
 
         ctx.request_repaint();
