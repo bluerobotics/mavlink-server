@@ -52,8 +52,8 @@ pub struct Vehicles {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Vehicle {
-    vehicle_id: u8,
-    components: HashMap<u8, VehicleComponents>,
+    pub vehicle_id: u8,
+    pub components: HashMap<u8, VehicleComponents>,
 }
 
 impl Default for Vehicle {
@@ -79,14 +79,14 @@ pub enum VehicleComponents {
 
 #[derive(Debug, Serialize)]
 pub struct VehicleComponent {
-    component_id: u8,
-    armed: bool,
-    autopilot: Option<autopilot::AutoPilotType>,
-    vehicle_type: Option<autopilot::VehicleType>,
-    mode: String,
-    attitude: Attitude,
-    position: Position,
-    version: Option<Version>,
+    pub component_id: u8,
+    pub armed: bool,
+    pub autopilot: Option<autopilot::AutoPilotType>,
+    pub vehicle_type: Option<autopilot::VehicleType>,
+    pub mode: String,
+    pub attitude: Attitude,
+    pub position: Position,
+    pub version: Option<Version>,
 
     // Inner logic control
     #[serde(skip_serializing)]
@@ -154,8 +154,8 @@ pub struct ParameterData {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Version {
-    capabilities: autopilot::ardupilot::Capabilities,
-    version: semver::Version,
+    pub capabilities: autopilot::ardupilot::Capabilities,
+    pub version: semver::Version,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
