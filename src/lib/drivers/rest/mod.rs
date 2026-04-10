@@ -1,6 +1,7 @@
 pub mod autopilot;
 pub mod control;
 pub mod data;
+pub mod mavftp;
 
 use std::sync::Arc;
 
