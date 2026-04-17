@@ -66,6 +66,8 @@ where
     T: Stream<Item = std::io::Result<std::result::Result<Packet, DecoderError>>>
         + std::marker::Unpin,
 {
+    let origin: Arc<str> = Arc::from(identifier);
+
     'mainloop: loop {
         let packet = match reader.next().await {
             Some(Ok(Ok(packet))) => packet,
@@ -96,7 +98,7 @@ where
             None => break,
         };
 
-        let message = Arc::new(Protocol::new(identifier, packet));
+        let message = Arc::new(Protocol::new(Arc::clone(&origin), packet));
 
         trace!("Received message: {message:?}");
 
@@ -147,7 +149,7 @@ where
             }
         };
 
-        if message.origin.eq(&identifier) {
+        if message.origin.as_ref().eq(identifier) {
             continue; // Don't do loopback
         }
 

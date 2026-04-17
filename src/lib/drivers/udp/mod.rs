@@ -36,7 +36,7 @@ where
             }
         };
 
-        if message.origin.eq(&remote_addr.to_string()) {
+        if message.origin.as_ref().eq(&remote_addr.to_string()) {
             continue; // Don't do loopback
         }
 

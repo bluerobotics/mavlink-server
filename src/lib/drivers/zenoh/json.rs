@@ -84,6 +84,8 @@ impl Zenoh {
             }
         };
 
+        let origin: Arc<str> = Arc::from(DRIVER_IDENTIFIER);
+
         'mainloop: loop {
             let sample = match subscriber.recv_async().await {
                 Ok(sample) => sample,
@@ -108,7 +110,7 @@ impl Zenoh {
             let bus_message = Arc::new(Protocol::from_mavlink_raw(
                 content.header.inner,
                 &content.message,
-                DRIVER_IDENTIFIER,
+                Arc::clone(&origin),
             ));
 
             trace!("Received message: {bus_message:?}");
@@ -153,7 +155,7 @@ impl Zenoh {
                 }
             };
 
-            if message.origin.eq(DRIVER_IDENTIFIER) {
+            if message.origin.as_ref().eq(DRIVER_IDENTIFIER) {
                 continue; // Don't do loopback
             }
 

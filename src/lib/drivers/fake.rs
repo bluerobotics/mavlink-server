@@ -343,6 +343,8 @@ impl Driver for FakeSource {
                         mavlink::ardupilotmega::MavMessage::default_message_from_id(message_id)
                             .expect("Unknown message ID");
 
+                    let origin: Arc<str> = Arc::from("fake_source");
+
                     let mut current_instant: std::time::Instant;
                     let mut prev_instant = std::time::Instant::now();
 
@@ -362,7 +364,7 @@ impl Driver for FakeSource {
 
                             let packet = Packet::V2(V2Packet::new(writer.into_inner().freeze()));
 
-                            let message = Arc::new(Protocol::new("fake_source", packet));
+                            let message = Arc::new(Protocol::new(Arc::clone(&origin), packet));
 
                             if let Err(error) = tx.blocking_send(message) {
                                 warn!(

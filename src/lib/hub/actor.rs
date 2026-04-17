@@ -196,6 +196,8 @@ impl HubActor {
         let mut burst_msgs_counter = 0;
         let mut do_burst = cli::send_initial_heartbeats();
 
+        let origin: Arc<str> = Arc::from("");
+
         loop {
             let duration = if do_burst {
                 if burst_msgs_counter == burst_size {
@@ -219,7 +221,11 @@ impl HubActor {
                 ..Default::default()
             };
 
-            let message = Arc::new(Protocol::from_mavlink_raw(header, &message, ""));
+            let message = Arc::new(Protocol::from_mavlink_raw(
+                header,
+                &message,
+                Arc::clone(&origin),
+            ));
 
             if let Err(error) = bcst_sender.send(message) {
                 error!("Failed to send HEARTBEAT message: {error}");

@@ -72,7 +72,7 @@ impl TlogReader {
         reader: tokio::io::BufReader<tokio::fs::File>,
         hub_sender: broadcast::Sender<Arc<Protocol>>,
     ) -> Result<()> {
-        let source_name = self.path.as_path().display().to_string();
+        let origin: Arc<str> = Arc::from(self.path.as_path().display().to_string());
 
         let mut reader = mavlink::async_peek_reader::AsyncPeekReader::new(reader);
         let mut timestamp_bytes = [0u8; 8];
@@ -108,7 +108,7 @@ impl TlogReader {
                 match mavlink::read_v2_raw_message_async::<MavMessage, _>(&mut reader).await {
                     Ok(message) => Protocol::new_with_timestamp(
                         us_since_epoch,
-                        &source_name,
+                        Arc::clone(&origin),
                         Packet::from(message),
                     ),
                     Err(error) => {

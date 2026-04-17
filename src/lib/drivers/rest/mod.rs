@@ -74,6 +74,8 @@ impl Rest {
         context: &SendReceiveContext,
         ws_receiver: &mut broadcast::Receiver<String>,
     ) -> Result<()> {
+        let origin: Arc<str> = Arc::from("Ws");
+
         while let Ok(message) = ws_receiver.recv().await {
             let Ok(content) =
                 json5::from_str::<MAVLinkJSON<mavlink::ardupilotmega::MavMessage>>(&message)
@@ -85,7 +87,7 @@ impl Rest {
             let bus_message = Arc::new(Protocol::from_mavlink_raw(
                 content.header.inner,
                 &content.message,
-                "Ws",
+                Arc::clone(&origin),
             ));
 
             trace!("Received message: {bus_message:?}");
@@ -123,8 +125,14 @@ impl Rest {
             ..Default::default()
         };
 
+        let origin: Arc<str> = Arc::from("Control");
+
         while let Ok(message) = control_receiver.recv().await {
-            let bus_message = Arc::new(Protocol::from_mavlink_raw(header, &message, "Control"));
+            let bus_message = Arc::new(Protocol::from_mavlink_raw(
+                header,
+                &message,
+                Arc::clone(&origin),
+            ));
 
             trace!("Received message: {bus_message:?}");
 
@@ -170,7 +178,7 @@ impl Rest {
                 }
             };
 
-            if message.origin.eq(origin) {
+            if message.origin.as_ref().eq(origin) {
                 continue; // Don't do loopback
             }
 

@@ -189,6 +189,8 @@ where
     T: Stream<Item = std::io::Result<(std::result::Result<Packet, DecoderError>, SocketAddr)>>
         + std::marker::Unpin,
 {
+    let origin: Arc<str> = Arc::from(remote_addr.to_string());
+
     'mainloop: loop {
         let (packet, remote_addr) = match reader.next().await {
             Some(Ok((Ok(packet), remote_addr))) => (packet, remote_addr),
@@ -219,7 +221,7 @@ where
             None => break,
         };
 
-        let message = Arc::new(Protocol::new(&remote_addr.to_string(), packet));
+        let message = Arc::new(Protocol::new(Arc::clone(&origin), packet));
 
         trace!(origin = ?remote_addr, "Received message: {message:?}");
 
