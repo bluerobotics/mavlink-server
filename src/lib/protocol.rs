@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 use anyhow::Result;
 use mavlink_codec::Packet;
@@ -11,30 +14,34 @@ use crate::{
 
 #[derive(Debug, PartialEq, Serialize)]
 pub struct Protocol {
-    pub origin: String,
+    pub origin: Arc<str>,
     pub timestamp: u64,
     #[serde(skip)]
     packet: Packet,
 }
 
 impl Protocol {
-    pub fn new(origin: &str, packet: Packet) -> Self {
+    pub fn new(origin: impl Into<Arc<str>>, packet: Packet) -> Self {
         Self {
-            origin: origin.to_string(),
+            origin: origin.into(),
             timestamp: chrono::Utc::now().timestamp_micros() as u64,
             packet,
         }
     }
 
-    pub fn new_with_timestamp(timestamp: u64, origin: &str, packet: Packet) -> Self {
+    pub fn new_with_timestamp(timestamp: u64, origin: impl Into<Arc<str>>, packet: Packet) -> Self {
         Self {
-            origin: origin.to_string(),
+            origin: origin.into(),
             timestamp,
             packet,
         }
     }
 
-    pub fn from_mavlink_raw<M>(header: mavlink::MavHeader, message: &M, origin: &str) -> Self
+    pub fn from_mavlink_raw<M>(
+        header: mavlink::MavHeader,
+        message: &M,
+        origin: impl Into<Arc<str>>,
+    ) -> Self
     where
         M: mavlink::Message,
     {
@@ -53,7 +60,7 @@ impl Protocol {
         };
 
         Self {
-            origin: origin.to_string(),
+            origin: origin.into(),
             timestamp: chrono::Utc::now().timestamp_micros() as u64,
             packet,
         }

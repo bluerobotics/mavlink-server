@@ -41,6 +41,7 @@ struct UdpClient {
     address: SocketAddr,
     last_update: tokio::time::Instant,
     task: JoinHandle<Result<()>>,
+    origin: Arc<str>,
 }
 
 impl Drop for UdpClient {
@@ -207,26 +208,11 @@ where
             None => break,
         };
 
-        let message = Arc::new(Protocol::new(&client_addr.to_string(), packet));
-
-        trace!(origin = ?client_addr, "Received message: {message:?}");
-
-        if context.direction.can_receive() {
-            context.stats.write().await.stats.update_input(&message);
-
-            for future in context.on_message_input.call_all(message.clone()) {
-                if let Err(error) = future.await {
-                    debug!(origin = ?client_addr, "Dropping message: on_message_input callback returned error: {error:?}");
-                    continue 'mainloop;
-                }
-            }
-        }
-
         // Update clients
-        {
+        let origin = {
             let socket = socket.clone();
 
-            clients
+            let entry = clients
                 .entry(client_addr)
                 .and_modify(|client| {
                     // Time refresh
@@ -239,8 +225,26 @@ where
                         address: client_addr,
                         last_update: tokio::time::Instant::now(),
                         task: spawn_send_task(socket, client_addr, context),
+                        origin: Arc::from(client_addr.to_string()),
                     }
                 });
+
+            Arc::clone(&entry.origin)
+        };
+
+        let message = Arc::new(Protocol::new(origin, packet));
+
+        trace!(origin = ?client_addr, "Received message: {message:?}");
+
+        if context.direction.can_receive() {
+            context.stats.write().await.stats.update_input(&message);
+
+            for future in context.on_message_input.call_all(message.clone()) {
+                if let Err(error) = future.await {
+                    debug!(origin = ?client_addr, "Dropping message: on_message_input callback returned error: {error:?}");
+                    continue 'mainloop;
+                }
+            }
         }
 
         {
