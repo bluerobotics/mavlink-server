@@ -128,7 +128,7 @@ impl Default for VehicleComponent {
 
 // This should not implement Clone because it is for inner logic and it's quite heavy
 #[derive(Debug)]
-pub struct VehicleContext {
+struct VehicleContext {
     parameters: HashMap<String, ParameterData>,
     parameters_metadata: HashMap<String, ParameterMetadata>,
     firmware_type: Option<FirmwareType>,
