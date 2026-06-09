@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Result;
 use mavlink::{self, Message};
@@ -124,6 +124,7 @@ impl Zenoh {
     #[instrument(level = "debug", skip_all)]
     async fn send_task(context: &SendReceiveContext, session: Arc<zenoh::Session>) -> Result<()> {
         let mut hub_receiver = context.hub_sender.subscribe();
+        let mut publishers = HashMap::new();
 
         'mainloop: loop {
             let message = match hub_receiver.recv().await {
@@ -171,48 +172,69 @@ impl Zenoh {
             };
 
             let out_topic_name = format!("{TOPIC_PREFIX}/out");
-            if let Err(error) = session
-                .put(&out_topic_name, json_string)
-                .encoding(zenoh::bytes::Encoding::APPLICATION_JSON)
-                .await
-            {
-                error!("Failed to send message to {out_topic_name}: {error:?}");
-            } else {
-                trace!("Message sent to {out_topic_name}: {json_string:?}");
-            }
+            Self::publish_json(&session, &mut publishers, &out_topic_name, json_string).await;
 
             let header = &mavlink_json.header.inner;
-            let topic_name = &format!(
+            let message_topic_name = format!(
                 "mavlink/{}/{}/{}",
                 header.system_id, header.component_id, message_name
             );
-            if let Err(error) = session
-                .put(topic_name, json_string)
-                .encoding(zenoh::bytes::Encoding::APPLICATION_JSON)
-                .await
-            {
-                error!("Failed to send message to {topic_name}: {error:?}");
-            } else {
-                trace!("Message sent to {topic_name}: {json_string:?}");
-            }
+            Self::publish_json(&session, &mut publishers, &message_topic_name, json_string).await;
 
             // for each key inside mavlink_json and publish under topic_name/field_name
             let message_value = serde_json::to_value(&mavlink_json.message).unwrap();
             for (field_name, field_value) in message_value.as_object().unwrap() {
-                let topic_name = &format!("{}/{}", topic_name, field_name);
-                if let Err(error) = session
-                    .put(topic_name, json5::to_string(field_value).unwrap())
-                    .encoding(zenoh::bytes::Encoding::APPLICATION_JSON)
-                    .await
-                {
-                    error!("Failed to send message to {topic_name}: {error:?}");
-                }
+                let field_topic_name = format!("{message_topic_name}/{field_name}");
+                let field_json = json5::to_string(field_value).unwrap();
+                Self::publish_json(&session, &mut publishers, &field_topic_name, &field_json).await;
             }
         }
 
         debug!("Driver sender task stopped!");
 
         Ok(())
+    }
+
+    async fn publish_json(
+        session: &zenoh::Session,
+        publishers: &mut HashMap<String, zenoh::pubsub::Publisher<'static>>,
+        topic_name: &str,
+        payload: &str,
+    ) {
+        if !publishers.contains_key(topic_name) {
+            let topic = topic_name.to_string();
+            let key_expr = match zenoh::key_expr::KeyExpr::try_from(topic.clone()) {
+                Ok(key_expr) => key_expr,
+                Err(error) => {
+                    error!("Failed to create key expression for {topic_name}: {error:?}");
+                    return;
+                }
+            };
+
+            match session.declare_publisher(key_expr).await {
+                Ok(publisher) => {
+                    publishers.insert(topic, publisher);
+                }
+                Err(error) => {
+                    error!("Failed to create publisher for {topic_name}: {error:?}");
+                    return;
+                }
+            }
+        }
+
+        let Some(publisher) = publishers.get(topic_name) else {
+            return;
+        };
+
+        if let Err(error) = publisher
+            .put(payload)
+            .encoding(zenoh::bytes::Encoding::APPLICATION_JSON)
+            .await
+        {
+            error!("Failed to send message to {topic_name}: {error:?}");
+        } else {
+            trace!("Message sent to {topic_name}: {payload:?}");
+        }
     }
 }
 
