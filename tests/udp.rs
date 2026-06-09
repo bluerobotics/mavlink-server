@@ -1,3 +1,5 @@
+mod common;
+
 use anyhow::*;
 use clap::Parser;
 use mavlink_server::{cli, hub, stats};
@@ -5,10 +7,13 @@ use tracing::*;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
 async fn test_udpserver_receive_only() -> Result<()> {
+    let port = common::pick_free_port();
+    let bind_addr = format!("0.0.0.0:{port}");
+
     cli::init_with(cli::Args::parse_from(vec![
         &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
-        "udpclient:0.0.0.0:3333",
-        "udpserver://0.0.0.0:3333?direction=receiver",
+        &format!("udpclient:{bind_addr}"),
+        &format!("udpserver://{bind_addr}?direction=receiver"),
         "--mavlink-heartbeat-frequency",
         "10",
     ]));
@@ -18,7 +23,7 @@ async fn test_udpserver_receive_only() -> Result<()> {
     }
 
     stats::set_period(tokio::time::Duration::from_millis(100)).await?;
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    common::wait_for_stats_collection().await;
     for (_uuid, driver) in stats::drivers_stats().await? {
         if *driver.name == "UdpServer" {
             assert!(driver.stats.output.is_none());
@@ -40,12 +45,14 @@ async fn test_udpserver_receive_only() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
-#[ignore]
 async fn test_udpserver_send_only() -> Result<()> {
+    let port = common::pick_free_port();
+    let bind_addr = format!("0.0.0.0:{port}");
+
     cli::init_with(cli::Args::parse_from(vec![
         &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
-        "udpclient:0.0.0.0:3333",
-        "udpserver://0.0.0.0:3333?direction=sender",
+        &format!("udpclient:{bind_addr}"),
+        &format!("udpserver://{bind_addr}?direction=sender"),
         "--mavlink-heartbeat-frequency",
         "10",
     ]));
@@ -55,7 +62,7 @@ async fn test_udpserver_send_only() -> Result<()> {
     }
 
     stats::set_period(tokio::time::Duration::from_millis(100)).await?;
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    common::wait_for_stats_collection().await;
     for (_uuid, driver) in stats::drivers_stats().await? {
         if *driver.name == "UdpServer" {
             assert!(driver.stats.output.is_some());
@@ -77,12 +84,14 @@ async fn test_udpserver_send_only() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
-#[ignore]
 async fn test_udpclient_send_only() -> Result<()> {
+    let port = common::pick_free_port();
+    let bind_addr = format!("0.0.0.0:{port}");
+
     cli::init_with(cli::Args::parse_from(vec![
         &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
-        "udpclient://0.0.0.0:3333?direction=sender",
-        "udpserver://0.0.0.0:3333",
+        &format!("udpclient://{bind_addr}?direction=sender"),
+        &format!("udpserver://{bind_addr}"),
         "--mavlink-heartbeat-frequency",
         "10",
     ]));
@@ -92,7 +101,7 @@ async fn test_udpclient_send_only() -> Result<()> {
     }
 
     stats::set_period(tokio::time::Duration::from_millis(100)).await?;
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    common::wait_for_stats_collection().await;
     for (_uuid, driver) in stats::drivers_stats().await? {
         if *driver.name == "UdpServer" {
             assert!(driver.stats.output.is_some());
