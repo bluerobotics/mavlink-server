@@ -270,7 +270,7 @@ pub fn endpoints() -> Vec<ExtInfo> {
             typ: Type::FakeSource,
         },
         ExtInfo {
-            driver_ext: Box::new(zenoh::ZenohInfo),
+            driver_ext: Box::new(zenoh::json::ZenohInfo),
             typ: Type::Zenoh,
         },
     ]
