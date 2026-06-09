@@ -1,11 +1,23 @@
-[target.x86_64-unknown-linux-gnu]
-image = "joaoantoniocardoso/cross-rs:x86_64-unknown-linux-gnu-bullseye-slim-with-gstreamer"
+[target.x86_64-unknown-linux-musl]
+dockerfile = ".github/cross/Dockerfile.x86_64-unknown-linux-musl-sccache"
 
-[target.armv7-unknown-linux-gnueabihf]
-image = "joaoantoniocardoso/cross-rs:armv7-unknown-linux-gnueabihf-bullseye-slim-with-gstreamer"
+[target.arm-unknown-linux-musleabihf]
+dockerfile = ".github/cross/Dockerfile.arm-unknown-linux-musleabihf-sccache"
 
-[target.aarch64-unknown-linux-gnu]
-image = "joaoantoniocardoso/cross-rs:aarch64-unknown-linux-gnu-bullseye-slim-with-gstreamer"
+[target.aarch64-unknown-linux-musl]
+dockerfile = ".github/cross/Dockerfile.aarch64-unknown-linux-musl-sccache"
+
+[target.armv7-unknown-linux-musleabihf]
+dockerfile = ".github/cross/Dockerfile.armv7-unknown-linux-musleabihf-sccache"
 
 [build.env]
-passthrough = ["SKIP_FRONTEND"]
+passthrough = [
+    "SKIP_FRONTEND",
+    "SCCACHE_DIR",
+    "SCCACHE_GHA_ENABLED",
+    "SCCACHE_LOG",
+    "ACTIONS_RESULTS_URL",
+    "ACTIONS_RUNTIME_TOKEN",
+    "ACTIONS_CACHE_SERVICE_V2",
+]
+volumes = ["SCCACHE_DIR"]

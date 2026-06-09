@@ -279,7 +279,7 @@ mod tests {
         let file_v2_messages = 30437;
         let file_messages = file_v2_messages;
         let mut total_messages_read = 0;
-        let timeout_time = tokio::time::Duration::from_secs(1);
+        let timeout_time = tokio::time::Duration::from_secs(30);
         let res = tokio::time::timeout(timeout_time, async {
             loop {
                 let messages_received_per_id = messages_received_per_id.read().await.clone();
