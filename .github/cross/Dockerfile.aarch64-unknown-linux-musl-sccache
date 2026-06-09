@@ -1,0 +1,11 @@
+FROM ghcr.io/cross-rs/aarch64-unknown-linux-musl:0.2.5
+ARG DEBIAN_FRONTEND=noninteractive
+
+COPY .github/cross/sccache-prebuilt.sh /sccache.sh
+RUN /sccache.sh x86_64-unknown-linux-musl
+
+COPY .github/cross/cargo-with-stats.sh /usr/local/bin/cargo
+RUN chmod +x /usr/local/bin/cargo
+
+ENV RUSTC_WRAPPER=/usr/bin/sccache
+ENV PATH=/usr/local/bin:/usr/local/cargo/bin:/rust/bin:/usr/bin:/bin
