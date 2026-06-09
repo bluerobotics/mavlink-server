@@ -26,30 +26,15 @@ jobs:
       - name: Install build dependencies - Cargo-Binstall
         uses: cargo-bins/cargo-binstall@main
 
-      - name: Install build dependencies - Trunk
-        run: cargo binstall -y trunk
+      - name: Install build dependencies - Trunk and cargo-nextest
+        run: cargo binstall -y trunk cargo-nextest
 
       - name: Building frontend (wasm32)
         working-directory: src/webpage
         run: trunk build --release --locked --verbose
 
-      - name: Building tests
-        run: SKIP_FRONTEND=1 cargo test --no-run --locked --verbose
-
       - name: Run Tests
-        run: |
-          SKIP_FRONTEND=1 cargo test --verbose -- --nocapture
-          SKIP_FRONTEND=1 cargo test test_udpserver_receive_only --verbose -- --nocapture
-          SKIP_FRONTEND=1 cargo test test_udpserver_send_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_udpclient_send_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_tcpserver_receive_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_tcpserver_send_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_tcpclient_send_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_tcpclient_receive_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_wsserver_receive_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_wsserver_send_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_wsclient_send_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_wsclient_receive_only --verbose -- --nocapture --ignored
+        run: SKIP_FRONTEND=1 cargo nextest run --locked --verbose
 
   build:
     runs-on: ${{ matrix.os }}
