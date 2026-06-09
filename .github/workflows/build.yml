@@ -25,8 +25,12 @@ jobs:
       - name: Export sccache environment
         shell: bash
         run: |
+          SCCACHE_DIR="${SCCACHE_DIR:-$HOME/.cache/sccache}"
+          echo "SCCACHE_DIR=$SCCACHE_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$SCCACHE_DIR"
           echo "RUSTC_WRAPPER=$SCCACHE_PATH" >> "$GITHUB_ENV"
           echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          "$SCCACHE_PATH" --start-server
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -83,8 +87,12 @@ jobs:
       - name: Export sccache environment
         shell: bash
         run: |
+          SCCACHE_DIR="${SCCACHE_DIR:-$HOME/.cache/sccache}"
+          echo "SCCACHE_DIR=$SCCACHE_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$SCCACHE_DIR"
           echo "RUSTC_WRAPPER=$SCCACHE_PATH" >> "$GITHUB_ENV"
           echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          "$SCCACHE_PATH" --start-server
 
       - uses: actions/download-artifact@v4
         with:
@@ -138,11 +146,15 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - uses: mozilla-actions/sccache-action@v0.0.9
+        with:
+          disable_annotations: true
 
       - name: Export sccache environment
         shell: bash
         run: |
-          echo "RUSTC_WRAPPER=$SCCACHE_PATH" >> "$GITHUB_ENV"
+          SCCACHE_DIR="${SCCACHE_DIR:-$HOME/.cache/sccache}"
+          echo "SCCACHE_DIR=$SCCACHE_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$SCCACHE_DIR"
           echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
 
       - uses: actions/download-artifact@v4
@@ -173,9 +185,12 @@ jobs:
           fi
 
       - name: Building x86_64-unknown-linux-musl
-        run: cross build --release --locked --target x86_64-unknown-linux-musl --verbose
-        env:
-          RUSTC_WRAPPER: ""
+        run: |
+          set -o pipefail
+          cross build --release --locked --target x86_64-unknown-linux-musl --verbose 2>&1 | tee sccache-build.log
+
+      - name: Report sccache stats
+        run: bash .github/cross/report-sccache-stats.sh sccache-build.log
 
       - name: Stage binary
         shell: bash
@@ -245,12 +260,20 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - uses: mozilla-actions/sccache-action@v0.0.9
+        with:
+          disable_annotations: ${{ contains(matrix.TARGET, 'linux') }}
 
       - name: Export sccache environment
         shell: bash
         run: |
-          echo "RUSTC_WRAPPER=$SCCACHE_PATH" >> "$GITHUB_ENV"
+          SCCACHE_DIR="${SCCACHE_DIR:-$HOME/.cache/sccache}"
+          echo "SCCACHE_DIR=$SCCACHE_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$SCCACHE_DIR"
           echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          if [[ "${{ contains(matrix.TARGET, 'linux') }}" != "true" ]]; then
+            echo "RUSTC_WRAPPER=$SCCACHE_PATH" >> "$GITHUB_ENV"
+            "$SCCACHE_PATH" --start-server
+          fi
 
       - uses: actions/download-artifact@v4
         with:
@@ -284,9 +307,13 @@ jobs:
 
       - name: Building linux for ${{ matrix.TARGET }}
         if: ${{ contains(matrix.TARGET, 'linux') }}
-        run: cross build --release --locked --target ${{ matrix.TARGET }} --verbose
-        env:
-          RUSTC_WRAPPER: ""
+        run: |
+          set -o pipefail
+          cross build --release --locked --target ${{ matrix.TARGET }} --verbose 2>&1 | tee sccache-build.log
+
+      - name: Report sccache stats
+        if: ${{ contains(matrix.TARGET, 'linux') }}
+        run: bash .github/cross/report-sccache-stats.sh sccache-build.log
 
       - name: Building non linux for ${{ matrix.TARGET }}
         if: ${{ !contains(matrix.TARGET, 'linux') }}
