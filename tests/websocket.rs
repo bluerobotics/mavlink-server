@@ -1,15 +1,19 @@
+mod common;
+
 use anyhow::*;
 use clap::Parser;
 use mavlink_server::{cli, hub, stats};
 use tracing::*;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
-#[ignore]
 async fn test_wsserver_receive_only() -> Result<()> {
+    let port = common::pick_free_port();
+    let bind_addr = format!("0.0.0.0:{port}");
+
     cli::init_with(cli::Args::parse_from(vec![
         &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
-        "wsclient://0.0.0.0:9998",
-        "wsserver://0.0.0.0:9998?direction=receiver",
+        &format!("wsclient://{bind_addr}"),
+        &format!("wsserver://{bind_addr}?direction=receiver"),
         "--mavlink-heartbeat-frequency",
         "10",
     ]));
@@ -19,7 +23,7 @@ async fn test_wsserver_receive_only() -> Result<()> {
     }
 
     stats::set_period(tokio::time::Duration::from_millis(100)).await?;
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    common::wait_for_stats_collection().await;
     for (_uuid, driver) in stats::drivers_stats().await? {
         if *driver.name == "WsServer" {
             assert!(driver.stats.output.is_none());
@@ -41,12 +45,14 @@ async fn test_wsserver_receive_only() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
-#[ignore]
 async fn test_wsserver_send_only() -> Result<()> {
+    let port = common::pick_free_port();
+    let bind_addr = format!("0.0.0.0:{port}");
+
     cli::init_with(cli::Args::parse_from(vec![
         &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
-        "wsclient://0.0.0.0:9998",
-        "wsserver://0.0.0.0:9998?direction=sender",
+        &format!("wsclient://{bind_addr}"),
+        &format!("wsserver://{bind_addr}?direction=sender"),
         "--mavlink-heartbeat-frequency",
         "10",
     ]));
@@ -56,7 +62,7 @@ async fn test_wsserver_send_only() -> Result<()> {
     }
 
     stats::set_period(tokio::time::Duration::from_millis(100)).await?;
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    common::wait_for_stats_collection().await;
     for (_uuid, driver) in stats::drivers_stats().await? {
         if *driver.name == "WsServer" {
             assert!(driver.stats.output.is_some());
@@ -78,12 +84,14 @@ async fn test_wsserver_send_only() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
-#[ignore]
 async fn test_wsclient_send_only() -> Result<()> {
+    let port = common::pick_free_port();
+    let bind_addr = format!("0.0.0.0:{port}");
+
     cli::init_with(cli::Args::parse_from(vec![
         &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
-        "wsclient://0.0.0.0:9998?direction=sender",
-        "wsserver://0.0.0.0:9998",
+        &format!("wsclient://{bind_addr}?direction=sender"),
+        &format!("wsserver://{bind_addr}"),
         "--mavlink-heartbeat-frequency",
         "10",
     ]));
@@ -93,7 +101,7 @@ async fn test_wsclient_send_only() -> Result<()> {
     }
 
     stats::set_period(tokio::time::Duration::from_millis(100)).await?;
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    common::wait_for_stats_collection().await;
     for (_uuid, driver) in stats::drivers_stats().await? {
         if *driver.name == "WsServer" {
             assert!(driver.stats.output.is_some());
@@ -115,12 +123,14 @@ async fn test_wsclient_send_only() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
-#[ignore]
 async fn test_wsclient_receive_only() -> Result<()> {
+    let port = common::pick_free_port();
+    let bind_addr = format!("0.0.0.0:{port}");
+
     cli::init_with(cli::Args::parse_from(vec![
         &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
-        "wsclient://0.0.0.0:9998?direction=receiver",
-        "wsserver://0.0.0.0:9998",
+        &format!("wsclient://{bind_addr}?direction=receiver"),
+        &format!("wsserver://{bind_addr}"),
         "--mavlink-heartbeat-frequency",
         "10",
     ]));
@@ -130,7 +140,7 @@ async fn test_wsclient_receive_only() -> Result<()> {
     }
 
     stats::set_period(tokio::time::Duration::from_millis(100)).await?;
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    common::wait_for_stats_collection().await;
     for (_uuid, driver) in stats::drivers_stats().await? {
         if *driver.name == "WsServer" {
             assert!(driver.stats.output.is_some());
