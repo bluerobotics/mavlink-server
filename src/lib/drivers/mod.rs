@@ -34,6 +34,7 @@ pub enum Type {
     WebSocketClient,
     WebSocketServer,
     Zenoh,
+    ZenohRaw,
 }
 
 #[derive(Copy, Clone, Debug, Default, Eq, Hash, PartialEq, strum_macros::EnumString)]
@@ -272,6 +273,10 @@ pub fn endpoints() -> Vec<ExtInfo> {
         ExtInfo {
             driver_ext: Box::new(zenoh::json::ZenohInfo),
             typ: Type::Zenoh,
+        },
+        ExtInfo {
+            driver_ext: Box::new(zenoh::raw::ZenohRawInfo),
+            typ: Type::ZenohRaw,
         },
     ]
 }
