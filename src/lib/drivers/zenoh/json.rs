@@ -17,6 +17,8 @@ use crate::{
     },
 };
 
+const TOPIC_PREFIX: &str = "mavlink";
+
 #[derive(Debug)]
 pub struct Zenoh {
     name: arc_swap::ArcSwap<String>,
@@ -70,7 +72,7 @@ impl Zenoh {
         session: Arc<zenoh::Session>,
     ) -> Result<()> {
         let subscriber = match session
-            .declare_subscriber(format!("{}/in", "mavlink"))
+            .declare_subscriber(format!("{TOPIC_PREFIX}/in"))
             .await
         {
             Ok(subscriber) => subscriber,
@@ -168,15 +170,15 @@ impl Zenoh {
                 }
             };
 
-            let topic_name = "mavlink/out";
+            let out_topic_name = format!("{TOPIC_PREFIX}/out");
             if let Err(error) = session
-                .put(topic_name, json_string)
+                .put(&out_topic_name, json_string)
                 .encoding(zenoh::bytes::Encoding::APPLICATION_JSON)
                 .await
             {
-                error!("Failed to send message to {topic_name}: {error:?}");
+                error!("Failed to send message to {out_topic_name}: {error:?}");
             } else {
-                trace!("Message sent to {topic_name}: {json_string:?}");
+                trace!("Message sent to {out_topic_name}: {json_string:?}");
             }
 
             let header = &mavlink_json.header.inner;
