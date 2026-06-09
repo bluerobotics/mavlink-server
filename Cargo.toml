@@ -57,7 +57,7 @@ tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 tracing-log = "0.2.0"
 tracing-appender = "0.2.3"
 toml = "0.8.19"
-zenoh = { version = "1.7.2", features = ["shared-memory"] }
+zenoh = { version = "1.9.0", features = ["shared-memory"] }
 ringbuffer = "0.15.0"
 strum = "0.27"
 strum_macros = "0.27"
