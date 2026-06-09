@@ -298,6 +298,8 @@ mod tests {
                 true,
             ),
             ("tlogwriter:/tmp/little_potato.tlog", true),
+            ("zenoh://127.0.0.1:7447", true),
+            ("zenohraw://127.0.0.1:7447", true),
         ];
 
         for (endpoint, expected) in endpoints {
