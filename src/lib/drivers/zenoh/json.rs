@@ -228,15 +228,20 @@ impl Driver for Zenoh {
             stats: self.stats.clone(),
         };
 
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
         let mut first = true;
         loop {
             if first {
                 first = false;
             } else {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                interval.tick().await;
             }
 
+            debug!("Trying to connect...");
+
             let session = super::session().await;
+
+            debug!("Successfully connected");
 
             tokio::select! {
                 result = Zenoh::send_task(&context, session.clone()) => {
@@ -250,6 +255,8 @@ impl Driver for Zenoh {
                     }
                 }
             }
+
+            debug!("Restarting connection loop...");
         }
     }
 
