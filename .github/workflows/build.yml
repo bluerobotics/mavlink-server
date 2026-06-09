@@ -6,38 +6,206 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
+  frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: "recursive"
 
-      - name: Install build dependencies - Rustup
+      - name: Configure sccache
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Export sccache environment
+        shell: bash
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target x86_64-unknown-linux-musl,wasm32-unknown-unknown -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          echo "RUSTC_WRAPPER=$SCCACHE_PATH" >> "$GITHUB_ENV"
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: frontend
+          cache-bin: true
+          cache-on-failure: true
+
+      - name: Add Cargo bin to PATH
+        run: echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Install build dependencies - Cargo-Binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install build dependencies - Trunk
+        run: |
+          if [[ ! -x "$CARGO_HOME/bin/trunk" ]]; then
+            cargo binstall -y trunk --force
+          fi
+
+      - name: Building frontend (wasm32)
+        working-directory: src/webpage
+        run: |
+          "$CARGO_HOME/bin/trunk" build --release --locked --verbose
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webpage-dist
+          path: src/webpage/dist
+          retention-days: 1
+
+  test:
+    needs: frontend
+    runs-on: ubuntu-latest
+    env:
+      SKIP_FRONTEND: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Configure sccache
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Export sccache environment
+        shell: bash
+        run: |
+          echo "RUSTC_WRAPPER=$SCCACHE_PATH" >> "$GITHUB_ENV"
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: webpage-dist
+          path: src/webpage/dist
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test
+          cache-bin: true
+          cache-on-failure: true
+
+      - name: Add Cargo bin to PATH
+        run: echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
 
       - name: Install rustfmt
         run: rustup component add rustfmt
+
       - name: Check code style
         run: cargo fmt -- --check
 
       - name: Install build dependencies - Cargo-Binstall
         uses: cargo-bins/cargo-binstall@main
 
-      - name: Install build dependencies - Trunk and cargo-nextest
-        run: cargo binstall -y trunk cargo-nextest
-
-      - name: Building frontend (wasm32)
-        working-directory: src/webpage
-        run: trunk build --release --locked --verbose
+      - name: Install build dependencies - cargo-nextest
+        run: |
+          if [[ ! -x "$CARGO_HOME/bin/cargo-nextest" ]]; then
+            cargo binstall -y cargo-nextest --force
+          fi
 
       - name: Run Tests
-        run: SKIP_FRONTEND=1 cargo nextest run --locked --verbose
+        run: cargo nextest run --locked --verbose
+
+  build-linux-x86_64:
+    needs: frontend
+    runs-on: ubuntu-24.04
+    env:
+      SKIP_FRONTEND: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Configure sccache
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Export sccache environment
+        shell: bash
+        run: |
+          echo "RUSTC_WRAPPER=$SCCACHE_PATH" >> "$GITHUB_ENV"
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: webpage-dist
+          path: src/webpage/dist
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build-x86_64-unknown-linux-musl
+          cache-bin: true
+          cache-on-failure: true
+
+      - name: Add Cargo bin to PATH
+        run: echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Install build dependencies - Cargo-Binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install build dependencies - Cross
+        run: |
+          if [[ ! -x "$CARGO_HOME/bin/cross" ]]; then
+            cargo binstall -y cross --force
+          fi
+
+      - name: Building x86_64-unknown-linux-musl
+        run: cross build --release --locked --target x86_64-unknown-linux-musl --verbose
+        env:
+          RUSTC_WRAPPER: ""
+
+      - name: Stage binary
+        shell: bash
+        run: |
+          mkdir -p package
+          cp target/x86_64-unknown-linux-musl/release/${{ github.event.repository.name }} package/${{ github.event.repository.name }}
+          cp package/${{ github.event.repository.name }} ${{ github.event.repository.name }}-x86_64-unknown-linux-musl
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-x86_64-unknown-linux-musl
+          path: package/
+          retention-days: 1
+
+      - uses: svenstaro/upload-release-action@v2
+        name: Upload binaries to release
+        if: ${{ github.event_name == 'push' }}
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ github.event.repository.name }}-x86_64-unknown-linux-musl
+          asset_name: ${{ github.event.repository.name }}-x86_64-unknown-linux-musl
+          tag: ${{ github.ref }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          overwrite: true
 
   build:
+    needs: frontend
     runs-on: ${{ matrix.os }}
+    env:
+      SKIP_FRONTEND: 1
     strategy:
       fail-fast: false
       matrix:
@@ -57,9 +225,6 @@ jobs:
           - os: ubuntu-24.04
             TARGET: armv7-unknown-linux-musleabihf
 
-          - os: ubuntu-24.04
-            TARGET: x86_64-unknown-linux-musl
-
           - os: windows-2025
             TARGET: x86_64-pc-windows-msvc
             EXTENSION: .exe
@@ -72,37 +237,63 @@ jobs:
         with:
           submodules: "recursive"
 
-      # Required for cargo-binstall
-      - name: Fix openssl on Windows
-        if: runner.os == 'Windows'
-        run: |
-          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
-          vcpkg install openssl:x64-windows-static-md
+      - name: Configure sccache
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Install build dependencies - Rustup
+      - uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Export sccache environment
+        shell: bash
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile minimal --target ${{ matrix.TARGET }},wasm32-unknown-unknown -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          echo "RUSTC_WRAPPER=$SCCACHE_PATH" >> "$GITHUB_ENV"
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: webpage-dist
+          path: src/webpage/dist
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.TARGET }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build-${{ matrix.TARGET }}
+          cache-bin: true
+          cache-on-failure: true
+
+      - name: Add Cargo bin to PATH
+        if: ${{ contains(matrix.TARGET, 'linux') }}
+        run: echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
 
       - name: Install build dependencies - Cargo-Binstall
+        if: ${{ contains(matrix.TARGET, 'linux') }}
         uses: cargo-bins/cargo-binstall@main
 
-      - name: Install build dependencies - Cross, Trunk
-        run: cargo binstall -y trunk cross
-
-      - name: Building frontend (wasm32)
-        working-directory: src/webpage
-        run: trunk build --release --locked --verbose
-
-      - name: Building linux for ${{ matrix.os }} ${{ matrix.target }}
+      - name: Install build dependencies - Cross
         if: ${{ contains(matrix.TARGET, 'linux') }}
-        run: SKIP_FRONTEND=1 cross build --release --locked --target ${{matrix.target}} --verbose
+        run: |
+          if [[ ! -x "$CARGO_HOME/bin/cross" ]]; then
+            cargo binstall -y cross --force
+          fi
 
-      - name: Building non linux for ${{ matrix.os }} ${{ matrix.target }}
+      - name: Building linux for ${{ matrix.TARGET }}
+        if: ${{ contains(matrix.TARGET, 'linux') }}
+        run: cross build --release --locked --target ${{ matrix.TARGET }} --verbose
+        env:
+          RUSTC_WRAPPER: ""
+
+      - name: Building non linux for ${{ matrix.TARGET }}
         if: ${{ !contains(matrix.TARGET, 'linux') }}
-        run: cross build --release --locked --target ${{matrix.target}} --verbose
+        run: cargo build --release --locked --target ${{ matrix.TARGET }} --verbose
 
       - name: Rename
+        shell: bash
         run: cp target/${{ matrix.TARGET }}/release/${{ github.event.repository.name }}${{ matrix.EXTENSION }} ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
 
       - uses: actions/upload-artifact@v4
@@ -120,3 +311,79 @@ jobs:
           tag: ${{ github.ref }}
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
           overwrite: true
+
+  test-endpoints:
+    needs: build-linux-x86_64
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "UDP Test"
+            server_endpoints: "udpout:127.0.0.1:14550 udpin:127.0.0.1:14551"
+            client_endpoints: "udpin:127.0.0.1:14550 udpout:127.0.0.1:14551"
+          - name: "TCP Test"
+            server_endpoints: "tcpout:127.0.0.1:5761 tcpin:127.0.0.1:5760"
+            client_endpoints: "tcpin:127.0.0.1:5761 tcp:127.0.0.1:5760"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-x86_64-unknown-linux-musl
+          path: bin
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Run mavlink-server
+        run: |
+          chmod +x bin/${{ github.event.repository.name }}
+          ./bin/${{ github.event.repository.name }} ${{ matrix.server_endpoints }} &
+          sleep 5
+
+      - name: Run Python Heartbeat Test
+        run: |
+          cd tests/scripts
+          uv run test_heartbeat.py ${{ matrix.client_endpoints }}
+
+  test-arm-vehicle:
+    needs: build-linux-x86_64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-x86_64-unknown-linux-musl
+          path: bin
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Run vehicle arming test
+        env:
+          MAVLINK_SERVER_BIN: ${{ github.workspace }}/bin/${{ github.event.repository.name }}
+        run: |
+          chmod +x "$MAVLINK_SERVER_BIN"
+          cd tests/python
+          uv run main.py
