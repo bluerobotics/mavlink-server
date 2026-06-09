@@ -226,27 +226,6 @@ impl Driver for Zenoh {
             stats: self.stats.clone(),
         };
 
-        let mut config = if let Some(zenoh_config_file) = crate::cli::zenoh_config_file() {
-            zenoh::Config::from_file(zenoh_config_file)
-                .map_err(|error| anyhow::anyhow!("Failed to load Zenoh config file: {error:?}"))?
-        } else {
-            let mut config = zenoh::Config::default();
-            config
-                .insert_json5("mode", r#""client""#)
-                .expect("Failed to insert client mode");
-            config
-                .insert_json5("connect/endpoints", r#"["tcp/127.0.0.1:7447"]"#)
-                .expect("Failed to insert connect endpoints");
-            config
-        };
-
-        config
-            .insert_json5("adminspace", r#"{"enabled": true}"#)
-            .expect("Failed to insert adminspace");
-        config
-            .insert_json5("metadata", r#"{"name": "mavlink-server"}"#)
-            .expect("Failed to insert metadata");
-
         let mut first = true;
         loop {
             if first {
@@ -255,13 +234,7 @@ impl Driver for Zenoh {
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
 
-            let session = match zenoh::open(config.clone()).await {
-                Ok(session) => Arc::new(session),
-                Err(error) => {
-                    error!("Failed to start zenoh session: {error:?}");
-                    continue;
-                }
-            };
+            let session = super::session().await;
 
             tokio::select! {
                 result = Zenoh::send_task(&context, session.clone()) => {
