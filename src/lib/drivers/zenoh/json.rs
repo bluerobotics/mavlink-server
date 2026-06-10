@@ -330,7 +330,6 @@ impl DriverInfo for ZenohInfo {
     }
 
     fn create_endpoint_from_url(&self, url: &url::Url) -> Option<Arc<dyn Driver>> {
-        println!("{}", &url);
         let _host = url.host_str().unwrap();
         let _port = url.port().unwrap();
         Some(Arc::new(Zenoh::builder("Zenoh").build()))
