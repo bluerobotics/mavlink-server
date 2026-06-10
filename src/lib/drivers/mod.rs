@@ -356,7 +356,7 @@ mod tests {
         async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
             let mut hub_receiver = hub_sender.subscribe();
 
-            loop {
+            'mainloop: loop {
                 let message = match hub_receiver.recv().await {
                     Ok(message) => message,
                     Err(broadcast::error::RecvError::Closed) => {
@@ -376,7 +376,7 @@ mod tests {
                         debug!(
                             "Dropping message: on_message_output callback returned error: {error:?}"
                         );
-                        continue;
+                        continue 'mainloop;
                     }
                 }
 

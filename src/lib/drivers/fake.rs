@@ -93,7 +93,7 @@ impl Driver for FakeSink {
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let mut hub_receiver = hub_sender.subscribe();
 
-        loop {
+        'mainloop: loop {
             let message = match hub_receiver.recv().await {
                 Ok(message) => message,
                 Err(broadcast::error::RecvError::Closed) => {
@@ -111,7 +111,7 @@ impl Driver for FakeSink {
             for future in self.on_message_input.call_all(message.clone()) {
                 if let Err(error) = future.await {
                     debug!("Dropping message: on_message_input callback returned error: {error:?}");
-                    continue;
+                    continue 'mainloop;
                 }
             }
 
@@ -378,13 +378,17 @@ impl Driver for FakeSource {
             })
             .expect("Failed spawning thread for generator task");
 
-        while let Some(message) = rx.recv().await {
+        'mainloop: loop {
+            let Some(message) = rx.recv().await else {
+                break;
+            };
+
             self.stats.write().await.stats.update_output(&message);
 
             for future in self.on_message_output.call_all(message.clone()) {
                 if let Err(error) = future.await {
                     debug!("Dropping message: on_message_input callback returned error: {error:?}");
-                    continue;
+                    continue 'mainloop;
                 }
             }
 

@@ -175,7 +175,7 @@ where
 
     let client_timeout = crate::cli::udp_server_timeout();
 
-    loop {
+    'mainloop: loop {
         let (packet, client_addr) = match reader.next().await {
             Some(Ok((Ok(packet), client_addr))) => (packet, client_addr),
             Some(Ok((Err(decode_error), client_addr))) => {
@@ -217,7 +217,7 @@ where
             for future in context.on_message_input.call_all(message.clone()) {
                 if let Err(error) = future.await {
                     debug!(origin = ?client_addr, "Dropping message: on_message_input callback returned error: {error:?}");
-                    continue;
+                    continue 'mainloop;
                 }
             }
         }
