@@ -9,19 +9,19 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "recursive"
           fetch-tags: true
 
       - name: Configure sccache
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9.0.0
         with:
           script: |
             core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
         with:
           disable_annotations: true
 
@@ -35,11 +35,12 @@ jobs:
           echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
           "$SCCACHE_PATH" --start-server
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: stable
           targets: wasm32-unknown-unknown
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.1
         with:
           shared-key: frontend
           cache-bin: true
@@ -49,7 +50,9 @@ jobs:
         run: echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
 
       - name: Install build dependencies - Cargo-Binstall
-        uses: cargo-bins/cargo-binstall@main
+        uses: cargo-bins/cargo-binstall@v1.20.0
+        with:
+          version: "1.20.0"
 
       - name: Install build dependencies - Trunk
         run: |
@@ -63,7 +66,7 @@ jobs:
           "$CARGO_HOME/bin/trunk" build --release --locked --verbose
           bash "$GITHUB_WORKSPACE/.github/sccache-summary.sh"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.1
         with:
           name: webpage-dist
           path: src/webpage/dist
@@ -75,18 +78,18 @@ jobs:
     env:
       SKIP_FRONTEND: 1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "recursive"
 
       - name: Configure sccache
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9.0.0
         with:
           script: |
             core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
         with:
           disable_annotations: true
 
@@ -100,14 +103,16 @@ jobs:
           echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
           "$SCCACHE_PATH" --start-server
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8.0.1
         with:
           name: webpage-dist
           path: src/webpage/dist
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.1
         with:
           shared-key: test
           cache-bin: true
@@ -123,7 +128,9 @@ jobs:
         run: cargo fmt -- --check
 
       - name: Install build dependencies - Cargo-Binstall
-        uses: cargo-bins/cargo-binstall@main
+        uses: cargo-bins/cargo-binstall@v1.20.0
+        with:
+          version: "1.20.0"
 
       - name: Install build dependencies - cargo-nextest
         run: |
@@ -142,18 +149,18 @@ jobs:
     env:
       SKIP_FRONTEND: 1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "recursive"
 
       - name: Configure sccache
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9.0.0
         with:
           script: |
             core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
         with:
           disable_annotations: true
 
@@ -165,16 +172,17 @@ jobs:
           mkdir -p "$SCCACHE_DIR"
           echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8.0.1
         with:
           name: webpage-dist
           path: src/webpage/dist
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: stable
           targets: x86_64-unknown-linux-musl
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.1
         with:
           shared-key: build-x86_64-unknown-linux-musl
           cache-bin: true
@@ -184,7 +192,9 @@ jobs:
         run: echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
 
       - name: Install build dependencies - Cargo-Binstall
-        uses: cargo-bins/cargo-binstall@main
+        uses: cargo-bins/cargo-binstall@v1.20.0
+        with:
+          version: "1.20.0"
 
       - name: Install build dependencies - Cross
         run: |
@@ -202,13 +212,13 @@ jobs:
           cp target/x86_64-unknown-linux-musl/release/${{ github.event.repository.name }} package/${{ github.event.repository.name }}
           cp package/${{ github.event.repository.name }} ${{ github.event.repository.name }}-x86_64-unknown-linux-musl
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.1
         with:
           name: ${{ github.event.repository.name }}-x86_64-unknown-linux-musl
           path: package/
           retention-days: 1
 
-      - uses: svenstaro/upload-release-action@v2
+      - uses: svenstaro/upload-release-action@2.11.5
         name: Upload binaries to release
         if: ${{ github.event_name == 'push' }}
         with:
@@ -251,19 +261,19 @@ jobs:
       - name: Building ${{ matrix.TARGET }}
         run: echo "${{ matrix.TARGET }}"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "recursive"
           fetch-tags: true
 
       - name: Configure sccache
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9.0.0
         with:
           script: |
             core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
         with:
           disable_annotations: true
 
@@ -279,16 +289,17 @@ jobs:
             "$SCCACHE_PATH" --start-server
           fi
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8.0.1
         with:
           name: webpage-dist
           path: src/webpage/dist
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: stable
           targets: ${{ matrix.TARGET }}
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.1
         with:
           shared-key: build-${{ matrix.TARGET }}
           cache-bin: true
@@ -300,7 +311,9 @@ jobs:
 
       - name: Install build dependencies - Cargo-Binstall
         if: ${{ contains(matrix.TARGET, 'linux') }}
-        uses: cargo-bins/cargo-binstall@main
+        uses: cargo-bins/cargo-binstall@v1.20.0
+        with:
+          version: "1.20.0"
 
       - name: Install build dependencies - Cross
         if: ${{ contains(matrix.TARGET, 'linux') }}
@@ -323,12 +336,12 @@ jobs:
         shell: bash
         run: cp target/${{ matrix.TARGET }}/release/${{ github.event.repository.name }}${{ matrix.EXTENSION }} ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.1
         with:
           name: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
           path: ${{ github.event.repository.name }}-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
 
-      - uses: svenstaro/upload-release-action@v2
+      - uses: svenstaro/upload-release-action@2.11.5
         name: Upload binaries to release
         if: ${{ github.event_name == 'push' }}
         with:
@@ -354,19 +367,19 @@ jobs:
             client_endpoints: "tcpin:127.0.0.1:5761 tcp:127.0.0.1:5760"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "recursive"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8.0.1
         with:
           name: ${{ github.event.repository.name }}-x86_64-unknown-linux-musl
           path: bin
 
       - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v8.2.0
         with:
-          version: "latest"
+          version: "0.11.19"
 
       - name: Run mavlink-server
         run: |
@@ -383,17 +396,17 @@ jobs:
     needs: build-linux-x86_64
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.3
         with:
           submodules: "recursive"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8.0.1
         with:
           name: ${{ github.event.repository.name }}-x86_64-unknown-linux-musl
           path: bin
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6.2.0
         with:
           python-version: "3.13"
 
@@ -403,9 +416,9 @@ jobs:
           sudo apt-get install -y build-essential
 
       - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v8.2.0
         with:
-          version: "latest"
+          version: "0.11.19"
 
       - name: Run vehicle arming test
         env:
