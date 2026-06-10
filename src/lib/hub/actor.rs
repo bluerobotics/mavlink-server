@@ -64,7 +64,7 @@ impl HubActor {
                     let _ = response.send(drivers);
                 }
                 HubCommand::GetSender { response } => {
-                    let _ = response.send(self.bcst_sender.clone());
+                    let _ = response.send(self.get_sender());
                 }
                 HubCommand::GetDriversStats { response } => {
                     let drivers_stats = self.get_drivers_stats().await;
@@ -129,7 +129,7 @@ impl HubActor {
     async fn add_driver(&mut self, driver: Arc<dyn Driver>) -> Result<DriverUuid> {
         let uuid = *driver.uuid();
 
-        let hub_sender = self.bcst_sender.clone();
+        let hub_sender = self.get_sender();
 
         let task = tokio::spawn({
             let driver = driver.clone();
