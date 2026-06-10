@@ -36,20 +36,11 @@ jobs:
       - name: Building tests
         run: SKIP_FRONTEND=1 cargo test --no-run --locked --verbose
 
+      - name: Install build dependencies - cargo-nextest
+        run: cargo binstall -y cargo-nextest --force
+
       - name: Run Tests
-        run: |
-          SKIP_FRONTEND=1 cargo test --verbose -- --nocapture
-          SKIP_FRONTEND=1 cargo test test_udpserver_receive_only --verbose -- --nocapture
-          SKIP_FRONTEND=1 cargo test test_udpserver_send_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_udpclient_send_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_tcpserver_receive_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_tcpserver_send_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_tcpclient_send_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_tcpclient_receive_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_wsserver_receive_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_wsserver_send_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_wsclient_send_only --verbose -- --nocapture --ignored
-          SKIP_FRONTEND=1 cargo test test_wsclient_receive_only --verbose -- --nocapture --ignored
+        run: SKIP_FRONTEND=1 cargo nextest run --locked --verbose
 
   build:
     runs-on: ${{ matrix.os }}
