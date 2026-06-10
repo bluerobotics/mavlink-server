@@ -93,7 +93,7 @@ impl TlogWriter {
     ) -> Result<()> {
         let mut writer = writer;
 
-        loop {
+        'mainloop: loop {
             let message = match hub_receiver.recv().await {
                 Ok(message) => message,
                 Err(broadcast::error::RecvError::Closed) => {
@@ -113,7 +113,7 @@ impl TlogWriter {
             for future in self.on_message_output.call_all(message.clone()) {
                 if let Err(error) = future.await {
                     debug!("Dropping message: on_message_input callback returned error: {error:?}");
-                    continue;
+                    continue 'mainloop;
                 }
             }
 

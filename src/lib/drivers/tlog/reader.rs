@@ -77,7 +77,7 @@ impl TlogReader {
         let mut reader = mavlink::async_peek_reader::AsyncPeekReader::new(reader);
         let mut timestamp_bytes = [0u8; 8];
 
-        loop {
+        'mainloop: loop {
             // Tlog files follow the byte format of <unix_timestamp_us><raw_mavlink_messsage>
             let bytes = loop {
                 let bytes = reader.peek_exact(9).await?;
@@ -133,7 +133,7 @@ impl TlogReader {
             for future in self.on_message_input.call_all(message.clone()) {
                 if let Err(error) = future.await {
                     debug!("Dropping message: on_message_input callback returned error: {error:?}");
-                    continue;
+                    continue 'mainloop;
                 }
             }
 

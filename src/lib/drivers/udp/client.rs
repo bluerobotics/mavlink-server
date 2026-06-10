@@ -189,7 +189,7 @@ where
     T: Stream<Item = std::io::Result<(std::result::Result<Packet, DecoderError>, SocketAddr)>>
         + std::marker::Unpin,
 {
-    loop {
+    'mainloop: loop {
         let (packet, remote_addr) = match reader.next().await {
             Some(Ok((Ok(packet), remote_addr))) => (packet, remote_addr),
             Some(Ok((Err(decode_error), remote_addr))) => {
@@ -228,7 +228,7 @@ where
         for future in context.on_message_input.call_all(message.clone()) {
             if let Err(error) = future.await {
                 debug!(origin = ?remote_addr, "Dropping message: on_message_input callback returned error: {error:?}");
-                continue;
+                continue 'mainloop;
             }
         }
 

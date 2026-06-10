@@ -84,12 +84,25 @@ impl Zenoh {
             }
         };
 
-        while let Ok(sample) = subscriber.recv_async().await {
-            let Ok(content) = json5::from_str::<MAVLinkJSON<mavlink::ardupilotmega::MavMessage>>(
+        'mainloop: loop {
+            let sample = match subscriber.recv_async().await {
+                Ok(sample) => sample,
+                Err(error) => {
+                    error!("Failed to receive sample: no senders left: {error:?}");
+                    break;
+                }
+            };
+
+            let content = match json5::from_str::<MAVLinkJSON<mavlink::ardupilotmega::MavMessage>>(
                 std::str::from_utf8(&sample.payload().to_bytes()).unwrap(),
-            ) else {
-                debug!("Failed to parse message, not a valid MAVLinkMessage: {sample:?}");
-                continue;
+            ) {
+                Ok(content) => content,
+                Err(error) => {
+                    debug!(
+                        "Failed to parse message, not a valid MAVLinkMessage: {sample:?}. Error: {error:?}"
+                    );
+                    continue;
+                }
             };
 
             let bus_message = Arc::new(Protocol::from_mavlink_raw(
@@ -105,7 +118,7 @@ impl Zenoh {
             for future in context.on_message_input.call_all(bus_message.clone()) {
                 if let Err(error) = future.await {
                     debug!("Dropping message: on_message_input callback returned error: {error:?}");
-                    continue;
+                    continue 'mainloop;
                 }
             }
 
@@ -155,11 +168,15 @@ impl Zenoh {
                 }
             }
 
-            let Ok(mavlink_json) = message
+            let mavlink_json = match message
                 .to_mavlink_json::<mavlink::ardupilotmega::MavMessage>()
                 .await
-            else {
-                continue;
+            {
+                Ok(mavlink_json) => mavlink_json,
+                Err(error) => {
+                    error!("Failed converting to mavlink json: {error:?}");
+                    continue;
+                }
             };
 
             let message_name = mavlink_json.message.message_name();
