@@ -421,12 +421,11 @@ where
     let mut receiver = BROADCAST_INNER.subscribe();
     let receive = async {
         loop {
-            if let Ok((header, message)) = receiver.recv().await {
-                if (header.system_id == vehicle_id && header.component_id == component_id)
-                    && condition(&message)
-                {
-                    return Ok(message);
-                }
+            if let Ok((header, message)) = receiver.recv().await
+                && (header.system_id == vehicle_id && header.component_id == component_id)
+                && condition(&message)
+            {
+                return Ok(message);
             }
         }
     };
