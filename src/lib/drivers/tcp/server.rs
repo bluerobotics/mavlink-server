@@ -164,7 +164,7 @@ impl Driver for TcpServer {
 
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
-        return Box::new(TcpServerInfo);
+        Box::new(TcpServerInfo)
     }
 
     fn name(&self) -> Arc<String> {

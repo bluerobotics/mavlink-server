@@ -206,7 +206,7 @@ impl Driver for TlogWriter {
 
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
-        return Box::new(TlogWriterInfo);
+        Box::new(TlogWriterInfo)
     }
 
     fn name(&self) -> Arc<String> {

@@ -133,7 +133,7 @@ impl Driver for TcpClient {
 
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
-        return Box::new(TcpClientInfo);
+        Box::new(TcpClientInfo)
     }
 
     fn name(&self) -> Arc<String> {

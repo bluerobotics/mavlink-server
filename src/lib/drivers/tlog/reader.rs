@@ -156,7 +156,7 @@ impl Driver for TlogReader {
 
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
-        return Box::new(TlogReaderInfo);
+        Box::new(TlogReaderInfo)
     }
 
     fn name(&self) -> Arc<String> {
