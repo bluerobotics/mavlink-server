@@ -214,7 +214,10 @@ impl Zenoh {
 
             match session
                 .declare_publisher(key_expr)
-                .encoding(zenoh::bytes::Encoding::APPLICATION_JSON)
+                .encoding(zenoh::bytes::Encoding::APPLICATION_JSON.with_schema("mavlink"))
+                .congestion_control(zenoh::qos::CongestionControl::Block)
+                .priority(zenoh::qos::Priority::RealTime)
+                .express(false)
                 .await
             {
                 Ok(publisher) => {
