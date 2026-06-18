@@ -14,7 +14,7 @@ struct Manager {
 
 #[derive(Debug, Parser)]
 #[command(
-    version = env!("CARGO_PKG_VERSION"),
+    version = env!("VERGEN_GIT_DESCRIBE"),
     author = env!("CARGO_PKG_AUTHORS"),
     about = env!("CARGO_PKG_DESCRIPTION")
 )]
