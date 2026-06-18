@@ -77,9 +77,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Path::new(&out_dir).join("src/lib/drivers/rest/autopilot/parameters/ardupilot_parameters");
     println!("cargo:rerun-if-changed={}", params_src.display());
 
+    let gix = GixBuilder::default()
+        .all()
+        .describe(true, false, None)
+        .build()?;
+
     vergen_gix::Emitter::default()
         .add_instructions(&BuildBuilder::all_build()?)?
-        .add_instructions(&GixBuilder::all_git()?)?
+        .add_instructions(&gix)?
         .add_instructions(
             CargoBuilder::all_cargo()?.set_dep_kind_filter(Some(DependencyKind::Normal)),
         )?
