@@ -23,7 +23,7 @@ lazy_static! {
 
 lazy_static! {
     static ref BROADCAST: broadcast::Sender<mavlink::ardupilotmega::MavMessage> =
-        broadcast::channel(16).0;
+        broadcast::channel(1024).0;
 }
 
 lazy_static! {

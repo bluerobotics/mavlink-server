@@ -25,7 +25,10 @@ use crate::{
         hub_stats::{HubStatsHistorical, HubStatsSample},
         resources::{ResourceUsage, ResourceUsageHistorical},
     },
-    tabs::{control::ControlTab, helper::HelperTab, mavftp::MavFtpTab},
+    tabs::{
+        control::ControlTab, helper::HelperTab, mavftp::MavFtpTab,
+        vehicle_logs::VehicleLogsTab,
+    },
     widgets::driver_stats::DriverStatsWidget,
     widgets::hub_stats::HubStatsWidget,
     widgets::message_inspector::MessageInspectorWidget,
@@ -45,6 +48,7 @@ enum Screens {
     Helper,
     Control,
     MavFtp,
+    VehicleLogs,
 }
 
 #[derive(Clone, PartialEq)]
@@ -93,6 +97,7 @@ pub struct App {
     control_tab: ControlTab,
     helper_tab: HelperTab,
     mavftp_tab: MavFtpTab,
+    vehicle_logs_tab: VehicleLogsTab,
 }
 
 impl Default for App {
@@ -167,6 +172,7 @@ impl Default for App {
             control_tab: Default::default(),
             helper_tab: Default::default(),
             mavftp_tab: Default::default(),
+            vehicle_logs_tab: Default::default(),
         }
     }
 }
@@ -189,6 +195,10 @@ impl App {
                 ui.add_space(16.0);
                 if ui.button("MavFTP").clicked() {
                     self.show_screen = Screens::MavFtp;
+                }
+                ui.add_space(16.0);
+                if ui.button("Vehicle Logs").clicked() {
+                    self.show_screen = Screens::VehicleLogs;
                 }
 
                 ui.with_layout(
@@ -312,6 +322,10 @@ impl App {
 
     fn show_mavftp_screen(&mut self, ctx: &Context) {
         self.mavftp_tab.show(ctx);
+    }
+
+    fn show_vehicle_logs_screen(&mut self, ctx: &Context) {
+        self.vehicle_logs_tab.show(ctx);
     }
 
     fn deal_with_mavlink_message(&mut self, message: String) {
@@ -806,6 +820,7 @@ impl eframe::App for App {
             Screens::Helper => self.show_helper_screen(ctx),
             Screens::Control => self.show_control_screen(ctx),
             Screens::MavFtp => self.show_mavftp_screen(ctx),
+            Screens::VehicleLogs => self.show_vehicle_logs_screen(ctx),
         }
 
         ctx.request_repaint();

@@ -116,6 +116,18 @@ impl Driver for UdpClient {
                 }
             };
 
+            const TARGET_RCVBUF: usize = 1024 * 1024; // 1 MB
+            let std_sock = socket.into_std()?;
+            let sock2 = socket2::Socket::from(std_sock);
+            if let Err(e) = sock2.set_recv_buffer_size(TARGET_RCVBUF) {
+                warn!("Failed to set SO_RCVBUF to {TARGET_RCVBUF}: {e}");
+            }
+            let actual = sock2.recv_buffer_size().unwrap_or(0);
+            info!("UDP socket SO_RCVBUF set to {actual} bytes (requested {TARGET_RCVBUF})");
+            let std_sock: std::net::UdpSocket = sock2.into();
+            std_sock.set_nonblocking(true)?;
+            let socket = UdpSocket::from_std(std_sock)?;
+
             debug!("UdpClient successfully bound to {local_addr}");
 
             let codec = MavlinkCodec::<true, true, false, false, false, false>::default();

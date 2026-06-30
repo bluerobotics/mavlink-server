@@ -66,6 +66,7 @@ semver = { version = "1.0.26", features = ["serde"] }
 cached = "0.55.1"
 flate2 = { version = "1.1", features = ["rust_backend"] }
 sysinfo = "0.35.0"
+socket2 = "0.6.3"
 
 [dev-dependencies]
 criterion = "0.5"

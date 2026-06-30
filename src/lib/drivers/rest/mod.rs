@@ -2,6 +2,7 @@ pub mod autopilot;
 pub mod control;
 pub mod data;
 pub mod mavftp;
+pub mod vehicle_logs;
 
 use std::sync::Arc;
 
