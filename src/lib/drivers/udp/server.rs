@@ -148,7 +148,7 @@ impl Driver for UdpServer {
 
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
-        return Box::new(UdpServerInfo);
+        Box::new(UdpServerInfo)
     }
 
     fn name(&self) -> Arc<String> {
@@ -252,12 +252,12 @@ where
 
             clients.retain(move |addr, client| {
                 // Client Timeout
-                if let Some(timeout) = client_timeout {
-                    if client.last_update.elapsed() > timeout {
-                        debug!("Client {addr} timed out.");
+                if let Some(timeout) = client_timeout
+                    && client.last_update.elapsed() > timeout
+                {
+                    debug!("Client {addr} timed out.");
 
-                        return false;
-                    }
+                    return false;
                 }
 
                 // Client task recreation
@@ -270,11 +270,11 @@ where
             });
         }
 
-        if context.direction.can_receive() {
-            if let Err(send_error) = context.hub_sender.send(message) {
-                error!(origin = ?client_addr, "Failed to send message to hub: {send_error:?}");
-                continue;
-            }
+        if context.direction.can_receive()
+            && let Err(send_error) = context.hub_sender.send(message)
+        {
+            error!(origin = ?client_addr, "Failed to send message to hub: {send_error:?}");
+            continue;
         }
 
         trace!(origin = ?client_addr, "Message sent to hub");

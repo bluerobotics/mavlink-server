@@ -162,25 +162,24 @@ impl Driver for TlogWriter {
                 interval.tick().await;
             }
 
-            if !armed {
-                if let FileCreationCondition::WhileArmed(expected_origin) =
+            if !armed
+                && let FileCreationCondition::WhileArmed(expected_origin) =
                     &self.file_creation_condition
-                {
-                    debug!(
-                        "TlogWriter waiting for its arm condition as {:?}",
-                        self.file_creation_condition
-                    );
-                    let hub_receiver = hub_sender.subscribe();
-                    if let Err(error) = wait_for_arm(hub_receiver, expected_origin).await {
-                        warn!("Failed waiting for arm: {error:?}");
-                        continue;
-                    }
-                    debug!(
-                        "TlogWriter has reached its arm condition as {:?}",
-                        self.file_creation_condition
-                    );
-                    armed = true;
+            {
+                debug!(
+                    "TlogWriter waiting for its arm condition as {:?}",
+                    self.file_creation_condition
+                );
+                let hub_receiver = hub_sender.subscribe();
+                if let Err(error) = wait_for_arm(hub_receiver, expected_origin).await {
+                    warn!("Failed waiting for arm: {error:?}");
+                    continue;
                 }
+                debug!(
+                    "TlogWriter has reached its arm condition as {:?}",
+                    self.file_creation_condition
+                );
+                armed = true;
             }
 
             let file = match create_tlog_file(self.path.clone()).await {
@@ -206,7 +205,7 @@ impl Driver for TlogWriter {
 
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
-        return Box::new(TlogWriterInfo);
+        Box::new(TlogWriterInfo)
     }
 
     fn name(&self) -> Arc<String> {

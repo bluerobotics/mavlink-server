@@ -95,10 +95,10 @@ pub(crate) async fn broadcast(sender_identifier: Uuid, message: ws::Message) {
     let clients = state.clients.read().await;
 
     for (&client_identifier, tx) in clients.iter() {
-        if client_identifier != sender_identifier {
-            if let Err(error) = tx.send(message.clone()) {
-                error!("Failed to send message to client {client_identifier}: {error:?}",);
-            }
+        if client_identifier != sender_identifier
+            && let Err(error) = tx.send(message.clone())
+        {
+            error!("Failed to send message to client {client_identifier}: {error:?}",);
         }
     }
 }

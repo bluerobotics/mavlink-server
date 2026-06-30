@@ -40,9 +40,7 @@ where
         mut self: Pin<&mut Self>,
         context: &mut Context<'_>,
     ) -> Poll<Result<(), Self::Error>> {
-        self.inner
-            .poll_ready_unpin(context)
-            .map_err(|error| IoError::new(IoErrorKind::Other, error))
+        self.inner.poll_ready_unpin(context).map_err(IoError::other)
     }
 
     fn start_send(mut self: Pin<&mut Self>, item: Packet) -> Result<(), Self::Error> {
@@ -50,27 +48,21 @@ where
         self.codec.encode(item, &mut buf)?;
         let msg = Message::Binary(buf.freeze());
 
-        self.inner
-            .start_send_unpin(msg)
-            .map_err(|error| IoError::new(IoErrorKind::Other, error))
+        self.inner.start_send_unpin(msg).map_err(IoError::other)
     }
 
     fn poll_flush(
         mut self: Pin<&mut Self>,
         context: &mut Context<'_>,
     ) -> Poll<Result<(), Self::Error>> {
-        self.inner
-            .poll_flush_unpin(context)
-            .map_err(|error| IoError::new(IoErrorKind::Other, error))
+        self.inner.poll_flush_unpin(context).map_err(IoError::other)
     }
 
     fn poll_close(
         mut self: Pin<&mut Self>,
         context: &mut Context<'_>,
     ) -> Poll<Result<(), Self::Error>> {
-        self.inner
-            .poll_close_unpin(context)
-            .map_err(|error| IoError::new(IoErrorKind::Other, error))
+        self.inner.poll_close_unpin(context).map_err(IoError::other)
     }
 }
 
@@ -107,7 +99,7 @@ where
                     ))));
                 }
                 Some(Err(error)) => {
-                    return Poll::Ready(Some(Err(IoError::new(IoErrorKind::Other, error))));
+                    return Poll::Ready(Some(Err(IoError::other(error))));
                 }
                 None => return Poll::Ready(None),
             }

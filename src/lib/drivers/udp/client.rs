@@ -130,7 +130,7 @@ impl Driver for UdpClient {
 
     #[instrument(level = "debug", skip(self))]
     fn info(&self) -> Box<dyn DriverInfo> {
-        return Box::new(UdpClientInfo);
+        Box::new(UdpClientInfo)
     }
 
     fn name(&self) -> Arc<String> {

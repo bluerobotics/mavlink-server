@@ -147,12 +147,12 @@ pub trait DriverInfo: Sync + Send {
             "Failed to parse URL from legacy entry: {debug_entry:?}"
         ))?;
 
-        if let Some(port) = port {
-            if url.set_port(Some(port)).is_err() {
-                debug!("Failed to set port {port} in URL: {url}, moving to argument");
-                if argument.is_none() {
-                    argument = Some(port.to_string());
-                }
+        if let Some(port) = port
+            && url.set_port(Some(port)).is_err()
+        {
+            debug!("Failed to set port {port} in URL: {url}, moving to argument");
+            if argument.is_none() {
+                argument = Some(port.to_string());
             };
         }
 
