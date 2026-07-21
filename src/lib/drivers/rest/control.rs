@@ -246,11 +246,14 @@ impl Vehicle {
                     version: semver::Version::new(major, minor, patch),
                 });
 
-                let firmware_type = autopilot::ardupilot::firmware_type(
-                    component
-                        .vehicle_type
-                        .expect("Should have vehicle type already"),
-                );
+                let Some(vehicle_type) = component.vehicle_type else {
+                    debug!(
+                        "vehicle_type is unknown for {}/{}",
+                        self.vehicle_id, header.component_id
+                    );
+                    return;
+                };
+                let firmware_type = autopilot::ardupilot::firmware_type(vehicle_type);
                 let version_major_minor = format!("{}.{}", major, minor);
 
                 // First time requesting parameters
