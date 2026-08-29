@@ -17,6 +17,10 @@ async fn main() -> Result<()> {
         env!("VERGEN_BUILD_DATE")
     );
     info!(
+        "Build dependencies details: {}",
+        env!("VERGEN_CARGO_DEPENDENCIES"),
+    );
+    info!(
         "Starting at {}",
         chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
     );
