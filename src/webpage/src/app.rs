@@ -848,7 +848,7 @@ impl eframe::App for App {
             Screens::MavFtp => self.show_mavftp_screen(ctx),
         }
 
-        ctx.request_repaint();
+        ctx.request_repaint_after(std::time::Duration::from_millis(33));
     }
 }
 
