@@ -1,8 +1,6 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
+use indexmap::IndexMap;
 use lazy_static::lazy_static;
 use mavlink::{self, Message};
 use serde::{Deserialize, Serialize};
@@ -22,7 +20,7 @@ struct Data {
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct MAVLinkVehiclesData {
-    vehicles: HashMap<u8, MAVLinkVehicleData>,
+    vehicles: IndexMap<u8, MAVLinkVehicleData>,
 }
 
 impl MAVLinkVehiclesData {
@@ -32,7 +30,7 @@ impl MAVLinkVehiclesData {
             .entry(vehicle_id)
             .or_insert(MAVLinkVehicleData {
                 id: vehicle_id,
-                components: HashMap::new(),
+                components: IndexMap::new(),
             })
             .update(message);
     }
@@ -58,7 +56,7 @@ impl MAVLinkVehiclesData {
 #[derive(Debug, Deserialize, Serialize)]
 struct MAVLinkVehicleData {
     id: u8,
-    components: HashMap<u8, MAVLinkVehicleComponentData>,
+    components: IndexMap<u8, MAVLinkVehicleComponentData>,
 }
 
 impl MAVLinkVehicleData {
@@ -68,7 +66,7 @@ impl MAVLinkVehicleData {
             .entry(component_id)
             .or_insert(MAVLinkVehicleComponentData {
                 id: component_id,
-                messages: HashMap::new(),
+                messages: IndexMap::new(),
             })
             .update(message);
     }
@@ -77,7 +75,7 @@ impl MAVLinkVehicleData {
 #[derive(Debug, Deserialize, Serialize)]
 struct MAVLinkVehicleComponentData {
     id: u8,
-    messages: HashMap<String, MAVLinkMessageStatus>,
+    messages: IndexMap<String, MAVLinkMessageStatus>,
 }
 
 impl MAVLinkVehicleComponentData {

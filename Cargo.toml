@@ -38,7 +38,7 @@ mavlink-codec = { git = "https://github.com/bluerobotics/rust-mavlink-codec", ha
 regex = { version = "1.10.6", features = ["std", "unicode-perl"] }
 serde = { version = "1", features = ["rc"] }
 serde_derive = "1"
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 serde_urlencoded = "0.7"
 shellexpand = "3.1"
 tokio = { version = "1", features = ["full"] }
