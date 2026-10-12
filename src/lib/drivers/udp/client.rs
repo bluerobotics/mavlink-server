@@ -88,7 +88,6 @@ impl Driver for UdpClient {
     #[instrument(level = "debug", skip(self, hub_sender))]
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let local_addr = "0.0.0.0:0".parse::<SocketAddr>().unwrap();
-        let remote_addr = self.remote_addr.parse::<SocketAddr>()?;
 
         let context = SendReceiveContext {
             direction: self.direction,
@@ -106,6 +105,16 @@ impl Driver for UdpClient {
             } else {
                 interval.tick().await;
             }
+
+            let Some(remote_addr) = tokio::net::lookup_host(&self.remote_addr)
+                .await
+                .inspect_err(|error| error!("Failed resolving {}: {error:?}", self.remote_addr))
+                .into_iter()
+                .flatten()
+                .find(SocketAddr::is_ipv4)
+            else {
+                continue;
+            };
 
             debug!("Trying to bind to address {local_addr:?}...");
 
