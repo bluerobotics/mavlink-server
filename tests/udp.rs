@@ -86,12 +86,11 @@ async fn test_udpserver_send_only() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
 async fn test_udpclient_send_only() -> Result<()> {
     let port = common::pick_free_port();
-    let bind_addr = format!("0.0.0.0:{port}");
 
     cli::init_with(cli::Args::parse_from(vec![
         &std::env::args().next().unwrap_or_default(), // Required dummy argv[0] (program name)
-        &format!("udpclient://{bind_addr}?direction=sender"),
-        &format!("udpserver://{bind_addr}"),
+        &format!("udpclient://localhost:{port}?direction=sender"),
+        &format!("udpserver://0.0.0.0:{port}"),
         "--mavlink-heartbeat-frequency",
         "10",
     ]));
