@@ -1,6 +1,7 @@
 use std::{
     ops::{Deref, DerefMut},
     sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use anyhow::Result;
@@ -11,6 +12,13 @@ use crate::{
     cli,
     mavlink_json::{MAVLinkJSON, MAVLinkJSONHeader},
 };
+
+fn timestamp_micros() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_micros() as u64)
+        .unwrap_or(0)
+}
 
 #[derive(Debug, PartialEq, Serialize)]
 pub struct Protocol {
@@ -24,7 +32,7 @@ impl Protocol {
     pub fn new(origin: impl Into<Arc<str>>, packet: Packet) -> Self {
         Self {
             origin: origin.into(),
-            timestamp: chrono::Utc::now().timestamp_micros() as u64,
+            timestamp: timestamp_micros(),
             packet,
         }
     }
@@ -61,7 +69,7 @@ impl Protocol {
 
         Self {
             origin: origin.into(),
-            timestamp: chrono::Utc::now().timestamp_micros() as u64,
+            timestamp: timestamp_micros(),
             packet,
         }
     }
