@@ -1141,7 +1141,7 @@ fn clear_active_download_if_matches(
     }
 }
 
-fn trigger_browser_download(filename: &str, data: &[u8]) {
+pub(super) fn trigger_browser_download(filename: &str, data: &[u8]) {
     use wasm_bindgen::JsCast;
 
     let window = match web_sys::window() {
