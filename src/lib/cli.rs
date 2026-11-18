@@ -299,6 +299,11 @@ mod tests {
                 true,
             ),
             ("tlogwriter:/tmp/little_potato.tlog", true),
+            ("tlogwriter:///tmp/tlogs_dir/?when=rotate_on_disarm", true),
+            (
+                "tlogwriter:///tmp/little_potato.tlog?when=rotate_on_disarm",
+                false,
+            ),
             ("zenoh://127.0.0.1:7447", true),
             ("zenohraw://127.0.0.1:7447", true),
         ];

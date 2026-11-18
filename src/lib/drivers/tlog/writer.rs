@@ -32,6 +32,9 @@ pub struct TlogWriter {
 pub enum FileCreationCondition {
     WhileArmed(ExpectedOrigin),
     Always,
+    /// Logs continuously like `Always`, but rotates to a new file every time
+    /// the vehicle transitions from armed to disarmed
+    RotateOnDisarm(ExpectedOrigin),
 }
 
 #[derive(Debug, Default)]
@@ -93,6 +96,7 @@ impl TlogWriter {
         mut hub_receiver: broadcast::Receiver<Arc<Protocol>>,
     ) -> Result<()> {
         let mut writer = writer;
+        let mut was_armed = false;
 
         'mainloop: loop {
             let message = match hub_receiver.recv().await {
@@ -123,22 +127,53 @@ impl TlogWriter {
             writer.write_all(raw_bytes).await?;
             writer.flush().await?;
 
-            if let FileCreationCondition::WhileArmed(ExpectedOrigin {
-                system_id,
-                component_id,
-            }) = &self.file_creation_condition
-            {
-                let system_id = system_id.read().await.expect(
+            match &self.file_creation_condition {
+                FileCreationCondition::Always => {}
+                FileCreationCondition::WhileArmed(ExpectedOrigin {
+                    system_id,
+                    component_id,
+                }) => {
+                    let system_id = system_id.read().await.expect(
                             "System ID should always be Some at this point because it was replaced when armed, which is the condition to reach this part",
                         );
 
-                if *message.system_id() != system_id || message.component_id() != component_id {
-                    continue;
-                }
+                    if *message.system_id() != system_id || message.component_id() != component_id {
+                        continue;
+                    }
 
-                if let Some(ArmState::Disarmed) = check_arm_state(&message) {
-                    debug!("Vehicle disarmed, finishing tlog file writer until next arm...");
-                    break;
+                    if let Some(ArmState::Disarmed) = check_arm_state(&message) {
+                        debug!("Vehicle disarmed, finishing tlog file writer until next arm...");
+                        break;
+                    }
+                }
+                FileCreationCondition::RotateOnDisarm(ExpectedOrigin {
+                    system_id,
+                    component_id,
+                }) => {
+                    if message.component_id() != component_id {
+                        continue;
+                    }
+
+                    let Some(arm_state) = check_arm_state(&message) else {
+                        continue;
+                    };
+
+                    let mut expected_system_id = system_id.write().await;
+                    let rotate = should_rotate_on(
+                        &mut expected_system_id,
+                        &mut was_armed,
+                        *message.system_id(),
+                        arm_state,
+                    );
+                    drop(expected_system_id);
+
+                    // The writer is swapped in place, without dropping the hub receiver,
+                    // so no messages are lost while the new file is being created
+                    if rotate {
+                        let file = create_tlog_file(self.path.clone()).await?;
+                        debug!("Vehicle disarmed, rotated to a new tlog file: {file:?}");
+                        writer = BufWriter::with_capacity(1024, file);
+                    }
                 }
             }
         }
@@ -248,6 +283,7 @@ impl DriverInfo for TlogWriterInfo {
             format!("{first_schema}:/tmp/tlogs_output_dir/"),
             format!("{first_schema}:<tmp/tlogs_output_dir>/?when=always"),
             format!("{first_schema}:<tmp/tlogs_output_dir>/?when=while_armed"),
+            format!("{first_schema}:<tmp/tlogs_output_dir>/?when=rotate_on_disarm"),
         ]
     }
 
@@ -264,6 +300,11 @@ impl DriverInfo for TlogWriterInfo {
                 .to_string(),
             url::Url::parse(&format!(
                 "{first_schema}:///tmp/tlogs_output_dir/?when=while_armed"
+            ))
+            .unwrap()
+            .to_string(),
+            url::Url::parse(&format!(
+                "{first_schema}:///tmp/tlogs_output_dir/?when=rotate_on_disarm"
             ))
             .unwrap()
             .to_string(),
@@ -290,14 +331,33 @@ impl DriverInfo for TlogWriterInfo {
                                 component_id: expected_component_id,
                             })
                         }
+                        FileCreationCondition::RotateOnDisarm(_) => {
+                            FileCreationCondition::RotateOnDisarm(ExpectedOrigin {
+                                system_id: RwLock::new(expected_system_id),
+                                component_id: expected_component_id,
+                            })
+                        }
                         other => other,
                     })
                     .ok()
             })
             .unwrap_or(FileCreationCondition::Always);
 
+        let path: PathBuf = url.path().into();
+
+        if matches!(
+            file_creation_condition,
+            FileCreationCondition::RotateOnDisarm(_)
+        ) && path.extension().and_then(|ext| ext.to_str()) == Some("tlog")
+        {
+            warn!(
+                "Invalid tlog writer endpoint {url}: when=rotate_on_disarm requires a directory, not a fixed .tlog file, as each rotation would overwrite the previous log"
+            );
+            return None;
+        }
+
         Some(Arc::new(
-            TlogWriter::builder("TlogWriter", url.path().into(), file_creation_condition).build(),
+            TlogWriter::builder("TlogWriter", path, file_creation_condition).build(),
         ))
     }
 }
@@ -393,9 +453,38 @@ async fn wait_for_arm(
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy)]
 enum ArmState {
     Disarmed,
     Armed,
+}
+
+/// Updates the arm-state tracking for the `rotate_on_disarm` mode, locking onto
+/// the first system that arms when no expected system id is set. Returns whether
+/// the message completed an armed to disarmed transition of the expected origin,
+/// meaning the current file should be rotated
+fn should_rotate_on(
+    expected_system_id: &mut Option<u8>,
+    was_armed: &mut bool,
+    message_system_id: u8,
+    arm_state: ArmState,
+) -> bool {
+    match arm_state {
+        ArmState::Armed => {
+            if *expected_system_id.get_or_insert(message_system_id) == message_system_id {
+                *was_armed = true;
+            }
+            false
+        }
+        ArmState::Disarmed => {
+            if *was_armed && *expected_system_id == Some(message_system_id) {
+                *was_armed = false;
+                true
+            } else {
+                false
+            }
+        }
+    }
 }
 
 /// A performant way of checking if the vehicle is armed without parsing the message into a heartbeat message type (from Mavlink crate)
@@ -417,5 +506,76 @@ fn check_arm_state(message: &Arc<Protocol>) -> Option<ArmState> {
     match base_mode & mavlink::ardupilotmega::MavModeFlag::MAV_MODE_FLAG_SAFETY_ARMED.bits() {
         0 => Some(ArmState::Disarmed),
         _ => Some(ArmState::Armed),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use ArmState::*;
+
+    fn count_rotations(initial_system_id: Option<u8>, sequence: &[(u8, ArmState)]) -> usize {
+        let mut expected_system_id = initial_system_id;
+        let mut was_armed = false;
+
+        sequence
+            .iter()
+            .copied()
+            .filter(|&(system_id, arm_state)| {
+                should_rotate_on(
+                    &mut expected_system_id,
+                    &mut was_armed,
+                    system_id,
+                    arm_state,
+                )
+            })
+            .count()
+    }
+
+    #[test]
+    fn rotates_once_per_arm_disarm_cycle() {
+        assert_eq!(
+            count_rotations(
+                None,
+                &[(1, Armed), (1, Armed), (1, Disarmed), (1, Disarmed)]
+            ),
+            1
+        );
+    }
+
+    #[test]
+    fn rotates_on_every_cycle() {
+        assert_eq!(
+            count_rotations(
+                None,
+                &[(1, Armed), (1, Disarmed), (1, Armed), (1, Disarmed)]
+            ),
+            2
+        );
+    }
+
+    #[test]
+    fn does_not_rotate_without_a_prior_arm() {
+        assert_eq!(count_rotations(None, &[(1, Disarmed), (1, Disarmed)]), 0);
+    }
+
+    #[test]
+    fn locks_onto_the_first_system_that_arms() {
+        // System 2 arms and disarms, but system 1 armed first, so only
+        // system 1's disarm rotates the file
+        assert_eq!(
+            count_rotations(
+                None,
+                &[(1, Armed), (2, Armed), (2, Disarmed), (1, Disarmed)]
+            ),
+            1
+        );
+    }
+
+    #[test]
+    fn ignores_systems_other_than_the_configured_one() {
+        assert_eq!(count_rotations(Some(42), &[(1, Armed), (1, Disarmed)]), 0);
+        assert_eq!(count_rotations(Some(42), &[(42, Armed), (42, Disarmed)]), 1);
     }
 }
