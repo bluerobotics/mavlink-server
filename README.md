@@ -68,6 +68,15 @@ tcpclient://127.0.0.1:5760
 ```bash
 tlogreader://C:/logs/flight.tlog
 ```
+
+### Log file recording:
+```bash
+tlogwriter://C:/logs/flight.tlog                    # single fixed file
+tlogwriter://C:/logs/?when=always                   # auto-named file, logs continuously (default)
+tlogwriter://C:/logs/?when=while_armed              # new file per flight, logs only while armed
+tlogwriter://C:/logs/?when=rotate_on_disarm         # logs continuously, starts a new file on each disarm
+```
+When pointing to a directory, files are auto-named as `<sequence>-<date>_<time>.tlog`. The `rotate_on_disarm` mode requires a directory path, as each rotation would otherwise overwrite the previous log. The `while_armed` and `rotate_on_disarm` modes accept optional `system_id` and `component_id` parameters to select which vehicle's heartbeat controls the file lifecycle.
 Fake MAVLink data (for testing):
 ```bash
 fakesource://?period_us=1000000&system_id=42&component_id=66
