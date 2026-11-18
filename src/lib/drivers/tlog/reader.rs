@@ -1,10 +1,10 @@
 use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};
+use bytes::Bytes;
 use chrono::DateTime;
-use mavlink::ardupilotmega::MavMessage;
-use mavlink_codec::Packet;
-use tokio::sync::{RwLock, broadcast};
+use mavlink_codec::{Packet, v1::V1Packet, v2::V2Packet};
+use tokio::sync::{RwLock, broadcast, mpsc};
 use tracing::*;
 
 use crate::{
@@ -67,63 +67,47 @@ impl TlogReader {
         })
     }
 
-    #[instrument(level = "debug", skip(self, reader, hub_sender))]
+    #[instrument(level = "debug", skip(self, file, hub_sender))]
     async fn handle_file(
         &self,
-        reader: tokio::io::BufReader<tokio::fs::File>,
+        file: std::fs::File,
         hub_sender: broadcast::Sender<Arc<Protocol>>,
     ) -> Result<()> {
         let origin: Arc<str> = Arc::from(self.path.as_path().display().to_string());
 
-        let mut reader = mavlink::async_peek_reader::AsyncPeekReader::new(reader);
-        let mut timestamp_bytes = [0u8; 8];
+        // Tlog files follow the byte format of <unix_timestamp_us><raw_mavlink_messsage>.
+        // mavlink-tlog splits the records (MAVLink 1 and 2, signed or not), checks each
+        // frame's CRC against all.xml and resyncs past damaged bytes. It reads blocking
+        // std::io, so it runs on the blocking pool and hands the frames over a channel.
+        let (record_sender, mut record_receiver) = mpsc::channel::<(u64, Packet)>(1024);
+        let file_reader = tokio::task::spawn_blocking(move || {
+            let mut reader = mavlink_tlog::TlogReader::new(file);
 
-        'mainloop: loop {
-            // Tlog files follow the byte format of <unix_timestamp_us><raw_mavlink_messsage>
-            let bytes = loop {
-                let bytes = reader.peek_exact(9).await?;
-                if bytes[8] == mavlink::MAV_STX_V2 {
-                    break &bytes[..8];
+            while let Some(record) = reader.next_record()? {
+                let bytes = Bytes::copy_from_slice(record.frame.as_bytes());
+                let packet = match record.frame.version() {
+                    mavlink_tlog::Version::V1 => Packet::V1(V1Packet::new(bytes)),
+                    mavlink_tlog::Version::V2 => Packet::V2(V2Packet::new(bytes)),
+                };
+
+                if record_sender
+                    .blocking_send((record.timestamp_us, packet))
+                    .is_err()
+                {
+                    break;
                 }
+            }
 
-                reader.consume(1);
-            };
+            std::io::Result::Ok(reader.stats())
+        });
 
-            let us_since_epoch = {
-                timestamp_bytes.copy_from_slice(bytes);
-                u64::from_be_bytes(timestamp_bytes)
-            };
-
+        'mainloop: while let Some((us_since_epoch, packet)) = record_receiver.recv().await {
             if DateTime::from_timestamp_micros(us_since_epoch as i64).is_none() {
                 warn!("Failed to convert unix time: {us_since_epoch:?}");
-
-                reader.consume(1);
                 continue;
             };
 
-            // Gets the bufferr starting at the magic byte
-            reader.consume(8);
-            assert_eq!(reader.peek_exact(1).await?[0], mavlink::MAV_STX_V2);
-
-            let message =
-                match mavlink::read_v2_raw_message_async::<MavMessage, _>(&mut reader).await {
-                    Ok(message) => Protocol::new_with_timestamp(
-                        us_since_epoch,
-                        Arc::clone(&origin),
-                        Packet::from(message),
-                    ),
-                    Err(error) => {
-                        match error {
-                            mavlink::error::MessageReadError::Io(_) => (),
-                            mavlink::error::MessageReadError::Parse(_) => {
-                                error!("Failed to parse MAVLink message: {error:?}")
-                            }
-                        }
-
-                        continue;
-                    }
-                };
-            reader.consume(message.bytes().len() - 1);
+            let message = Protocol::new_with_timestamp(us_since_epoch, Arc::clone(&origin), packet);
 
             trace!("Parsed message: {:?}", message.bytes());
 
@@ -142,6 +126,18 @@ impl TlogReader {
                 error!("Failed to send message to hub: {error:?}");
             }
         }
+
+        let read_stats = file_reader.await??;
+        if read_stats.skipped_bytes > 0 || read_stats.bad_crc > 0 {
+            warn!(
+                "Skipped damaged data in tlog: {} bytes, {} bad CRCs",
+                read_stats.skipped_bytes, read_stats.bad_crc
+            );
+        }
+        debug!("Finished reading tlog: {read_stats:?}");
+
+        // Same as before: reaching the end of the file ends the run with an EOF error
+        Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof).into())
     }
 }
 
@@ -150,9 +146,8 @@ impl Driver for TlogReader {
     #[instrument(level = "debug", skip(self, hub_sender))]
     async fn run(&self, hub_sender: broadcast::Sender<Arc<Protocol>>) -> Result<()> {
         let file = tokio::fs::File::open(self.path.clone()).await?;
-        let reader = tokio::io::BufReader::with_capacity(1024, file);
 
-        TlogReader::handle_file(self, reader, hub_sender).await
+        TlogReader::handle_file(self, file.into_std().await, hub_sender).await
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -236,7 +231,7 @@ mod tests {
     use std::{collections::BTreeMap, str::FromStr};
 
     use anyhow::Result;
-    use mavlink::{MavFrame, error::ParserError};
+    use mavlink::{MavFrame, ardupilotmega::MavMessage, error::ParserError};
     use tokio::sync::RwLock;
 
     use super::*;
@@ -276,9 +271,9 @@ mod tests {
             async move { driver.run(sender).await }
         });
 
-        // let file_v1_messages = 2; // TODO:  Add support for V1 messages
+        let file_v1_messages = 2;
         let file_v2_messages = 30437;
-        let file_messages = file_v2_messages;
+        let file_messages = file_v1_messages + file_v2_messages;
         let mut total_messages_read = 0;
         let timeout_time = tokio::time::Duration::from_secs(30);
         let res = tokio::time::timeout(timeout_time, async {
@@ -321,10 +316,16 @@ mod tests {
             .iter()
             .cloned()
             .map(|message| {
-                let parsed_message = mavlink::MavFrame::<MavMessage>::deser(
-                    mavlink::MavlinkVersion::V2,
-                    &message.bytes()[4..],
-                );
+                let parsed_message = match **message {
+                    Packet::V1(_) => mavlink::MavFrame::<MavMessage>::deser(
+                        mavlink::MavlinkVersion::V1,
+                        &message.bytes()[2..],
+                    ),
+                    Packet::V2(_) => mavlink::MavFrame::<MavMessage>::deser(
+                        mavlink::MavlinkVersion::V2,
+                        &message.bytes()[4..],
+                    ),
+                };
 
                 (message.timestamp, parsed_message)
             })
@@ -361,6 +362,80 @@ mod tests {
         );
 
         receiver_task_handle.abort();
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn read_mavlink_v1_messages() -> Result<()> {
+        // A tlog with only MAVLink 1 frames, as older ground stations write them
+        let first_timestamp = 1_713_811_747_000_000u64;
+        let messages = 5u8;
+        let mut tlog = Vec::new();
+        for sequence in 0..messages {
+            let header = mavlink::MavHeader {
+                system_id: 1,
+                component_id: 1,
+                sequence,
+            };
+            let message = MavMessage::HEARTBEAT(mavlink::ardupilotmega::HEARTBEAT_DATA::default());
+            let mut message_raw = mavlink::MAVLinkV1MessageRaw::new();
+            message_raw.serialize_message(header, &message);
+
+            tlog.extend_from_slice(&(first_timestamp + sequence as u64 * 1_000_000).to_be_bytes());
+            tlog.extend_from_slice(message_raw.raw_bytes());
+        }
+
+        let path = std::env::temp_dir().join(format!(
+            "mavlink-server-v1-test-{}.tlog",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(&path, &tlog)?;
+
+        let (sender, _receiver) = tokio::sync::broadcast::channel(100);
+        let messages_received = Arc::new(RwLock::new(Vec::<Arc<Protocol>>::new()));
+
+        let driver = TlogReader::builder("test", path.clone())
+            .on_message_input({
+                let messages_received = messages_received.clone();
+                move |message: Arc<Protocol>| {
+                    let messages_received = messages_received.clone();
+                    async move {
+                        messages_received.write().await.push(message);
+                        Ok(())
+                    }
+                }
+            })
+            .build();
+
+        let receiver_task_handle = tokio::spawn(async move { driver.run(sender).await });
+
+        let res = tokio::time::timeout(tokio::time::Duration::from_secs(5), async {
+            while messages_received.read().await.len() < messages as usize {
+                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+            }
+        })
+        .await;
+
+        receiver_task_handle.abort();
+        std::fs::remove_file(&path)?;
+
+        res.expect("Timeout: MAVLink 1 messages were not read");
+
+        let messages_received = messages_received.read().await;
+        assert_eq!(messages_received.len(), messages as usize);
+        for (sequence, message) in messages_received.iter().enumerate() {
+            assert!(matches!(***message, Packet::V1(_)));
+            assert_eq!(*message.sequence(), sequence as u8);
+            assert_eq!(message.message_id(), 0);
+            assert_eq!(
+                message.timestamp,
+                first_timestamp + sequence as u64 * 1_000_000
+            );
+
+            let (_header, parsed) = message.to_mavlink::<MavMessage>().await?;
+            assert!(matches!(parsed, MavMessage::HEARTBEAT(_)));
+        }
 
         Ok(())
     }
