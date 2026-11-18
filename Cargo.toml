@@ -35,6 +35,7 @@ json5 = "0.4.1"
 lazy_static = "1.5.0"
 mavlink = { version = "0.16.1", features = ["std", "ardupilotmega", "emit-extensions", "format-generated-code", "serde", "tokio-1"] }
 mavlink-codec = { git = "https://github.com/bluerobotics/rust-mavlink-codec", hash = "04cb141" }
+mavlink-tlog = "0.1.1"
 regex = { version = "1.10.6", features = ["std", "unicode-perl"] }
 serde = { version = "1", features = ["rc"] }
 serde_derive = "1"
