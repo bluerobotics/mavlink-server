@@ -267,6 +267,7 @@ jobs:
           fetch-tags: true
 
       - name: Configure sccache
+        if: ${{ !contains(matrix.TARGET, 'windows') }}
         uses: actions/github-script@v9.0.0
         with:
           script: |
@@ -274,10 +275,12 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - uses: mozilla-actions/sccache-action@v0.0.10
+        if: ${{ !contains(matrix.TARGET, 'windows') }}
         with:
           disable_annotations: true
 
       - name: Export sccache environment
+        if: ${{ !contains(matrix.TARGET, 'windows') }}
         shell: bash
         run: |
           SCCACHE_DIR="${SCCACHE_DIR:-$HOME/.cache/sccache}"
@@ -328,6 +331,7 @@ jobs:
 
       - name: Building non linux for ${{ matrix.TARGET }}
         if: ${{ !contains(matrix.TARGET, 'linux') }}
+        shell: bash
         run: |
           cargo build --release --locked --target ${{ matrix.TARGET }} --verbose
           bash .github/sccache-summary.sh
