@@ -328,6 +328,7 @@ jobs:
 
       - name: Building non linux for ${{ matrix.TARGET }}
         if: ${{ !contains(matrix.TARGET, 'linux') }}
+        shell: bash
         run: |
           cargo build --release --locked --target ${{ matrix.TARGET }} --verbose
           bash .github/sccache-summary.sh
