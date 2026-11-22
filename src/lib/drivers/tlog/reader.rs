@@ -105,13 +105,9 @@ impl TlogReader {
             reader.consume(8);
             assert_eq!(reader.peek_exact(1).await?[0], mavlink::MAV_STX_V2);
 
-            let message =
+            let raw_message =
                 match mavlink::read_v2_raw_message_async::<MavMessage, _>(&mut reader).await {
-                    Ok(message) => Protocol::new_with_timestamp(
-                        us_since_epoch,
-                        Arc::clone(&origin),
-                        Packet::from(message),
-                    ),
+                    Ok(raw_message) => raw_message,
                     Err(error) => {
                         match error {
                             mavlink::error::MessageReadError::Io(_) => (),
@@ -123,6 +119,25 @@ impl TlogReader {
                         continue;
                     }
                 };
+
+            // read_v2_raw_message_async returns the frame without verifying its
+            // checksum, so a spurious MAV_STX_V2 inside a payload or a damaged
+            // frame would be replayed downstream as a real message. Check the
+            // frame against the CRC_EXTRA of the known messages and drop it when
+            // it does not match, resyncing on the next start byte.
+            if let Err(error) = mavlink_tlog::FrameRef::parse(
+                raw_message.raw_bytes(),
+                mavlink_tlog::CrcPolicy::Lenient,
+            ) {
+                warn!("Dropping damaged tlog frame: {error}");
+                continue;
+            }
+
+            let message = Protocol::new_with_timestamp(
+                us_since_epoch,
+                Arc::clone(&origin),
+                Packet::from(raw_message),
+            );
             reader.consume(message.bytes().len() - 1);
 
             trace!("Parsed message: {:?}", message.bytes());
@@ -361,6 +376,81 @@ mod tests {
         );
 
         receiver_task_handle.abort();
+
+        Ok(())
+    }
+
+    // A tlog whose second frame has a corrupted payload (so its checksum no
+    // longer matches) must replay only the one intact frame. Without the
+    // CRC_EXTRA check the raw reader would hand the damaged frame downstream as
+    // if it were real.
+    #[tokio::test]
+    async fn drops_crc_damaged_frame() -> Result<()> {
+        use std::io::Write;
+
+        fn tlog_record(frame: &[u8]) -> Vec<u8> {
+            let mut record = 1_700_000_000_000_000u64.to_be_bytes().to_vec();
+            record.extend_from_slice(frame);
+            record
+        }
+
+        let header = mavlink::MavHeader {
+            system_id: 1,
+            component_id: 1,
+            sequence: 0,
+        };
+        let heartbeat = MavMessage::HEARTBEAT(mavlink::ardupilotmega::HEARTBEAT_DATA::default());
+
+        let mut raw = mavlink::MAVLinkV2MessageRaw::new();
+        raw.serialize_message(header, &heartbeat);
+        let good_frame = raw.raw_bytes().to_vec();
+
+        // Flip one payload byte; the frame stays structurally valid but its
+        // checksum no longer matches.
+        let mut damaged_frame = good_frame.clone();
+        let payload_start = 1 + 9; // MAV_STX_V2 + 9-byte v2 header
+        damaged_frame[payload_start] ^= 0xFF;
+
+        let mut bytes = tlog_record(&good_frame);
+        bytes.extend_from_slice(&tlog_record(&damaged_frame));
+
+        let dir = std::env::temp_dir().join("mavlink-server-crc-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let tlog_path = dir.join(format!("crc-{}.tlog", std::process::id()));
+        std::fs::File::create(&tlog_path)?.write_all(&bytes)?;
+
+        let (sender, _receiver) = tokio::sync::broadcast::channel(1024);
+        let received = Arc::new(RwLock::new(Vec::<Arc<Protocol>>::new()));
+
+        let driver = TlogReader::builder("test", tlog_path.clone())
+            .on_message_input({
+                let received = received.clone();
+                move |message: Arc<Protocol>| {
+                    let received = received.clone();
+                    async move {
+                        received.write().await.push(message);
+                        Ok(())
+                    }
+                }
+            })
+            .build();
+
+        let handle = tokio::spawn(async move { driver.run(sender).await });
+
+        // The reader loops forever waiting for more frames, so give it a moment
+        // to consume both records, then stop it.
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        handle.abort();
+
+        let received = received.read().await;
+        assert_eq!(
+            received.len(),
+            1,
+            "expected only the intact frame, got {} messages",
+            received.len()
+        );
+
+        std::fs::remove_file(&tlog_path).ok();
 
         Ok(())
     }

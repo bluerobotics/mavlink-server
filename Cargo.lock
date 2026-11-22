@@ -2462,6 +2462,7 @@ dependencies = [
  "lazy_static",
  "mavlink",
  "mavlink-codec",
+ "mavlink-tlog",
  "mime_guess",
  "once_cell",
  "regex",
@@ -2491,6 +2492,12 @@ dependencies = [
  "vergen-gix",
  "zenoh",
 ]
+
+[[package]]
+name = "mavlink-tlog"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56dc10e28f28477a20b62fd7c248a36e34d3ea0a0aa9264d854372e18c0718a9"
 
 [[package]]
 name = "memchr"
